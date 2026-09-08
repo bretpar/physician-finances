@@ -599,7 +599,7 @@ export default function Transactions() {
       k1TaxTreatment: selectedIncomeCompany?.k1TaxTreatment ?? null,
       isSelfEmploymentTaxable: isSelfEmploymentTaxableOverride,
     });
-  }, [grossIncome, effectiveIncomeType, incomeForm.taxes_withheld, incomeForm.retirement_401k, incomeForm.pre_tax_deductions, incomeForm.healthcare_deduction, incomeForm.hsa_contribution, getRecommendation, selectedIncomeCompany, isSelfEmploymentTaxableOverride, incomeEntryIsFutureOpportunity]);
+  }, [grossIncome, effectiveIncomeType, incomeForm.taxes_withheld, incomeForm.retirement_401k, incomeForm.employer_retirement_contribution, incomeForm.pre_tax_deductions, incomeForm.healthcare_deduction, incomeForm.hsa_contribution, getRecommendation, selectedIncomeCompany, isSelfEmploymentTaxableOverride, incomeEntryIsFutureOpportunity]);
 
   const recommendedWithholding = recommendation?.recommendedWithholding ?? 0;
   /**
