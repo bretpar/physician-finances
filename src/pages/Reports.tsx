@@ -393,7 +393,9 @@ export default function Reports() {
     const homeOfficeTotal = homeOfficeDeductions
       .filter((d) => d.include_in_tax_calculation && d.status === "active")
       .reduce((s, d) => s + Number(d.allowed_amount || 0), 0);
-    const retirement401k = Number(taxYear) === currentYear ? annualizedRetirement.total : 0;
+    // Only employee pre-tax money is a personal deduction: employer-funded
+    // contributions and Roth/Traditional IRA amounts are excluded.
+    const retirement401k = Number(taxYear) === currentYear ? annualizedRetirement.employeeTotal : 0;
     return {
       hsa: hsaSummary.total,
       hsaEmployeePayroll: hsaSummary.payrollEmployee,
