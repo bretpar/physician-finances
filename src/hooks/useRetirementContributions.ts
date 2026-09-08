@@ -110,6 +110,8 @@ export function useRetirementContributions() {
         ...c,
         contribution_type: c.contribution_type || "employee",
         company_id: c.company_id ?? null,
+        // Legacy rows without the dedicated column fall back to start_date.
+        contribution_date: c.contribution_date || c.start_date,
       }));
     },
   });
