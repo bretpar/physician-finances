@@ -393,7 +393,9 @@ export default function Reports() {
     const homeOfficeTotal = homeOfficeDeductions
       .filter((d) => d.include_in_tax_calculation && d.status === "active")
       .reduce((s, d) => s + Number(d.allowed_amount || 0), 0);
-    const retirement401k = Number(taxYear) === currentYear ? annualizedRetirement.total : 0;
+    // Only employee pre-tax money is a personal deduction: employer-funded
+    // contributions and Roth/Traditional IRA amounts are excluded.
+    const retirement401k = Number(taxYear) === currentYear ? annualizedRetirement.employeeTotal : 0;
     return {
       hsa: hsaSummary.total,
       hsaEmployeePayroll: hsaSummary.payrollEmployee,
@@ -407,7 +409,7 @@ export default function Reports() {
       homeOffice: homeOfficeTotal,
       retirement401k,
     };
-  }, [hsaRows, incomeEntries, homeOfficeDeductions, taxData.mileageDeduction, annualizedRetirement.total, taxYear, currentYear, taxSettings?.hsaCoverageType, taxSettings?.hsaAge55Catchup]);
+  }, [hsaRows, incomeEntries, homeOfficeDeductions, taxData.mileageDeduction, annualizedRetirement.employeeTotal, taxYear, currentYear, taxSettings?.hsaCoverageType, taxSettings?.hsaAge55Catchup]);
 
   // ──── Tax Summary (Section 4) ────
   const taxSummary = useMemo(() => {

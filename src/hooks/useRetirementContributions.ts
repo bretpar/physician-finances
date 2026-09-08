@@ -238,6 +238,8 @@ export function annualizeContributionAmount(c: {
 
 export function useAnnualizedContributions(
   contributions: RetirementContribution[] | undefined,
+  /** Tax year the totals apply to. One-time rows outside it are excluded. */
+  taxYear?: number,
 ): AnnualizedContributions {
   return useMemo(() => {
     const empty: AnnualizedContributions = {
@@ -248,13 +250,19 @@ export function useAnnualizedContributions(
     if (!contributions || contributions.length === 0) return empty;
 
     const today = new Date().toISOString().split("T")[0];
+    const year = taxYear ?? new Date().getFullYear();
     const out: AnnualizedContributions = { ...empty, byCompany: new Map() };
 
     for (const c of contributions) {
-      // One-time contributions are historical facts and always count.
       const recurring = c.frequency !== "one_time";
       if (recurring && c.end_date && c.end_date < today) continue;
       if (recurring && c.start_date > today) continue;
+      // One-time rows belong to the year of their contribution date only.
+      if (!recurring) {
+        const d = c.contribution_date || c.start_date;
+        if (!d || Number(String(d).slice(0, 4)) !== year) continue;
+      }
+
 
       const { annual, perPaycheck } = annualizeContributionAmount(c);
       const type = c.contribution_type || "employee";
@@ -292,5 +300,5 @@ export function useAnnualizedContributions(
     }
 
     return out;
-  }, [contributions]);
+  }, [contributions, taxYear]);
 }
