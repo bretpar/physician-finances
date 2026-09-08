@@ -531,6 +531,7 @@ export default function Mileage() {
       company_id: c.company_id || "",
       contribution_amount: String(c.contribution_amount),
       frequency: c.frequency,
+      contribution_date: c.contribution_date || c.start_date,
       start_date: c.start_date,
       end_date: c.end_date || "",
       employer_match: String(c.employer_match),
