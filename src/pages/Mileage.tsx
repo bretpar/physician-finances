@@ -478,6 +478,10 @@ export default function Mileage() {
   }
 
   // ─── Retirement helpers ───────────────────────
+  // Employer/business-sponsored plans belong to a specific company; IRAs never do.
+  const contribRequiresCompany =
+    isEmployerSponsoredPlan(contribForm.account_type) && !isIraPlan(contribForm.account_type);
+
   const setContribField = (key: keyof ContribForm, value: string | boolean) =>
     setContribForm((p) => ({ ...p, [key]: value }));
 
@@ -1055,9 +1059,9 @@ export default function Mileage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Account Type</TableHead>
+                      <TableHead>Plan</TableHead>
                       <TableHead className="text-right whitespace-nowrap">Amount</TableHead>
-                      <TableHead className="hidden sm:table-cell">Frequency</TableHead>
+                      <TableHead className="hidden sm:table-cell">Date</TableHead>
                       <TableHead className="text-right whitespace-nowrap hidden md:table-cell">Annual</TableHead>
                       <TableHead className="text-right whitespace-nowrap hidden lg:table-cell">Employer Match</TableHead>
                       <TableHead className="hidden md:table-cell">Withholding</TableHead>
@@ -1074,12 +1078,25 @@ export default function Mileage() {
                     ) : (
                       contributions.map((c) => {
                         const amt = Number(c.contribution_amount);
-                        const annual = c.frequency === "per_paycheck" ? amt * 26 : c.frequency === "monthly" ? amt * 12 : amt;
+                        const annual = annualizeContributionAmount(c).annual;
+                        const companyName = c.company_id
+                          ? companies.find((co) => co.id === c.company_id)?.name || null
+                          : null;
                         return (
                           <TableRow key={c.id}>
-                            <TableCell className="font-medium"><span className="block truncate">{getAccountLabel(c.account_type)}</span></TableCell>
+                            <TableCell className="font-medium">
+                              <span className="block truncate">
+                                {getAccountLabel(c.account_type)} · {getContributionTypeLabel(c.contribution_type)}
+                              </span>
+                              <span className="block truncate text-xs font-normal text-muted-foreground">
+                                {companyName || (isIraPlan(c.account_type) ? "Personal" : "No company")}
+                              </span>
+                            </TableCell>
                             <TableCell className="text-right tabular-nums whitespace-nowrap">{fmt(amt)}</TableCell>
-                            <TableCell className="hidden sm:table-cell"><Badge variant="outline">{getFreqLabel(c.frequency)}</Badge></TableCell>
+                            <TableCell className="hidden sm:table-cell">
+                              <span className="block whitespace-nowrap">{c.start_date}</span>
+                              <Badge variant="outline" className="mt-1">{getFreqLabel(c.frequency)}</Badge>
+                            </TableCell>
                             <TableCell className="text-right tabular-nums whitespace-nowrap font-medium hidden md:table-cell">{fmt(annual)}</TableCell>
                             <TableCell className="text-right tabular-nums whitespace-nowrap text-muted-foreground hidden lg:table-cell">{Number(c.employer_match) > 0 ? fmt(Number(c.employer_match)) : "—"}</TableCell>
                             <TableCell className="hidden md:table-cell">
