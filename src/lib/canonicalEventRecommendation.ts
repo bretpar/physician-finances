@@ -263,8 +263,14 @@ export function computeCanonicalEventRecommendation(
     0,
     gross - pos(input.retirement401k) - pos(input.preTaxDeductions),
   );
-  const preferentialAmount = Math.min(pos(input.preferentialAmount), netTaxableForEntry);
-  const ordinaryTaxBase = Math.max(0, netTaxableForEntry - preferentialAmount);
+  // Employer Solo 401(k) money reduces federal taxable income but NOT the SE
+  // tax base, so it is applied only to the federal / ordinary base below.
+  const federalTaxableForEntry = Math.max(
+    0,
+    netTaxableForEntry - (isW2 ? 0 : pos(input.employerRetirement401k)),
+  );
+  const preferentialAmount = Math.min(pos(input.preferentialAmount), federalTaxableForEntry);
+  const ordinaryTaxBase = Math.max(0, federalTaxableForEntry - preferentialAmount);
 
   const settings = input.taxSettings ?? {};
   const profile = getSelectedWithholdingProfileRate({
