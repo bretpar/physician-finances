@@ -82,6 +82,8 @@ interface ContribForm {
   company_id: string;
   contribution_amount: string;
   frequency: string;
+  /** Semantic contribution date (authoritative for one-time entries). */
+  contribution_date: string;
   start_date: string;
   end_date: string;
   employer_match: string;
