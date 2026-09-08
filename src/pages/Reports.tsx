@@ -409,7 +409,7 @@ export default function Reports() {
       homeOffice: homeOfficeTotal,
       retirement401k,
     };
-  }, [hsaRows, incomeEntries, homeOfficeDeductions, taxData.mileageDeduction, annualizedRetirement.total, taxYear, currentYear, taxSettings?.hsaCoverageType, taxSettings?.hsaAge55Catchup]);
+  }, [hsaRows, incomeEntries, homeOfficeDeductions, taxData.mileageDeduction, annualizedRetirement.employeeTotal, taxYear, currentYear, taxSettings?.hsaCoverageType, taxSettings?.hsaAge55Catchup]);
 
   // ──── Tax Summary (Section 4) ────
   const taxSummary = useMemo(() => {
