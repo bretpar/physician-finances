@@ -86,6 +86,8 @@ export interface RetirementContribution {
   company_id: string | null;
   contribution_amount: number;
   frequency: string;
+  /** Semantic date of the contribution (authoritative for one-time entries). */
+  contribution_date: string;
   start_date: string;
   end_date: string | null;
   employer_match: number;
