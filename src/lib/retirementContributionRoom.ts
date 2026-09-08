@@ -269,3 +269,60 @@ export function sumRemainingPlannedIncomeByCompany(
   }
   return map;
 }
+
+/* ── IRA contribution tracking (separate from the 401(k) limits) ────────── */
+
+export interface IraYearLimits {
+  /** §219 annual IRA contribution limit (Traditional + Roth combined). */
+  contribution: number;
+  /** Age-50+ IRA catch-up. */
+  catchUp50: number;
+}
+
+export const IRA_LIMITS_BY_YEAR: Record<number, IraYearLimits> = {
+  2024: { contribution: 7_000, catchUp50: 1_000 },
+  2025: { contribution: 7_000, catchUp50: 1_000 },
+  2026: { contribution: 7_500, catchUp50: 1_100 },
+};
+
+const LATEST_IRA_YEAR = Math.max(...Object.keys(IRA_LIMITS_BY_YEAR).map(Number));
+
+export function getIraContributionLimit(
+  taxYear: number,
+  dateOfBirth?: string | Date | null,
+): number {
+  const limits = IRA_LIMITS_BY_YEAR[taxYear] ?? IRA_LIMITS_BY_YEAR[LATEST_IRA_YEAR];
+  const age = ageAttainedInTaxYear(dateOfBirth, taxYear);
+  return limits.contribution + (age != null && age >= 50 ? limits.catchUp50 : 0);
+}
+
+export interface IraRoomSummary {
+  traditionalTotal: number;
+  rothTotal: number;
+  combinedTotal: number;
+  limit: number;
+  remainingRoom: number;
+}
+
+/**
+ * IRA contributions share ONE combined annual limit and never touch the
+ * 401(k) elective-deferral bucket.
+ */
+export function computeIraRoom(input: {
+  taxYear: number;
+  traditionalTotal: number;
+  rothTotal: number;
+  dateOfBirth?: string | Date | null;
+}): IraRoomSummary {
+  const traditionalTotal = nonNeg(input.traditionalTotal);
+  const rothTotal = nonNeg(input.rothTotal);
+  const combinedTotal = traditionalTotal + rothTotal;
+  const limit = getIraContributionLimit(input.taxYear, input.dateOfBirth);
+  return {
+    traditionalTotal,
+    rothTotal,
+    combinedTotal,
+    limit,
+    remainingRoom: Math.max(0, limit - combinedTotal),
+  };
+}
