@@ -158,6 +158,8 @@ export function useUpdateRetirementContribution() {
     mutationFn: async ({ id, ...updates }: Partial<RetirementContribution> & { id: string }) => {
       const patch: any = { ...updates };
       if (patch.account_type && isIraPlan(patch.account_type)) patch.company_id = null;
+      // One-time entries keep start_date aligned with the semantic date.
+      if (patch.contribution_date && !patch.start_date) patch.start_date = patch.contribution_date;
       const { error } = await supabase
         .from("retirement_contributions" as any)
         .update(patch)
