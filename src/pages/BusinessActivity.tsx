@@ -591,6 +591,7 @@ export default function Transactions() {
       incomeType: effectiveIncomeType,
       taxesAlreadyWithheld: num(incomeForm.taxes_withheld),
       retirement401k: num(incomeForm.retirement_401k),
+      employerRetirement401k: num(incomeForm.employer_retirement_contribution),
       preTaxDeductions: num(incomeForm.pre_tax_deductions) + num(incomeForm.healthcare_deduction) + num(incomeForm.hsa_contribution),
       companyId: selectedIncomeCompany?.id ?? null,
       applyBusinessStateTax: selectedIncomeCompany?.applyBusinessStateTax ?? true,
@@ -598,7 +599,7 @@ export default function Transactions() {
       k1TaxTreatment: selectedIncomeCompany?.k1TaxTreatment ?? null,
       isSelfEmploymentTaxable: isSelfEmploymentTaxableOverride,
     });
-  }, [grossIncome, effectiveIncomeType, incomeForm.taxes_withheld, incomeForm.retirement_401k, incomeForm.pre_tax_deductions, incomeForm.healthcare_deduction, incomeForm.hsa_contribution, getRecommendation, selectedIncomeCompany, isSelfEmploymentTaxableOverride, incomeEntryIsFutureOpportunity]);
+  }, [grossIncome, effectiveIncomeType, incomeForm.taxes_withheld, incomeForm.retirement_401k, incomeForm.employer_retirement_contribution, incomeForm.pre_tax_deductions, incomeForm.healthcare_deduction, incomeForm.hsa_contribution, getRecommendation, selectedIncomeCompany, isSelfEmploymentTaxableOverride, incomeEntryIsFutureOpportunity]);
 
   const recommendedWithholding = recommendation?.recommendedWithholding ?? 0;
   /**
@@ -865,6 +866,7 @@ export default function Transactions() {
             federalWithheld: effectiveWithheld,
             stateWithheld: applicableStateWH,
             retirement401k: retirement,
+            employerRetirement401k: employerRetirement,
             preTaxDeductions: preTaxDed + healthcare + hsa,
             companyId: selectedIncomeCompany?.id ?? null,
             applyBusinessStateTax: selectedIncomeCompany?.applyBusinessStateTax ?? true,
@@ -983,6 +985,7 @@ export default function Transactions() {
         federalWithheld: taxWithheld,
         stateWithheld: applicableStateWH,
         retirement401k: retirement,
+        employerRetirement401k: employerRetirement,
         preTaxDeductions: preTaxDed + healthcare + hsa,
         companyId: selectedIncomeCompany?.id ?? null,
         applyBusinessStateTax: selectedIncomeCompany?.applyBusinessStateTax ?? true,

@@ -315,7 +315,18 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         businessNonW2HsaAboveLine += hsa;
       }
     }
-    const businessRetirement = linkedEntries.reduce((s, e) => s + Number(e.retirement_401k || 0), 0);
+    // Employee AND employer (Solo 401(k) profit-sharing) contributions are both
+    // above-the-line business retirement deductions for non-W-2 sources. W-2
+    // employer contributions are already excluded from wages, so they are not
+    // deducted a second time.
+    const businessRetirement = linkedEntries.reduce((s, e) => {
+      const filing = normalizeFilingType((e as any).income_type);
+      const isW2Entry = filing === "w2" || filing === "scorp_w2";
+      const employerRetirement = isW2Entry
+        ? 0
+        : Number((e as any).employer_retirement_contribution || 0);
+      return s + Number(e.retirement_401k || 0) + employerRetirement;
+    }, 0);
     const ownerHealthcare = linkedEntries
       .filter((e) => normalizeFilingType(e.income_type) === "k1_partnership")
       .reduce((s, e) => s + Number((e as any).healthcare_deduction || 0), 0);

@@ -84,6 +84,8 @@ interface RecommendationInput {
   federalWithheld: number;
   stateWithheld: number;
   retirement401k: number;
+  /** Employer Solo 401(k) — federal deduction only, never reduces SE tax base. */
+  employerRetirement401k?: number;
   preTaxDeductions: number;
   /** Employee SS+Medicare included in `federalWithheld`; excluded from credit. */
   ficaWithheldNotCredited?: number;
@@ -222,6 +224,7 @@ export function useIncomeRecommendation() {
         incomeBucket: resolvedBucket,
         grossIncome,
         retirement401k,
+        employerRetirement401k: input.employerRetirement401k,
         preTaxDeductions,
         companyId,
         applyBusinessStateTax,
