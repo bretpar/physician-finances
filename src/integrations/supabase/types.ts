@@ -1360,7 +1360,9 @@ export type Database = {
         Row: {
           account_type: string
           apply_to_withholding: boolean
+          company_id: string | null
           contribution_amount: number
+          contribution_type: string
           created_at: string
           employer_match: number
           end_date: string | null
@@ -1375,7 +1377,9 @@ export type Database = {
         Insert: {
           account_type?: string
           apply_to_withholding?: boolean
+          company_id?: string | null
           contribution_amount?: number
+          contribution_type?: string
           created_at?: string
           employer_match?: number
           end_date?: string | null
@@ -1390,7 +1394,9 @@ export type Database = {
         Update: {
           account_type?: string
           apply_to_withholding?: boolean
+          company_id?: string | null
           contribution_amount?: number
+          contribution_type?: string
           created_at?: string
           employer_match?: number
           end_date?: string | null
@@ -1403,6 +1409,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "retirement_contributions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "retirement_contributions_organization_id_fkey"
             columns: ["organization_id"]
