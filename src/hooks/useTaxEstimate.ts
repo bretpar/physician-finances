@@ -898,7 +898,9 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         longTermCapitalGains,
         businessExpenses: businessExpenses + homeOfficeDeduction + forecastBusinessExpenses + cu.business.expenses,
         mileageDeduction,
-        annualizedRetirement: incomeScope === "actualPlusPlanned" ? annualizedRetirement.total : 0,
+        // Only pre-tax plan money is deductible: Roth IRA never is, and
+        // Traditional IRA deductibility is not modeled, so it is tracked only.
+        annualizedRetirement: incomeScope === "actualPlusPlanned" ? annualizedRetirement.deductibleTotal : 0,
         txActualWithholding,
         actualEstimatedPaymentsMade: quarterlyPaid,
         taxSavingsSetAside: savingsTotal,
