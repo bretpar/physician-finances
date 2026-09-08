@@ -41,7 +41,9 @@ import { useHomeOfficeDeductions, useSaveHomeOfficeDeduction, useDeleteHomeOffic
 import {
   useRetirementContributions, useAddRetirementContribution, useUpdateRetirementContribution,
   useDeleteRetirementContribution, useAnnualizedContributions,
-  ACCOUNT_TYPES, FREQUENCIES,
+  ACCOUNT_TYPES, FREQUENCIES, CONTRIBUTION_TYPES,
+  isIraPlan, isEmployerSponsoredPlan, getAccountTypeLabel, getContributionTypeLabel,
+  annualizeContributionAmount,
   type RetirementContribution,
 } from "@/hooks/useRetirementContributions";
 import { useCompanies } from "@/contexts/CompanyContext";
@@ -62,6 +64,7 @@ import {
 } from "@/hooks/useProjectedIncome";
 import {
   computeEmployeeContributionRoom, computePlanCapacities, sumRemainingPlannedIncomeByCompany,
+  computeIraRoom,
   type PlanInput,
 } from "@/lib/retirementContributionRoom";
 import { RetirementRoomSummary } from "@/components/retirement/RetirementRoomSummary";
@@ -75,6 +78,8 @@ const num = (v: string) => parseFloat(v) || 0;
 // ─── Retirement Contribution Form ───────────────────────────
 interface ContribForm {
   account_type: string;
+  contribution_type: string;
+  company_id: string;
   contribution_amount: string;
   frequency: string;
   start_date: string;
@@ -104,8 +109,10 @@ const emptyHomeOfficeForm = (): HomeOfficeForm => ({
 
 const emptyContribForm: ContribForm = {
   account_type: "401k",
+  contribution_type: "employee",
+  company_id: "",
   contribution_amount: "",
-  frequency: "per_paycheck",
+  frequency: "one_time",
   start_date: new Date().toISOString().split("T")[0],
   end_date: "",
   employer_match: "",
@@ -328,7 +335,8 @@ export default function Mileage() {
     const employeeRoom = computeEmployeeContributionRoom({
       taxYear: currentYear,
       employeeContributions: [
-        annualized.total,
+        // Only employee elective deferrals — employer money and IRAs excluded.
+        annualized.employeeDeferralTotal,
         ...Array.from(perCompany.values()).map((r) => r.employee),
       ],
       // Age-based catch-up (50+, and the higher 60–63 band) comes from the
@@ -346,6 +354,15 @@ export default function Mileage() {
       currentYear,
       new Date().toISOString().split("T")[0],
     );
+
+    // Fold standalone company-linked contributions into the same per-company
+    // buckets so they are counted exactly once.
+    for (const [companyId, rec] of annualized.byCompany.entries()) {
+      const existing = perCompany.get(companyId) || { employee: 0, employer: 0, wages: 0 };
+      existing.employee += rec.employee;
+      existing.employer += rec.employer;
+      perCompany.set(companyId, existing);
+    }
 
     const planInputs: PlanInput[] = Array.from(perCompany.entries())
       .filter(([, r]) => r.employee > 0 || r.employer > 0)
@@ -373,8 +390,14 @@ export default function Mileage() {
 
     const plans = computePlanCapacities(currentYear, planInputs);
     const employerContributionTotal = plans.reduce((s, p) => s + p.employerContribution, 0);
-    return { employeeRoom, plans, employerContributionTotal };
-  }, [incomeEntries, currentYear, annualized.total, companies, availableProfitByCompany, plannerOccurrences, hasPlannerAccess, taxSettings?.dateOfBirth]);
+    const iraRoom = computeIraRoom({
+      taxYear: currentYear,
+      traditionalTotal: annualized.traditionalIraTotal,
+      rothTotal: annualized.rothIraTotal,
+      dateOfBirth: taxSettings?.dateOfBirth ?? null,
+    });
+    return { employeeRoom, plans, employerContributionTotal, iraRoom };
+  }, [incomeEntries, currentYear, annualized, companies, availableProfitByCompany, plannerOccurrences, hasPlannerAccess, taxSettings?.dateOfBirth]);
 
 
 
@@ -455,6 +478,10 @@ export default function Mileage() {
   }
 
   // ─── Retirement helpers ───────────────────────
+  // Employer/business-sponsored plans belong to a specific company; IRAs never do.
+  const contribRequiresCompany =
+    isEmployerSponsoredPlan(contribForm.account_type) && !isIraPlan(contribForm.account_type);
+
   const setContribField = (key: keyof ContribForm, value: string | boolean) =>
     setContribForm((p) => ({ ...p, [key]: value }));
 
@@ -467,8 +494,13 @@ export default function Mileage() {
   function handleContribSubmit() {
     if (num(contribForm.contribution_amount) <= 0) return;
 
+    if (contribRequiresCompany && !contribForm.company_id) return;
+
     const payload: Partial<RetirementContribution> = {
       account_type: contribForm.account_type,
+      contribution_type: contribForm.contribution_type,
+      // IRAs are personal and never belong to a company.
+      company_id: isIraPlan(contribForm.account_type) ? null : contribForm.company_id || null,
       contribution_amount: num(contribForm.contribution_amount),
       frequency: contribForm.frequency,
       start_date: contribForm.start_date,
@@ -488,6 +520,8 @@ export default function Mileage() {
   function startEditContrib(c: RetirementContribution) {
     setContribForm({
       account_type: c.account_type,
+      contribution_type: c.contribution_type || "employee",
+      company_id: c.company_id || "",
       contribution_amount: String(c.contribution_amount),
       frequency: c.frequency,
       start_date: c.start_date,
@@ -549,7 +583,7 @@ export default function Mileage() {
     setHomeOfficeDeleteId(null);
   }
 
-  const getAccountLabel = (v: string) => ACCOUNT_TYPES.find((a) => a.value === v)?.label || v;
+  const getAccountLabel = getAccountTypeLabel;
   const getFreqLabel = (v: string) => FREQUENCIES.find((f) => f.value === v)?.label || v;
 
   const streams = taxSettings?.householdIncomeStreams;
@@ -831,6 +865,7 @@ export default function Mileage() {
         hasPlannerAccess={hasPlannerAccess && canFeature("projectedContributionCapacity")}
         hasEmployerOpportunityAccess={canFeature("employerContributionOpportunity")}
         hasCapacityAccess={canFeature("projectedContributionCapacity")}
+        iraRoom={retirementRoom.iraRoom}
       />
 
 
@@ -854,7 +889,7 @@ export default function Mileage() {
             </Card>
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Estimated Personal Deduction</CardTitle></CardHeader>
-              <CardContent><p className="text-2xl font-bold text-success">{fmt(annualized.total + paycheckLinked.employeeTotal)}</p><p className="text-xs text-muted-foreground">Employer contributions excluded</p></CardContent>
+              <CardContent><p className="text-2xl font-bold text-success">{fmt(annualized.deductibleTotal + paycheckLinked.employeeTotal)}</p><p className="text-xs text-muted-foreground">Employer contributions excluded</p></CardContent>
             </Card>
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Standalone (Annual)</CardTitle></CardHeader>
@@ -894,23 +929,66 @@ export default function Mileage() {
           )}
 
 
-          {/* Form */}
-          {showContribForm && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">{contribEditId ? "Edit Contribution" : "New Retirement Contribution"}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* Add / edit contribution — modal so it opens visibly on tap */}
+          <Dialog open={showContribForm} onOpenChange={(open) => { if (!open) resetContribForm(); }}>
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{contribEditId ? "Edit Contribution" : "Add Retirement Contribution"}</DialogTitle>
+              </DialogHeader>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <Label>Account Type *</Label>
-                    <Select value={contribForm.account_type} onValueChange={(v) => setContribField("account_type", v)}>
+                    <Label>Contribution Type *</Label>
+                    <Select value={contribForm.contribution_type} onValueChange={(v) => setContribField("contribution_type", v)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{CONTRIBUTION_TYPES.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Retirement Plan *</Label>
+                    <Select
+                      value={contribForm.account_type}
+                      onValueChange={(v) => {
+                        setContribField("account_type", v);
+                        if (isIraPlan(v)) {
+                          setContribField("company_id", "");
+                          setContribField("contribution_type", "personal");
+                        }
+                      }}
+                    >
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>{ACCOUNT_TYPES.map((a) => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
+                </div>
+
+                {!isIraPlan(contribForm.account_type) && (
                   <div className="space-y-1.5">
-                    <Label>Contribution Amount *</Label>
+                    <Label>Company / Business {contribRequiresCompany ? "*" : "(optional)"}</Label>
+                    <Select value={contribForm.company_id} onValueChange={(v) => setContribField("company_id", v)}>
+                      <SelectTrigger><SelectValue placeholder="Select company" /></SelectTrigger>
+                      <SelectContent>
+                        {companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    {contribRequiresCompany && !contribForm.company_id && (
+                      <p className="text-xs text-destructive">Select the company this plan belongs to.</p>
+                    )}
+                  </div>
+                )}
+                {isIraPlan(contribForm.account_type) && (
+                  <p className="text-xs text-muted-foreground">
+                    IRA contributions are personal and are not tied to a company.
+                    {contribForm.account_type === "roth_ira"
+                      ? " Roth contributions are tracked against the IRA limit but do not reduce taxable income."
+                      : " Traditional IRA contributions are tracked; deductibility depends on IRA rules."}
+                  </p>
+                )}
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label>Amount *</Label>
                     <Input type="number" min="0" step="0.01" placeholder="0.00" value={contribForm.contribution_amount} onChange={(e) => setContribField("contribution_amount", e.target.value)} />
                   </div>
                   <div className="space-y-1.5">
@@ -919,47 +997,55 @@ export default function Mileage() {
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>{FREQUENCIES.map((f) => <SelectItem key={f.value} value={f.value}>{f.label}</SelectItem>)}</SelectContent>
                     </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Start Date</Label>
-                    <DateField value={contribForm.start_date} onChange={(v) => setContribField("start_date", v)} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>End Date (optional)</Label>
-                    <DateField value={contribForm.end_date} onChange={(v) => setContribField("end_date", v)} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Employer Match (optional)</Label>
-                    <Input type="number" min="0" step="0.01" placeholder="0.00" value={contribForm.employer_match} onChange={(e) => setContribField("employer_match", e.target.value)} />
-                  </div>
-                </div>
-
-                <div className="mt-4 flex items-center gap-3">
-                  <Switch checked={contribForm.apply_to_withholding} onCheckedChange={(v) => setContribField("apply_to_withholding", v)} />
-                  <div>
-                    <Label className="text-sm">Apply to withholding simulation</Label>
                     <p className="text-xs text-muted-foreground">
-                      {contribForm.apply_to_withholding
-                        ? "Affects paycheck withholding calculations immediately"
-                        : "Only affects annual tax projection"}
+                      {contribForm.frequency === "one_time"
+                        ? "Saved as the exact amount — not repeated across paychecks."
+                        : "Repeating contribution — totals are estimated for the year."}
                     </p>
                   </div>
+                  <div className="space-y-1.5">
+                    <Label>Contribution Date</Label>
+                    <DateField value={contribForm.start_date} onChange={(v) => setContribField("start_date", v)} />
+                  </div>
+                  {contribForm.frequency !== "one_time" && (
+                    <div className="space-y-1.5">
+                      <Label>End Date (optional)</Label>
+                      <DateField value={contribForm.end_date} onChange={(v) => setContribField("end_date", v)} />
+                    </div>
+                  )}
                 </div>
 
-                <div className="mt-3 space-y-1.5">
+                {!isIraPlan(contribForm.account_type) && (
+                  <div className="flex items-center gap-3">
+                    <Switch checked={contribForm.apply_to_withholding} onCheckedChange={(v) => setContribField("apply_to_withholding", v)} />
+                    <div>
+                      <Label className="text-sm">Apply to withholding simulation</Label>
+                      <p className="text-xs text-muted-foreground">
+                        {contribForm.apply_to_withholding
+                          ? "Affects paycheck withholding calculations immediately"
+                          : "Only affects annual tax projection"}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
                   <Label>Notes</Label>
                   <Input placeholder="Optional notes" value={contribForm.notes} onChange={(e) => setContribField("notes", e.target.value)} />
                 </div>
+              </div>
 
-                <div className="flex gap-2 mt-4">
-                  <Button onClick={handleContribSubmit} disabled={num(contribForm.contribution_amount) <= 0}>
-                    {contribEditId ? "Save Changes" : "Add Contribution"}
-                  </Button>
-                  <Button variant="outline" onClick={resetContribForm}>Cancel</Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+              <DialogFooter className="gap-2">
+                <Button variant="outline" onClick={resetContribForm}>Cancel</Button>
+                <Button
+                  onClick={handleContribSubmit}
+                  disabled={num(contribForm.contribution_amount) <= 0 || (contribRequiresCompany && !contribForm.company_id)}
+                >
+                  {contribEditId ? "Save Changes" : "Add Contribution"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
 
           {/* Contributions table */}
           <Card>
@@ -973,9 +1059,9 @@ export default function Mileage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Account Type</TableHead>
+                      <TableHead>Plan</TableHead>
                       <TableHead className="text-right whitespace-nowrap">Amount</TableHead>
-                      <TableHead className="hidden sm:table-cell">Frequency</TableHead>
+                      <TableHead className="hidden sm:table-cell">Date</TableHead>
                       <TableHead className="text-right whitespace-nowrap hidden md:table-cell">Annual</TableHead>
                       <TableHead className="text-right whitespace-nowrap hidden lg:table-cell">Employer Match</TableHead>
                       <TableHead className="hidden md:table-cell">Withholding</TableHead>
@@ -992,12 +1078,25 @@ export default function Mileage() {
                     ) : (
                       contributions.map((c) => {
                         const amt = Number(c.contribution_amount);
-                        const annual = c.frequency === "per_paycheck" ? amt * 26 : c.frequency === "monthly" ? amt * 12 : amt;
+                        const annual = annualizeContributionAmount(c).annual;
+                        const companyName = c.company_id
+                          ? companies.find((co) => co.id === c.company_id)?.name || null
+                          : null;
                         return (
                           <TableRow key={c.id}>
-                            <TableCell className="font-medium"><span className="block truncate">{getAccountLabel(c.account_type)}</span></TableCell>
+                            <TableCell className="font-medium">
+                              <span className="block truncate">
+                                {getAccountLabel(c.account_type)} · {getContributionTypeLabel(c.contribution_type)}
+                              </span>
+                              <span className="block truncate text-xs font-normal text-muted-foreground">
+                                {companyName || (isIraPlan(c.account_type) ? "Personal" : "No company")}
+                              </span>
+                            </TableCell>
                             <TableCell className="text-right tabular-nums whitespace-nowrap">{fmt(amt)}</TableCell>
-                            <TableCell className="hidden sm:table-cell"><Badge variant="outline">{getFreqLabel(c.frequency)}</Badge></TableCell>
+                            <TableCell className="hidden sm:table-cell">
+                              <span className="block whitespace-nowrap">{c.start_date}</span>
+                              <Badge variant="outline" className="mt-1">{getFreqLabel(c.frequency)}</Badge>
+                            </TableCell>
                             <TableCell className="text-right tabular-nums whitespace-nowrap font-medium hidden md:table-cell">{fmt(annual)}</TableCell>
                             <TableCell className="text-right tabular-nums whitespace-nowrap text-muted-foreground hidden lg:table-cell">{Number(c.employer_match) > 0 ? fmt(Number(c.employer_match)) : "—"}</TableCell>
                             <TableCell className="hidden md:table-cell">
@@ -1173,7 +1272,9 @@ export default function Mileage() {
   const hsaContributionTotal = hsaSummary.total;
   const hsaPersonalDeduction = hsaSummary.deductibleTotal;
   const retirementSummary = computeRetirementSavingsSummary({
-    standaloneAnnualizedTotal: annualized.total,
+    // Deduction math uses pre-tax plan money only (Roth / Traditional IRA are
+    // tracked separately in the IRA section).
+    standaloneAnnualizedTotal: annualized.deductibleTotal,
     paycheckEmployeeTotal: paycheckLinked.employeeTotal,
     paycheckEmployerTotal: paycheckLinked.employerTotal,
   });

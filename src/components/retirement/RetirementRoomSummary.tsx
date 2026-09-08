@@ -4,7 +4,11 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PiggyBank, Lock, Info, TrendingUp, AlertTriangle } from "lucide-react";
-import type { EmployeeRoomSummary, PlanCapacity } from "@/lib/retirementContributionRoom";
+import type {
+  EmployeeRoomSummary,
+  IraRoomSummary,
+  PlanCapacity,
+} from "@/lib/retirementContributionRoom";
 
 const fmt = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -33,6 +37,8 @@ export interface RetirementRoomSummaryProps {
    * annual limits stay visible without it. Defaults to on.
    */
   hasCapacityAccess?: boolean;
+  /** IRA tracking (Traditional + Roth). Uses its own limit, not the 401(k) one. */
+  iraRoom?: IraRoomSummary;
 }
 
 export function RetirementRoomSummary({
@@ -43,6 +49,7 @@ export function RetirementRoomSummary({
   hasPlannerAccess,
   hasEmployerOpportunityAccess = true,
   hasCapacityAccess = true,
+  iraRoom,
 }: RetirementRoomSummaryProps) {
   const [basis, setBasis] = useState<"ytd" | "projected">("ytd");
   const projected = hasPlannerAccess && hasCapacityAccess && basis === "projected";
@@ -188,6 +195,24 @@ export function RetirementRoomSummary({
             Counts toward plan limits — not a personal deduction
           </p>
         </div>
+
+        {/* IRA tracking — separate limit from 401(k) deferrals */}
+        {iraRoom && iraRoom.combinedTotal > 0 && (
+          <div data-testid="ira-room">
+            <p className="text-xs text-muted-foreground">IRA contributions</p>
+            <p className="text-2xl font-bold tabular-nums">
+              {fmt(iraRoom.combinedTotal)}{" "}
+              <span className="text-sm font-normal text-muted-foreground">
+                of {fmt(iraRoom.limit)}
+              </span>
+            </p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Traditional {fmt(iraRoom.traditionalTotal)} · Roth {fmt(iraRoom.rothTotal)} — tracked
+              against the IRA limit, not your 401(k) limit. Roth contributions do not reduce taxable
+              income.
+            </p>
+          </div>
+        )}
 
         {/* Per company / plan cards */}
         {plans.length > 0 && (
