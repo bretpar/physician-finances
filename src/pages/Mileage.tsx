@@ -115,6 +115,7 @@ const emptyContribForm: ContribForm = {
   company_id: "",
   contribution_amount: "",
   frequency: "one_time",
+  contribution_date: new Date().toISOString().split("T")[0],
   start_date: new Date().toISOString().split("T")[0],
   end_date: "",
   employer_match: "",
