@@ -4,7 +4,11 @@ import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { PiggyBank, Lock, Info, TrendingUp, AlertTriangle } from "lucide-react";
-import type { EmployeeRoomSummary, PlanCapacity } from "@/lib/retirementContributionRoom";
+import type {
+  EmployeeRoomSummary,
+  IraRoomSummary,
+  PlanCapacity,
+} from "@/lib/retirementContributionRoom";
 
 const fmt = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
