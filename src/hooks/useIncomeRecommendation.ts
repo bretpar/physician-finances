@@ -224,6 +224,7 @@ export function useIncomeRecommendation() {
         incomeBucket: resolvedBucket,
         grossIncome,
         retirement401k,
+        employerRetirement401k: input.employerRetirement401k,
         preTaxDeductions,
         companyId,
         applyBusinessStateTax,
