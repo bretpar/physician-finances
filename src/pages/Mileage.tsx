@@ -506,7 +506,11 @@ export default function Mileage() {
       company_id: isIraPlan(contribForm.account_type) ? null : contribForm.company_id || null,
       contribution_amount: num(contribForm.contribution_amount),
       frequency: contribForm.frequency,
-      start_date: contribForm.start_date,
+      contribution_date: contribForm.contribution_date,
+      // Recurring windows keep using start_date; one-time rows mirror the date.
+      start_date: contribForm.frequency === "one_time"
+        ? contribForm.contribution_date
+        : contribForm.start_date || contribForm.contribution_date,
       end_date: contribForm.end_date || null,
       employer_match: num(contribForm.employer_match),
       apply_to_withholding: contribForm.apply_to_withholding,
