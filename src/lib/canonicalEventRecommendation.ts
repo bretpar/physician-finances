@@ -139,6 +139,12 @@ export interface CanonicalEventRecommendationInput {
 
   grossIncome: number;
   retirement401k?: number;
+  /**
+   * Employer-side Solo 401(k) / profit-sharing contribution for this event.
+   * Reduces the FEDERAL taxable base only — never the self-employment tax base
+   * (SE tax is computed on net business profit before retirement deductions).
+   */
+  employerRetirement401k?: number;
   preTaxDeductions?: number;
 
   companyId?: string | null;
