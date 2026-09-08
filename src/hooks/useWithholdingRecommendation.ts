@@ -35,6 +35,8 @@ export interface WithholdingInput {
   incomeBucket?: "personal" | "business";
   taxesAlreadyWithheld: number;
   retirement401k: number;
+  /** Employer Solo 401(k) — federal deduction only, never reduces SE tax base. */
+  employerRetirement401k?: number;
   preTaxDeductions: number;
   alreadyIncludedInEstimate?: boolean;
   companyId?: string | null;
