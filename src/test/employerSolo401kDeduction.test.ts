@@ -17,6 +17,8 @@ const estimate: any = {
   seIncome: 120_000,
   w2Income: 0,
   businessIncome: 120_000,
+  netBusinessProfit: 110_000,
+  grossBusinessIncome: 120_000,
 };
 
 const settings: any = { withholdingMethod: "dynamic_actual", filingStatus: "single" };
