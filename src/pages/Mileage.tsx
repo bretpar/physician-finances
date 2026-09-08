@@ -41,7 +41,9 @@ import { useHomeOfficeDeductions, useSaveHomeOfficeDeduction, useDeleteHomeOffic
 import {
   useRetirementContributions, useAddRetirementContribution, useUpdateRetirementContribution,
   useDeleteRetirementContribution, useAnnualizedContributions,
-  ACCOUNT_TYPES, FREQUENCIES,
+  ACCOUNT_TYPES, FREQUENCIES, CONTRIBUTION_TYPES,
+  isIraPlan, isEmployerSponsoredPlan, getAccountTypeLabel, getContributionTypeLabel,
+  annualizeContributionAmount,
   type RetirementContribution,
 } from "@/hooks/useRetirementContributions";
 import { useCompanies } from "@/contexts/CompanyContext";
@@ -62,6 +64,7 @@ import {
 } from "@/hooks/useProjectedIncome";
 import {
   computeEmployeeContributionRoom, computePlanCapacities, sumRemainingPlannedIncomeByCompany,
+  computeIraRoom,
   type PlanInput,
 } from "@/lib/retirementContributionRoom";
 import { RetirementRoomSummary } from "@/components/retirement/RetirementRoomSummary";
@@ -75,6 +78,8 @@ const num = (v: string) => parseFloat(v) || 0;
 // ─── Retirement Contribution Form ───────────────────────────
 interface ContribForm {
   account_type: string;
+  contribution_type: string;
+  company_id: string;
   contribution_amount: string;
   frequency: string;
   start_date: string;
@@ -104,8 +109,10 @@ const emptyHomeOfficeForm = (): HomeOfficeForm => ({
 
 const emptyContribForm: ContribForm = {
   account_type: "401k",
+  contribution_type: "employee",
+  company_id: "",
   contribution_amount: "",
-  frequency: "per_paycheck",
+  frequency: "one_time",
   start_date: new Date().toISOString().split("T")[0],
   end_date: "",
   employer_match: "",
@@ -328,7 +335,8 @@ export default function Mileage() {
     const employeeRoom = computeEmployeeContributionRoom({
       taxYear: currentYear,
       employeeContributions: [
-        annualized.total,
+        // Only employee elective deferrals — employer money and IRAs excluded.
+        annualized.employeeDeferralTotal,
         ...Array.from(perCompany.values()).map((r) => r.employee),
       ],
       // Age-based catch-up (50+, and the higher 60–63 band) comes from the
@@ -346,6 +354,15 @@ export default function Mileage() {
       currentYear,
       new Date().toISOString().split("T")[0],
     );
+
+    // Fold standalone company-linked contributions into the same per-company
+    // buckets so they are counted exactly once.
+    for (const [companyId, rec] of annualized.byCompany.entries()) {
+      const existing = perCompany.get(companyId) || { employee: 0, employer: 0, wages: 0 };
+      existing.employee += rec.employee;
+      existing.employer += rec.employer;
+      perCompany.set(companyId, existing);
+    }
 
     const planInputs: PlanInput[] = Array.from(perCompany.entries())
       .filter(([, r]) => r.employee > 0 || r.employer > 0)
@@ -373,8 +390,14 @@ export default function Mileage() {
 
     const plans = computePlanCapacities(currentYear, planInputs);
     const employerContributionTotal = plans.reduce((s, p) => s + p.employerContribution, 0);
-    return { employeeRoom, plans, employerContributionTotal };
-  }, [incomeEntries, currentYear, annualized.total, companies, availableProfitByCompany, plannerOccurrences, hasPlannerAccess, taxSettings?.dateOfBirth]);
+    const iraRoom = computeIraRoom({
+      taxYear: currentYear,
+      traditionalTotal: annualized.traditionalIraTotal,
+      rothTotal: annualized.rothIraTotal,
+      dateOfBirth: taxSettings?.dateOfBirth ?? null,
+    });
+    return { employeeRoom, plans, employerContributionTotal, iraRoom };
+  }, [incomeEntries, currentYear, annualized, companies, availableProfitByCompany, plannerOccurrences, hasPlannerAccess, taxSettings?.dateOfBirth]);
 
 
 
@@ -467,8 +490,13 @@ export default function Mileage() {
   function handleContribSubmit() {
     if (num(contribForm.contribution_amount) <= 0) return;
 
+    if (contribRequiresCompany && !contribForm.company_id) return;
+
     const payload: Partial<RetirementContribution> = {
       account_type: contribForm.account_type,
+      contribution_type: contribForm.contribution_type,
+      // IRAs are personal and never belong to a company.
+      company_id: isIraPlan(contribForm.account_type) ? null : contribForm.company_id || null,
       contribution_amount: num(contribForm.contribution_amount),
       frequency: contribForm.frequency,
       start_date: contribForm.start_date,
@@ -488,6 +516,8 @@ export default function Mileage() {
   function startEditContrib(c: RetirementContribution) {
     setContribForm({
       account_type: c.account_type,
+      contribution_type: c.contribution_type || "employee",
+      company_id: c.company_id || "",
       contribution_amount: String(c.contribution_amount),
       frequency: c.frequency,
       start_date: c.start_date,
@@ -549,7 +579,7 @@ export default function Mileage() {
     setHomeOfficeDeleteId(null);
   }
 
-  const getAccountLabel = (v: string) => ACCOUNT_TYPES.find((a) => a.value === v)?.label || v;
+  const getAccountLabel = getAccountTypeLabel;
   const getFreqLabel = (v: string) => FREQUENCIES.find((f) => f.value === v)?.label || v;
 
   const streams = taxSettings?.householdIncomeStreams;
@@ -831,6 +861,7 @@ export default function Mileage() {
         hasPlannerAccess={hasPlannerAccess && canFeature("projectedContributionCapacity")}
         hasEmployerOpportunityAccess={canFeature("employerContributionOpportunity")}
         hasCapacityAccess={canFeature("projectedContributionCapacity")}
+        iraRoom={retirementRoom.iraRoom}
       />
 
 
