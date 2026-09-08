@@ -1013,7 +1013,7 @@ export default function Mileage() {
                   </div>
                   <div className="space-y-1.5">
                     <Label>Contribution Date</Label>
-                    <DateField value={contribForm.start_date} onChange={(v) => setContribField("start_date", v)} />
+                    <DateField value={contribForm.contribution_date} onChange={(v) => setContribField("contribution_date", v)} />
                   </div>
                   {contribForm.frequency !== "one_time" && (
                     <div className="space-y-1.5">
