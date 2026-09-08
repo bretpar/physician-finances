@@ -1362,6 +1362,7 @@ export type Database = {
           apply_to_withholding: boolean
           company_id: string | null
           contribution_amount: number
+          contribution_date: string | null
           contribution_type: string
           created_at: string
           employer_match: number
@@ -1379,6 +1380,7 @@ export type Database = {
           apply_to_withholding?: boolean
           company_id?: string | null
           contribution_amount?: number
+          contribution_date?: string | null
           contribution_type?: string
           created_at?: string
           employer_match?: number
@@ -1396,6 +1398,7 @@ export type Database = {
           apply_to_withholding?: boolean
           company_id?: string | null
           contribution_amount?: number
+          contribution_date?: string | null
           contribution_type?: string
           created_at?: string
           employer_match?: number
