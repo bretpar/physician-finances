@@ -133,7 +133,10 @@ export function useAddRetirementContribution() {
         company_id: isIraPlan(accountType) ? null : entry.company_id || null,
         contribution_amount: entry.contribution_amount || 0,
         frequency: entry.frequency || "one_time",
-        start_date: entry.start_date || new Date().toISOString().split("T")[0],
+        contribution_date:
+          entry.contribution_date || entry.start_date || new Date().toISOString().split("T")[0],
+        start_date:
+          entry.start_date || entry.contribution_date || new Date().toISOString().split("T")[0],
         end_date: entry.end_date || null,
         employer_match: entry.employer_match || 0,
         apply_to_withholding: entry.apply_to_withholding ?? true,
