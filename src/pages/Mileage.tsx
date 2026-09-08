@@ -1280,11 +1280,12 @@ export default function Mileage() {
   const hsaContributionTotal = hsaSummary.total;
   const hsaPersonalDeduction = hsaSummary.deductibleTotal;
   const retirementSummary = computeRetirementSavingsSummary({
-    // Deduction math uses pre-tax plan money only (Roth / Traditional IRA are
-    // tracked separately in the IRA section).
-    standaloneAnnualizedTotal: annualized.deductibleTotal,
+    // Deduction math uses employee pre-tax plan money only. Standalone employer
+    // money counts toward totals via the employer bucket (Roth / Traditional IRA
+    // are tracked separately in the IRA section).
+    standaloneAnnualizedTotal: annualized.employeeTotal,
     paycheckEmployeeTotal: paycheckLinked.employeeTotal,
-    paycheckEmployerTotal: paycheckLinked.employerTotal,
+    paycheckEmployerTotal: paycheckLinked.employerTotal + annualized.employerTotal,
   });
   const retirementContributionTotal = retirementSummary.contributionTotal;
   const retirementPersonalDeduction = retirementSummary.personalDeduction;
