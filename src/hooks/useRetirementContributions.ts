@@ -300,5 +300,5 @@ export function useAnnualizedContributions(
     }
 
     return out;
-  }, [contributions]);
+  }, [contributions, taxYear]);
 }
