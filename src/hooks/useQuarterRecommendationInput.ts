@@ -172,16 +172,6 @@ export function useQuarterRecommendationInput(
     personalEntries: scopedPersonalEntries,
     transactions: scopedTransactions,
     investmentEntries: scopedInvestmentEntries,
-    // Exclude the edited entry's prior recommendation snapshot from the
-    // compliance baseline too (buildQuarterRecommendation already supports it).
-    excludeRecommendationEntryIds: excludeTransactionId
-      ? [
-          ...scopedIncomeEntries,
-          // ids of the removed entries are needed, not the kept ones — resolved below
-        ].length
-        ? undefined
-        : undefined
-      : undefined,
     projectedPaychecks,
     payments,
     manualSavings,
