@@ -139,15 +139,49 @@ export function useQuarterRecommendationInput(
   const selfEmploymentTax = Math.max(0, Number(baseEstimate?.seTax?.total || 0));
   const quarterMethod = rates?.quarterlyTrackerMethod ?? "even";
 
+  // Edit mode (replacement semantics): remove the transaction being edited and
+  // every income entry linked to it from the quarter progress context. The
+  // saved event must not count toward Paid/Saved progress or the prior
+  // compliance baseline while its draft replacement is being priced.
+  const scopedTransactions = useMemo(
+    () =>
+      excludeTransactionId
+        ? (transactions || []).filter((t) => t.id !== excludeTransactionId)
+        : transactions || [],
+    [transactions, excludeTransactionId],
+  );
+  const scopedIncomeEntries = useMemo(
+    () => excludeIncomeEntriesLinkedToTransaction(incomeEntries || [], excludeTransactionId),
+    [incomeEntries, excludeTransactionId],
+  );
+  const scopedPersonalEntries = useMemo(
+    () => excludeIncomeEntriesLinkedToTransaction(personalEntries || [], excludeTransactionId),
+    [personalEntries, excludeTransactionId],
+  );
+  const scopedInvestmentEntries = useMemo(
+    () => excludeIncomeEntriesLinkedToTransaction(investmentEntries || [], excludeTransactionId),
+    [investmentEntries, excludeTransactionId],
+  );
+
   return {
     annualTaxLiability,
     federalIncomeTax,
     selfEmploymentTax,
     quarterMethod,
-    incomeEntries: incomeEntries || [],
-    personalEntries: personalEntries || [],
-    transactions: transactions || [],
-    investmentEntries: investmentEntries || [],
+    incomeEntries: scopedIncomeEntries,
+    personalEntries: scopedPersonalEntries,
+    transactions: scopedTransactions,
+    investmentEntries: scopedInvestmentEntries,
+    // Exclude the edited entry's prior recommendation snapshot from the
+    // compliance baseline too (buildQuarterRecommendation already supports it).
+    excludeRecommendationEntryIds: excludeTransactionId
+      ? [
+          ...scopedIncomeEntries,
+          // ids of the removed entries are needed, not the kept ones — resolved below
+        ].length
+        ? undefined
+        : undefined
+      : undefined,
     projectedPaychecks,
     payments,
     manualSavings,
