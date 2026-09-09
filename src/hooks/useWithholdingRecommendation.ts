@@ -154,7 +154,11 @@ export function useWithholdingRecommendation(options: WithholdingRecommendationO
     isLoading: estLoading,
   } = useTaxEstimate({ excludeTransactionId: options.excludeTransactionId });
   const { data: settings, isLoading: settingsLoading } = useTaxSettings();
-  const quarterInput = useQuarterRecommendationInput();
+  // Edit mode: the quarterly catch-up context must exclude the saved event
+  // being replaced (same replacement semantics as the annual estimate above).
+  const quarterInput = useQuarterRecommendationInput({
+    excludeTransactionId: options.excludeTransactionId,
+  });
 
   const isLoading = estLoading || settingsLoading;
 

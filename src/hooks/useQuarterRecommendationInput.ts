@@ -33,6 +33,18 @@ import {
   generateProjectedPaychecks,
 } from "@/hooks/useProjectedIncome";
 import type { QuarterRecommendationInput } from "@/lib/quarterRecommendation";
+import { excludeIncomeEntriesLinkedToTransaction } from "@/lib/taxRecommendationContext";
+
+export interface QuarterRecommendationInputOptions {
+  /**
+   * Edit mode: the transaction currently being edited. Its row (and every
+   * income_entry linked to it, including prior `dynamic_tax_recommendation`
+   * snapshots) is removed from the quarterly progress/catch-up context so the
+   * saved event is priced once as the replacement draft — never double counted.
+   * Create mode passes nothing and is unchanged.
+   */
+  excludeTransactionId?: string | null;
+}
 
 export interface QuarterRecommendationSharedInput
   extends Omit<QuarterRecommendationInput, "year" | "quarter" | "payments"> {
@@ -55,14 +67,17 @@ export interface QuarterRecommendationSharedInput
  * `getActivePaymentTarget(now)` on the Dashboard or the user-selected
  * tracker view in Tax Overview.
  */
-export function useQuarterRecommendationInput(): QuarterRecommendationSharedInput {
+export function useQuarterRecommendationInput(
+  options: QuarterRecommendationInputOptions = {},
+): QuarterRecommendationSharedInput {
+  const excludeTransactionId = options.excludeTransactionId ?? null;
   const { data: rates, isLoading: ratesLoading } = useTaxSettings();
   const {
     actualEstimate,
     currentPaceEstimate,
     forecastEstimate,
     isLoading: estLoading,
-  } = useTaxEstimate();
+  } = useTaxEstimate({ excludeTransactionId });
   const { data: transactions, isLoading: txLoading } = useTransactions();
   const { data: incomeEntries, isLoading: incLoading } = useIncomeEntries();
   const { data: personalEntries, isLoading: piLoading } = usePersonalIncomeEntries();
@@ -124,15 +139,39 @@ export function useQuarterRecommendationInput(): QuarterRecommendationSharedInpu
   const selfEmploymentTax = Math.max(0, Number(baseEstimate?.seTax?.total || 0));
   const quarterMethod = rates?.quarterlyTrackerMethod ?? "even";
 
+  // Edit mode (replacement semantics): remove the transaction being edited and
+  // every income entry linked to it from the quarter progress context. The
+  // saved event must not count toward Paid/Saved progress or the prior
+  // compliance baseline while its draft replacement is being priced.
+  const scopedTransactions = useMemo(
+    () =>
+      excludeTransactionId
+        ? (transactions || []).filter((t) => t.id !== excludeTransactionId)
+        : transactions || [],
+    [transactions, excludeTransactionId],
+  );
+  const scopedIncomeEntries = useMemo(
+    () => excludeIncomeEntriesLinkedToTransaction(incomeEntries || [], excludeTransactionId),
+    [incomeEntries, excludeTransactionId],
+  );
+  const scopedPersonalEntries = useMemo(
+    () => excludeIncomeEntriesLinkedToTransaction(personalEntries || [], excludeTransactionId),
+    [personalEntries, excludeTransactionId],
+  );
+  const scopedInvestmentEntries = useMemo(
+    () => excludeIncomeEntriesLinkedToTransaction(investmentEntries || [], excludeTransactionId),
+    [investmentEntries, excludeTransactionId],
+  );
+
   return {
     annualTaxLiability,
     federalIncomeTax,
     selfEmploymentTax,
     quarterMethod,
-    incomeEntries: incomeEntries || [],
-    personalEntries: personalEntries || [],
-    transactions: transactions || [],
-    investmentEntries: investmentEntries || [],
+    incomeEntries: scopedIncomeEntries,
+    personalEntries: scopedPersonalEntries,
+    transactions: scopedTransactions,
+    investmentEntries: scopedInvestmentEntries,
     projectedPaychecks,
     payments,
     manualSavings,
