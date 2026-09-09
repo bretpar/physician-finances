@@ -64,7 +64,7 @@ const priorTx = {
 function quarterInputFor(transactions: any[], incomeEntries: any[]) {
   return {
     year: 2026,
-    quarter: 3,
+    quarter: 3 as const,
     annualTaxLiability: 40_000,
     federalIncomeTax: 32_000,
     selfEmploymentTax: 8_000,
