@@ -33,6 +33,18 @@ import {
   generateProjectedPaychecks,
 } from "@/hooks/useProjectedIncome";
 import type { QuarterRecommendationInput } from "@/lib/quarterRecommendation";
+import { excludeIncomeEntriesLinkedToTransaction } from "@/lib/taxRecommendationContext";
+
+export interface QuarterRecommendationInputOptions {
+  /**
+   * Edit mode: the transaction currently being edited. Its row (and every
+   * income_entry linked to it, including prior `dynamic_tax_recommendation`
+   * snapshots) is removed from the quarterly progress/catch-up context so the
+   * saved event is priced once as the replacement draft — never double counted.
+   * Create mode passes nothing and is unchanged.
+   */
+  excludeTransactionId?: string | null;
+}
 
 export interface QuarterRecommendationSharedInput
   extends Omit<QuarterRecommendationInput, "year" | "quarter" | "payments"> {
@@ -55,14 +67,17 @@ export interface QuarterRecommendationSharedInput
  * `getActivePaymentTarget(now)` on the Dashboard or the user-selected
  * tracker view in Tax Overview.
  */
-export function useQuarterRecommendationInput(): QuarterRecommendationSharedInput {
+export function useQuarterRecommendationInput(
+  options: QuarterRecommendationInputOptions = {},
+): QuarterRecommendationSharedInput {
+  const excludeTransactionId = options.excludeTransactionId ?? null;
   const { data: rates, isLoading: ratesLoading } = useTaxSettings();
   const {
     actualEstimate,
     currentPaceEstimate,
     forecastEstimate,
     isLoading: estLoading,
-  } = useTaxEstimate();
+  } = useTaxEstimate({ excludeTransactionId });
   const { data: transactions, isLoading: txLoading } = useTransactions();
   const { data: incomeEntries, isLoading: incLoading } = useIncomeEntries();
   const { data: personalEntries, isLoading: piLoading } = usePersonalIncomeEntries();
