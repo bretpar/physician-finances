@@ -98,10 +98,44 @@ export function QuarterlyPaymentCallout({
         </div>
 
         {/* Actions */}
-        <div className="flex justify-center">
+        <div className="flex flex-col items-center gap-1">
           <Button size="sm" onClick={goToLogPayment}>
             Log {recommendation.quarterLabel} Payment
           </Button>
+          {onDoneWithQuarter && (
+            <>
+              <button
+                type="button"
+                onClick={() => setConfirmOpen(true)}
+                className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+              >
+                Done with {recommendation.quarterLabel}
+              </button>
+              <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      Move on to {nextQuarterLabel ?? "the next quarter"}?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will not mark the remaining {recommendation.quarterLabel} amount as paid.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => {
+                        setConfirmOpen(false);
+                        onDoneWithQuarter();
+                      }}
+                    >
+                      Move on
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </>
+          )}
         </div>
       </CardContent>
     </Card>
