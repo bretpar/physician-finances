@@ -9,6 +9,7 @@ import { useIncomeEntries } from "@/hooks/useIncome";
 import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
 import { aggregateInvestmentTaxBuckets, useInvestmentIncomeEntries } from "@/hooks/useInvestmentIncome";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
+import { useW4Calculation } from "@/hooks/useW4Calculation";
 import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { useTaxSavings } from "@/hooks/useTaxSavings";
 import { useCompanies } from "@/contexts/CompanyContext";
@@ -37,6 +38,7 @@ import { getCanonicalBucketRatePct } from "@/lib/canonicalEventRecommendation";
 import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { Button } from "@/components/ui/button";
+import { selectW4SummaryPresentation } from "@/lib/w4SummaryPresentation";
 
 import { useMileageYTD, getIrsMileageRate } from "@/hooks/useMileage";
 
@@ -213,6 +215,11 @@ export default function Dashboard() {
   // Canonical recommendation input — shared with Tax Overview so Dashboard
   // and Tax Overview cannot drift on `recommendedPaymentToMake`.
   const sharedQrInput = useQuarterRecommendationInput();
+  const { employerW4Recommendations } = useW4Calculation();
+  const w4Summary = selectW4SummaryPresentation(
+    employerW4Recommendations,
+    forecastDebug?.remainingTaxDue ?? 0,
+  );
   const manualSavingsRows = sharedQrInput.manualSavings ?? [];
   const quarterRecommendation = useMemo(
     () => buildQuarterRecommendation({ ...sharedQrInput, now }),
@@ -404,15 +411,38 @@ export default function Dashboard() {
               </p>
             </div>
             <div>
-              <p className="text-[11px] uppercase tracking-normal text-muted-foreground">Extra Withholding Recommendation</p>
-              <p className="mt-1 text-xl font-semibold tabular-nums text-primary">
-                {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(forecastDebug.recommendedSetAside)}
-              </p>
+              {w4Summary.kind === "per_paycheck" ? (
+                <>
+                  <p className="text-[11px] uppercase tracking-normal text-muted-foreground">Recommended extra withholding per paycheck</p>
+                  <p className="mt-1 text-xl font-semibold tabular-nums text-primary">
+                    {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(w4Summary.amount)}
+                  </p>
+                  {w4Summary.employerName && <p className="mt-1 text-xs text-muted-foreground">{w4Summary.employerName}</p>}
+                </>
+              ) : w4Summary.kind === "review" ? (
+                <>
+                  <p className="text-[11px] uppercase tracking-normal text-muted-foreground">W-4 recommendations</p>
+                  <Link to="/taxes#w4-calculator" className="mt-1 inline-block text-sm font-medium text-primary hover:underline">
+                    Review W-4 recommendations
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <p className="text-[11px] uppercase tracking-normal text-muted-foreground">Remaining estimated annual tax</p>
+                  <p className="mt-1 text-xl font-semibold tabular-nums text-primary">
+                    {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(w4Summary.amount)}
+                  </p>
+                </>
+              )}
             </div>
           </div>
           <p className="text-sm text-muted-foreground">
             {forecastDebug.remainingTaxDue > 0
-              ? `Based on your projected household income, deductions, taxes, and current withholding, you are projected to be short by ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(forecastDebug.remainingTaxDue)}. Add ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(forecastDebug.recommendedSetAside)} extra per paycheck to your W4, or save ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(forecastDebug.recommendedSetAside)} per paycheck manually.`
+              ? w4Summary.kind === "per_paycheck"
+                ? `Based on your projected household income, deductions, taxes, and current withholding, you are projected to be short by ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(forecastDebug.remainingTaxDue)}. The W-4 Calculator recommends ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(w4Summary.amount)} in extra withholding per paycheck${w4Summary.employerName ? ` for ${w4Summary.employerName}` : ""}.`
+                : w4Summary.kind === "review"
+                  ? `Based on your projected household income, deductions, taxes, and current withholding, you are projected to be short by ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(forecastDebug.remainingTaxDue)}. Review the employer-specific recommendations in the W-4 Calculator.`
+                  : `Based on your projected household income, deductions, taxes, and current withholding, your remaining estimated annual tax is ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(w4Summary.amount)}.`
               : forecastDebug.countedCreditsTotal > forecastDebug.totalEstimatedTax
                 ? `You are projected to have a refund of about ${new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(forecastDebug.countedCreditsTotal - forecastDebug.totalEstimatedTax)} if your income and withholding stay on track.`
                 : "Your current withholding appears to be on track based on your projected household income, deductions, and taxes."}
