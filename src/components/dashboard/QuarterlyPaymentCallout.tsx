@@ -42,12 +42,18 @@ export function QuarterlyPaymentCallout({
   recommendation,
   overdue,
   onLogPayment,
+  onDoneWithQuarter,
+  nextQuarterLabel,
 }: {
   recommendation: QuarterRecommendation;
   overdue: boolean;
   onLogPayment?: () => void;
+  /** Present only once the next quarter's income period has begun. */
+  onDoneWithQuarter?: () => void;
+  nextQuarterLabel?: string;
 }) {
   const navigate = useNavigate();
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const recommendedRemaining = recommendation.recommendedPaymentToMake;
 
   const goToLogPayment = () => {
