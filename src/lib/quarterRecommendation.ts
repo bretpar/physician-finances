@@ -335,6 +335,11 @@ export function buildQuarterRecommendation(
     quarterTarget = yearNet > 0 ? Math.max(0, annualTaxLiability * (qNet / yearNet)) : 0;
   }
 
+  // Closed quarters never grow from later-quarter income.
+  if (input.frozenQuarterTarget != null && now >= end) {
+    quarterTarget = Math.min(quarterTarget, Math.max(0, Number(input.frozenQuarterTarget)));
+  }
+
   // ── Per-source paid + saved + bucket totals ──────────────────────────────
   const liveTxById = new Map(
     transactions
