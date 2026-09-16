@@ -95,6 +95,13 @@ export interface QuarterRecommendationInput {
    * baseline only — no dollar amount, aggregation or source row is affected.
    */
   excludeRecommendationEntryIds?: string[];
+  /**
+   * Snapshot of this quarter's target taken once the quarter's income period
+   * closed. When provided AND the period has ended, the target can no longer
+   * increase from later-quarter income (it may still decrease). No other
+   * quarterly math changes.
+   */
+  frozenQuarterTarget?: number | null;
 
   /** Used for the "due soon / overdue" callout window. Defaults to `new Date()`. */
   now?: Date;
@@ -326,6 +333,11 @@ export function buildQuarterRecommendation(
     const qNet = Math.max(0, qIncome - qBusinessExpenses);
     const yearNet = Math.max(0, yearIncome - yearBusinessExpenses);
     quarterTarget = yearNet > 0 ? Math.max(0, annualTaxLiability * (qNet / yearNet)) : 0;
+  }
+
+  // Closed quarters never grow from later-quarter income.
+  if (input.frozenQuarterTarget != null && now >= end) {
+    quarterTarget = Math.min(quarterTarget, Math.max(0, Number(input.frozenQuarterTarget)));
   }
 
   // ── Per-source paid + saved + bucket totals ──────────────────────────────

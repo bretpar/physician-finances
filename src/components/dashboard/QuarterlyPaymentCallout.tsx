@@ -1,8 +1,24 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import {
+  useQuarterDashboardState,
+  useDismissQuarterCallout,
+  useFreezeQuarterTarget,
+  findQuarterState,
+} from "@/hooks/useQuarterDashboardState";
 import {
   buildQuarterRecommendation,
   getActivePaymentTarget,
@@ -26,12 +42,18 @@ export function QuarterlyPaymentCallout({
   recommendation,
   overdue,
   onLogPayment,
+  onDoneWithQuarter,
+  nextQuarterLabel,
 }: {
   recommendation: QuarterRecommendation;
   overdue: boolean;
   onLogPayment?: () => void;
+  /** Present only once the next quarter's income period has begun. */
+  onDoneWithQuarter?: () => void;
+  nextQuarterLabel?: string;
 }) {
   const navigate = useNavigate();
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const recommendedRemaining = recommendation.recommendedPaymentToMake;
 
   const goToLogPayment = () => {
@@ -76,10 +98,44 @@ export function QuarterlyPaymentCallout({
         </div>
 
         {/* Actions */}
-        <div className="flex justify-center">
+        <div className="flex flex-col items-center gap-1">
           <Button size="sm" onClick={goToLogPayment}>
             Log {recommendation.quarterLabel} Payment
           </Button>
+          {onDoneWithQuarter && (
+            <>
+              <button
+                type="button"
+                onClick={() => setConfirmOpen(true)}
+                className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+              >
+                Done with {recommendation.quarterLabel}
+              </button>
+              <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>
+                      Move on to {nextQuarterLabel ?? "the next quarter"}?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This will not mark the remaining {recommendation.quarterLabel} amount as paid.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={() => {
+                        setConfirmOpen(false);
+                        onDoneWithQuarter();
+                      }}
+                    >
+                      Move on
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </>
+          )}
         </div>
       </CardContent>
     </Card>
@@ -99,16 +155,68 @@ export default function DashboardQuarterlyPaymentCallout({
 }: Props & { fallback?: () => JSX.Element | null }) {
   const now = useMemo(() => input.now ?? new Date(), [input.now]);
   const active = useMemo(() => getActivePaymentTarget(now), [now]);
+  const { data: states } = useQuarterDashboardState();
+  const dismiss = useDismissQuarterCallout();
+  const freeze = useFreezeQuarterTarget();
+  const state = findQuarterState(states, active.year, active.quarter);
+
   const recommendation = useMemo(
-    () => buildQuarterRecommendation({ ...input, now, year: active.year, quarter: active.quarter }),
-    [input, now, active.year, active.quarter],
+    () =>
+      buildQuarterRecommendation({
+        ...input,
+        now,
+        year: active.year,
+        quarter: active.quarter,
+        frozenQuarterTarget: state?.frozen_quarter_target ?? null,
+      }),
+    [input, now, active.year, active.quarter, state?.frozen_quarter_target],
   );
-  if (!recommendation.showDashboardPaymentCallout) return fallback ? fallback() : null;
+
+  // The next quarter's income period has begun (e.g. Sep 1 for Q3).
+  const periodClosed = now >= recommendation.end;
+
+  // Snapshot the closed quarter's target once so later-quarter income cannot
+  // retroactively increase it.
+  const frozeRef = useRef(false);
+  useEffect(() => {
+    if (!periodClosed) return;
+    if (!states) return;
+    if (state?.frozen_quarter_target != null) return;
+    if (frozeRef.current) return;
+    if (!(recommendation.quarterTarget > 0)) return;
+    frozeRef.current = true;
+    freeze.mutate({
+      taxYear: active.year,
+      quarter: active.quarter,
+      target: Number(recommendation.quarterTarget.toFixed(2)),
+    });
+  }, [
+    periodClosed,
+    states,
+    state?.frozen_quarter_target,
+    recommendation.quarterTarget,
+    active.year,
+    active.quarter,
+  ]);
+
+  const dismissed = !!state?.dismissed_at;
+  if (dismissed || !recommendation.showDashboardPaymentCallout) {
+    return fallback ? fallback() : null;
+  }
+
+  const nextQuarterLabel = recommendation.quarter === 4 ? "Q1" : `Q${recommendation.quarter + 1}`;
+
   return (
     <QuarterlyPaymentCallout
       recommendation={recommendation}
       overdue={recommendation.dashboardCalloutMode === "overdue"}
       onLogPayment={onLogPayment}
+      nextQuarterLabel={nextQuarterLabel}
+      onDoneWithQuarter={
+        periodClosed
+          ? () => dismiss.mutate({ taxYear: active.year, quarter: active.quarter })
+          : undefined
+      }
     />
   );
 }
