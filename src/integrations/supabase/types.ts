@@ -1356,6 +1356,42 @@ export type Database = {
           },
         ]
       }
+      quarter_dashboard_state: {
+        Row: {
+          created_at: string
+          dismissed_at: string | null
+          frozen_quarter_target: number | null
+          id: string
+          organization_id: string | null
+          quarter: number
+          tax_year: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          dismissed_at?: string | null
+          frozen_quarter_target?: number | null
+          id?: string
+          organization_id?: string | null
+          quarter: number
+          tax_year: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          dismissed_at?: string | null
+          frozen_quarter_target?: number | null
+          id?: string
+          organization_id?: string | null
+          quarter?: number
+          tax_year?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       retirement_contributions: {
         Row: {
           account_type: string
