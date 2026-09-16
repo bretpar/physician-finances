@@ -95,6 +95,13 @@ export interface QuarterRecommendationInput {
    * baseline only — no dollar amount, aggregation or source row is affected.
    */
   excludeRecommendationEntryIds?: string[];
+  /**
+   * Snapshot of this quarter's target taken once the quarter's income period
+   * closed. When provided AND the period has ended, the target can no longer
+   * increase from later-quarter income (it may still decrease). No other
+   * quarterly math changes.
+   */
+  frozenQuarterTarget?: number | null;
 
   /** Used for the "due soon / overdue" callout window. Defaults to `new Date()`. */
   now?: Date;
