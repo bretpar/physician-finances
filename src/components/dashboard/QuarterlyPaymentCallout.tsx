@@ -1,8 +1,24 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import {
+  useQuarterDashboardState,
+  useDismissQuarterCallout,
+  useFreezeQuarterTarget,
+  findQuarterState,
+} from "@/hooks/useQuarterDashboardState";
 import {
   buildQuarterRecommendation,
   getActivePaymentTarget,
