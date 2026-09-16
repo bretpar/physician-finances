@@ -25,6 +25,7 @@ import W4PaycheckAdjustmentCard from "@/components/tax/W4PaycheckAdjustmentCard"
 import { cn } from "@/lib/utils";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
+import { useW4Calculation } from "@/hooks/useW4Calculation";
 import { useRepairYtdCatchupMirrors } from "@/hooks/useYtdCatchup";
 import { useCanonicalWithholding } from "@/hooks/useCanonicalWithholding";
 import TaxDebugPanel from "@/components/TaxDebugPanel";
@@ -47,6 +48,7 @@ import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
+import { selectW4SummaryPresentation } from "@/lib/w4SummaryPresentation";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -228,6 +230,11 @@ export default function Taxes() {
   // Shared input builder — keeps Tax Overview QuarterlyTracker aligned with
   // the Dashboard Q-payment callout. See useQuarterRecommendationInput.
   const sharedQrInput = useQuarterRecommendationInput();
+  const { employerW4Recommendations } = useW4Calculation();
+  const w4Summary = selectW4SummaryPresentation(
+    taxMode === "forecast" ? employerW4Recommendations : [],
+    remainingTax,
+  );
 
 
   const resetSavingsForm = () => { setSavingsDate(new Date()); setSavingsAmount(""); setSavingsSource("manual"); setSavingsNotes(""); setSavingsEditId(null); };
@@ -408,7 +415,27 @@ export default function Taxes() {
             <div className="grid gap-3 sm:grid-cols-3">
               <div><p className="text-xs text-muted-foreground">Estimated total tax</p><p className="mt-1 text-xl font-semibold tabular-nums text-foreground">{fmt(debug.totalEstimatedTax)}</p></div>
               <div><p className="text-xs text-muted-foreground">Withholding and payments</p><p className="mt-1 text-xl font-semibold tabular-nums text-foreground">{fmt(debug.countedCreditsTotal)}</p></div>
-              <div><p className="text-xs text-muted-foreground">Extra per paycheck</p><p className="mt-1 text-xl font-semibold tabular-nums text-primary">{fmt(debug.recommendedSetAside)}</p></div>
+              <div>
+                {w4Summary.kind === "per_paycheck" ? (
+                  <>
+                    <p className="text-xs text-muted-foreground">Recommended extra withholding per paycheck</p>
+                    <p className="mt-1 text-xl font-semibold tabular-nums text-primary">{fmt(w4Summary.amount)}</p>
+                    {w4Summary.employerName && <p className="mt-1 text-xs text-muted-foreground">{w4Summary.employerName}</p>}
+                  </>
+                ) : w4Summary.kind === "review" ? (
+                  <>
+                    <p className="text-xs text-muted-foreground">W-4 recommendations</p>
+                    <Button variant="link" className="h-auto p-0 mt-1" onClick={() => setActiveTab("w4-calculator")}>
+                      Review W-4 recommendations
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs text-muted-foreground">Remaining estimated annual tax</p>
+                    <p className="mt-1 text-xl font-semibold tabular-nums text-primary">{fmt(w4Summary.amount)}</p>
+                  </>
+                )}
+              </div>
             </div>
             <p className="text-sm text-muted-foreground">
               {debug.remainingTaxDue > 0
