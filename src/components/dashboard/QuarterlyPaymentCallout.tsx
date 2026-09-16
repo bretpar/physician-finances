@@ -155,16 +155,68 @@ export default function DashboardQuarterlyPaymentCallout({
 }: Props & { fallback?: () => JSX.Element | null }) {
   const now = useMemo(() => input.now ?? new Date(), [input.now]);
   const active = useMemo(() => getActivePaymentTarget(now), [now]);
+  const { data: states } = useQuarterDashboardState();
+  const dismiss = useDismissQuarterCallout();
+  const freeze = useFreezeQuarterTarget();
+  const state = findQuarterState(states, active.year, active.quarter);
+
   const recommendation = useMemo(
-    () => buildQuarterRecommendation({ ...input, now, year: active.year, quarter: active.quarter }),
-    [input, now, active.year, active.quarter],
+    () =>
+      buildQuarterRecommendation({
+        ...input,
+        now,
+        year: active.year,
+        quarter: active.quarter,
+        frozenQuarterTarget: state?.frozen_quarter_target ?? null,
+      }),
+    [input, now, active.year, active.quarter, state?.frozen_quarter_target],
   );
-  if (!recommendation.showDashboardPaymentCallout) return fallback ? fallback() : null;
+
+  // The next quarter's income period has begun (e.g. Sep 1 for Q3).
+  const periodClosed = now >= recommendation.end;
+
+  // Snapshot the closed quarter's target once so later-quarter income cannot
+  // retroactively increase it.
+  const frozeRef = useRef(false);
+  useEffect(() => {
+    if (!periodClosed) return;
+    if (!states) return;
+    if (state?.frozen_quarter_target != null) return;
+    if (frozeRef.current) return;
+    if (!(recommendation.quarterTarget > 0)) return;
+    frozeRef.current = true;
+    freeze.mutate({
+      taxYear: active.year,
+      quarter: active.quarter,
+      target: Number(recommendation.quarterTarget.toFixed(2)),
+    });
+  }, [
+    periodClosed,
+    states,
+    state?.frozen_quarter_target,
+    recommendation.quarterTarget,
+    active.year,
+    active.quarter,
+  ]);
+
+  const dismissed = !!state?.dismissed_at;
+  if (dismissed || !recommendation.showDashboardPaymentCallout) {
+    return fallback ? fallback() : null;
+  }
+
+  const nextQuarterLabel = recommendation.quarter === 4 ? "Q1" : `Q${recommendation.quarter + 1}`;
+
   return (
     <QuarterlyPaymentCallout
       recommendation={recommendation}
       overdue={recommendation.dashboardCalloutMode === "overdue"}
       onLogPayment={onLogPayment}
+      nextQuarterLabel={nextQuarterLabel}
+      onDoneWithQuarter={
+        periodClosed
+          ? () => dismiss.mutate({ taxYear: active.year, quarter: active.quarter })
+          : undefined
+      }
     />
   );
 }
