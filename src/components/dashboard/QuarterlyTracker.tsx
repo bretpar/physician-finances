@@ -497,9 +497,11 @@ export default function QuarterlyTracker({
         <div className={cn("flex items-center gap-2 text-sm", toneStyles.text)}>
           <Icon className={cn("h-4 w-4 shrink-0", toneStyles.accent)} />
           <span className="truncate">
-            {showRecommendedPayment && quarterTarget > 0 && progressAmount >= expectedByNow
+            {showRecommendedPayment && quarterTarget > 0 && progressAmount >= quarterTarget
               ? `${q.label} complete`
-              : message}
+              : showRecommendedPayment && quarterTarget > 0 && progressAmount >= expectedByNow
+                ? `On track for ${q.label}`
+                : message}
           </span>
         </div>
         )}
@@ -619,7 +621,12 @@ export default function QuarterlyTracker({
                 <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", breakdownOpen && "rotate-180")} />
               <span className="min-w-0 break-words">{breakdownTitle}</span>
               </span>
-              <span className="hidden text-right w-20 sm:block">Paid</span>
+              <span className="hidden text-right w-24 sm:block">
+                Federal tax paid
+                <InfoTip label="About federal tax paid">
+                  Social Security and Medicare payroll taxes are handled separately and are not credited toward this estimated-tax payment.
+                </InfoTip>
+              </span>
               <span className="hidden text-center w-3 sm:block">·</span>
               <span className="hidden text-right w-20 sm:block">Saved</span>
             </CollapsibleTrigger>
@@ -640,7 +647,7 @@ export default function QuarterlyTracker({
                         <span className={cn("min-w-0 break-words leading-snug", empty && "text-muted-foreground")}>{r.label}</span>
                         <div className="grid grid-cols-2 gap-2 sm:contents">
                           <span className={cn("rounded-md bg-muted/40 px-2 py-1 text-left tabular-nums sm:w-20 sm:bg-transparent sm:p-0 sm:text-right", r.paid === 0 ? "text-muted-foreground" : "text-foreground font-medium")}>
-                            <span className="block text-[10px] uppercase tracking-wide text-muted-foreground sm:hidden">Paid</span>
+                            <span className="block text-[10px] uppercase tracking-wide text-muted-foreground sm:hidden">Federal tax paid</span>
                             {fmt(r.paid)}
                           </span>
                           <span className="hidden text-muted-foreground text-center w-3 sm:block">·</span>
