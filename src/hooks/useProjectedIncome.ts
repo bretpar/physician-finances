@@ -2080,7 +2080,7 @@ export function getProjectedFederalWithholdingBreakdown(
       medicare_withholding: p.medicareWithholding,
     });
     const st = Number(p.stateWithholding ?? stream?.state_withholding ?? 0);
-    if (fed === 0 && st === 0 && stream) {
+    if (fed === 0 && st === 0 && stream && !p.hasDetailedBreakdown) {
       fed = getFederalIncomeTaxWithheld(stream as any);
     }
     if (fed === 0) continue;
