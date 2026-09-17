@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import { addDays, addWeeks, addMonths, startOfDay, endOfYear, isAfter, isBefore, parseISO, format, isSameDay } from "date-fns";
-import { getTotalFederalPaid } from "@/lib/federalWithholding";
+import { getFederalIncomeTaxWithheld } from "@/lib/federalWithholding";
 import { isBusinessIncomeType } from "@/lib/ledgerRouting";
 import { PLANNER_CLEANUP_INVALIDATION_KEYS } from "@/lib/plannerCleanup";
 import { getTodayLocalDateString } from "@/lib/localDate";
@@ -1996,16 +1996,23 @@ export function getProjectedTotals(
     const stream = streamById.get(p.streamId);
     const bucket = classifyStreamType(stream?.company_type ?? p.streamCompanyType);
 
-    // Canonical "Total Federal Payroll Taxes" via shared helper. Treats
-    // taxes_withheld as the total when populated, else sums the components.
-    // For projected streams written under the new shape, taxes_withheld is
-    // the canonical total (federal income tax + SS + Medicare).
-    let fed = getTotalFederalPaid(stream as any);
-    let st = Number(stream?.state_withholding || 0);
-    // Bonuses & legacy streams without per-stream withholdings fall back to
-    // the per-paycheck aggregate.
-    if (fed === 0 && st === 0) {
-      fed = p.taxesWithheld;
+    // Federal INCOME TAX withheld only — Social Security and Medicare are
+    // payroll taxes settled through payroll, never a credit against federal
+    // income-tax liability. Use occurrence-level fields (override > stream,
+    // populated by generateProjectedPaychecks) so bonuses and modified
+    // occurrences use their own withholding, not the parent stream's total.
+    let fed = getFederalIncomeTaxWithheld({
+      taxes_withheld: p.taxesWithheld,
+      federal_withholding: p.federalWithholding,
+      ss_withholding: p.ssWithholding,
+      medicare_withholding: p.medicareWithholding,
+    });
+    let st = Number(p.stateWithholding ?? stream?.state_withholding ?? 0);
+    // Legacy occurrences without any split fields fall back to the stream's
+    // canonical income-tax withholding (never its total payroll-tax figure).
+    if (fed === 0 && st === 0 && stream) {
+      fed = getFederalIncomeTaxWithheld(stream as any);
+      st = Number(stream.state_withholding || 0);
     }
 
     acc.grossIncome += p.grossAmount;
