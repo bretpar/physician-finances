@@ -2010,7 +2010,10 @@ export function getProjectedTotals(
     let st = Number(p.stateWithholding ?? stream?.state_withholding ?? 0);
     // Legacy occurrences without any split fields fall back to the stream's
     // canonical income-tax withholding (never its total payroll-tax figure).
-    if (fed === 0 && st === 0 && stream) {
+    // An occurrence with its own detailed breakdown (override > stream) is
+    // authoritative — even when it explicitly zeroes federal withholding —
+    // so it must never inherit the parent stream's totals.
+    if (fed === 0 && st === 0 && stream && !p.hasDetailedBreakdown) {
       fed = getFederalIncomeTaxWithheld(stream as any);
       st = Number(stream.state_withholding || 0);
     }
