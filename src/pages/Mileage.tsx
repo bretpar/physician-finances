@@ -2,12 +2,9 @@ import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import {
-  ComingSoonOpportunityCard,
-  OpportunityHeader,
   type OpportunityActionLabel,
   type OpportunityStatus,
 } from "@/components/tax-savings/OpportunityCard";
-import { RecommendedNextStep } from "@/components/tax-savings/RecommendedNextStep";
 import { ItemizedDeductionsCard } from "@/components/tax-savings/ItemizedDeductionsCard";
 import {
   DEDUCTION_INSIGHTS,
@@ -30,8 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Plus, Trash2, Download, Pencil, Car, PiggyBank, HeartPulse, Home, Info, Wallet, Briefcase, User, ChevronDown } from "lucide-react";
+import { Plus, Trash2, Download, Pencil, Car, PiggyBank, HeartPulse, Home, Info, Wallet, Briefcase, User, ChevronRight, CheckCircle2 } from "lucide-react";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
 import { HsaLedgerSection } from "@/components/settings/HsaSection";
@@ -68,6 +64,7 @@ import {
   type PlanInput,
 } from "@/lib/retirementContributionRoom";
 import { RetirementRoomSummary } from "@/components/retirement/RetirementRoomSummary";
+import { cn } from "@/lib/utils";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const fmt = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -132,7 +129,7 @@ export default function Mileage() {
   const { showMileage, showHomeOffice, showRetirement, showHsa } = getDeductionToolVisibility(taxSettings?.householdIncomeStreams);
   const defaultTab = showMileage ? "mileage" : showHomeOffice ? "home-office" : showRetirement ? "retirement" : "hsa";
   const [activeTab, setActiveTab] = useState("");
-  const [comingSoonOpen, setComingSoonOpen] = useState(false);
+  const [setupItemValue, setSetupItemValue] = useState<string | null>(null);
   // Only one educational "Why this matters" panel may be open at a time.
   const [openInsight, setOpenInsight] = useState("");
   const toggleInsight = (key: string) => setOpenInsight((prev) => (prev === key ? "" : key));
@@ -1432,9 +1429,6 @@ export default function Mileage() {
       ]
     : [];
 
-  // Coming Soon cards live in one collapsed section at the bottom of the page.
-  const comingSoonItems = [...businessItems, ...personalItems].filter((i) => i.comingSoon);
-
   // ─── Summary card (display only — reuses amounts already shown on cards) ───
   const configuredItems = [...businessItems, ...personalItems].filter(
     (i) => !i.comingSoon && i.status === "configured",
@@ -1444,178 +1438,190 @@ export default function Mileage() {
   const estimatedTaxSavings = totalEstimatedDeductions * (marginalRatePct / 100);
   const activeStrategyCount = configuredItems.length;
 
+  const activeBusinessItems = businessItems.filter((i) => !i.comingSoon && i.status === "configured");
+  const activePersonalItems = personalItems.filter((i) => !i.comingSoon && i.status === "configured");
+  const moreItems = [...businessItems, ...personalItems].filter(
+    (i) => i.comingSoon || i.status !== "configured",
+  );
+  const setupItem = moreItems.find((i) => i.value === setupItemValue) ?? null;
+
+  // Deep links to unfinished strategies open their setup surface rather than an
+  // accordion row. Configured strategies retain the existing accordion flow.
+  useEffect(() => {
+    const hash = location.hash.replace("#", "");
+    if (!hash) return;
+    const unfinished = moreItems.find((item) => item.value === hash && !item.comingSoon && item.content);
+    if (unfinished) {
+      setActiveTab("");
+      setSetupItemValue(unfinished.value);
+    }
+    // `moreItems` is derived from the current category data; its signature
+    // reruns this when an item's setup state changes after initial loading.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.hash, moreItems.map((item) => `${item.value}:${item.status}`).join("|")]);
+
   const renderCategories = (items: CategoryItem[]) => {
-    const active = items.filter((i) => !i.comingSoon);
-    if (active.length === 0) return null;
+    if (items.length === 0) return null;
     return (
       <Accordion
         type="single"
         collapsible
         value={activeTab}
         onValueChange={handleAccordionChange}
-        className="space-y-3"
+        className="overflow-hidden rounded-lg border border-border bg-card"
       >
-        {active.map((item) => (
-          <AccordionItem
-            key={item.value}
-            value={item.value}
-            ref={(el) => { itemRefs.current[item.value] = el; }}
-            className="rounded-xl border border-border bg-card px-4 data-[state=open]:ring-1 data-[state=open]:ring-primary/30 scroll-mt-4"
-          >
-            <div className="flex items-center gap-3">
-              <AccordionTrigger className="flex-1 py-4 hover:no-underline gap-3 min-h-[60px]">
-                <OpportunityHeader
-                  icon={item.icon}
-                  label={item.label}
-                  status={item.status}
-                  description={item.description}
-                  summary={item.summary}
-                  amount={item.amount}
-                />
+        {items.map((item) => {
+          const Icon = item.icon;
+          return (
+            <AccordionItem
+              key={item.value}
+              value={item.value}
+              ref={(el) => { itemRefs.current[item.value] = el; }}
+              className="border-b border-border px-3 last:border-b-0 data-[state=open]:bg-muted/20 scroll-mt-4 sm:px-4"
+            >
+              <AccordionTrigger className="min-h-[54px] gap-3 py-2.5 hover:no-underline [&>svg]:hidden">
+                <div className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                  <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold text-card-foreground">{item.label}</span>
+                  <span className="shrink-0 text-sm font-semibold tabular-nums text-card-foreground">{item.amount ?? fmt(0)}</span>
+                  <ChevronRight className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", activeTab === item.value && "rotate-90")} />
+                </div>
               </AccordionTrigger>
-              {item.actionLabel && (
-                <Button
-                  size="sm"
-                  variant={item.status === "configured" ? "outline" : "default"}
-                  className="shrink-0 min-h-[36px]"
-                  onClick={() => handleAccordionChange(activeTab === item.value ? "" : item.value)}
-                >
-                  {item.actionLabel}
-                </Button>
-              )}
-            </div>
-            {DEDUCTION_INSIGHTS[item.value] && (
-              <>
-                <WhyThisMattersButton
-                  open={openInsight === item.value}
-                  onToggle={() => toggleInsight(item.value)}
-                  controlsId={`insight-${item.value}`}
-                />
-                {openInsight === item.value && (
-                  <DeductionInsightPanel
-                    id={`insight-${item.value}`}
-                    content={DEDUCTION_INSIGHTS[item.value]}
-                  />
-                )}
-              </>
-            )}
-            <AccordionContent className="pb-5">{item.content}</AccordionContent>
-          </AccordionItem>
-
-        ))}
+              <AccordionContent className="pb-3">
+                <div className="border-t border-border/70 pt-3">
+                  <div className="mb-3 space-y-1">
+                    <p className="text-xs leading-relaxed text-muted-foreground">{item.description}</p>
+                    {item.summary && <p className="text-xs font-medium text-foreground/80">{item.summary}</p>}
+                  </div>
+                  {DEDUCTION_INSIGHTS[item.value] && (
+                    <>
+                      <WhyThisMattersButton
+                        open={openInsight === item.value}
+                        onToggle={() => toggleInsight(item.value)}
+                        controlsId={`insight-${item.value}`}
+                        className="mb-1"
+                      />
+                      {openInsight === item.value && (
+                        <DeductionInsightPanel
+                          id={`insight-${item.value}`}
+                          content={DEDUCTION_INSIGHTS[item.value]}
+                        />
+                      )}
+                    </>
+                  )}
+                  <div className="pt-1">{item.content}</div>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          );
+        })}
       </Accordion>
     );
   };
 
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
+    <div className="space-y-5 max-w-6xl mx-auto">
       <div>
         <h1 className="text-2xl font-bold text-foreground">Tax Savings</h1>
-        <p className="text-sm text-muted-foreground">Tap a category to view and manage it — everything lives on this page.</p>
+        <p className="text-sm text-muted-foreground">Review active strategies and find more ways to save.</p>
       </div>
 
       <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold">Tax Savings Summary</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div>
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Estimated deductions</p>
-            <p className="text-2xl font-bold text-card-foreground tabular-nums">{fmt(totalEstimatedDeductions)}</p>
-          </div>
-          <div>
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Estimated tax savings</p>
-            <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">≈ {fmt(estimatedTaxSavings)}</p>
-            <p className="text-[11px] text-muted-foreground">At your {marginalRatePct.toFixed(0)}% marginal rate</p>
-          </div>
-          <div>
-            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Active strategies</p>
-            <p className="text-2xl font-bold text-card-foreground tabular-nums">{activeStrategyCount}</p>
+        <CardContent className="p-4 sm:p-5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div className="col-span-2 border-b border-border pb-3 sm:col-span-1 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-4">
+              <p className="text-[11px] uppercase text-muted-foreground">Annual tax savings</p>
+              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">≈ {fmt(estimatedTaxSavings)}</p>
+              <p className="text-[11px] text-muted-foreground">At your {marginalRatePct.toFixed(0)}% marginal rate</p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[11px] uppercase text-muted-foreground">Deductions</p>
+              <p className="text-lg font-bold text-card-foreground tabular-nums sm:text-2xl">{fmt(totalEstimatedDeductions)}</p>
+            </div>
+            <div>
+              <p className="text-[11px] uppercase text-muted-foreground">Active</p>
+              <p className="text-lg font-bold text-card-foreground tabular-nums sm:text-2xl">{activeStrategyCount}</p>
+            </div>
+            {activeStrategyCount > 0 && (
+              <p className="col-span-2 flex items-center gap-1.5 border-t border-border pt-2 text-xs font-medium text-emerald-700 dark:text-emerald-400 sm:col-span-3">
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> Your active strategies are reflected in this estimate.
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {canFeature("taxSavingsOpportunities") && (
-        <RecommendedNextStep
-          items={[...businessItems, ...personalItems]}
-          onSelect={handleAccordionChange}
-        />
-      )}
-
-
-      <div className="space-y-6">
-        {showBusinessSection && businessItems.some((i) => !i.comingSoon) && (
-          <section className="space-y-3">
-            <div>
-              <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <Briefcase className="h-4 w-4 text-muted-foreground" /> Business Tax Savings
-              </h2>
-              <p className="text-xs text-muted-foreground mt-1">
-                Tax deductions related to your self-employed or business income.
-                {showRetirement && !showPersonalSection && " Solo 401(k), SEP and similar plan contributions belong here."}
-              </p>
-            </div>
-            {renderCategories(businessItems)}
+      <div className="space-y-5">
+        {showBusinessSection && activeBusinessItems.length > 0 && (
+          <section className="space-y-2">
+            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Briefcase className="h-4 w-4 text-muted-foreground" /> Business Tax Savings
+            </h2>
+            {renderCategories(activeBusinessItems)}
           </section>
         )}
-        {personalItems.some((i) => !i.comingSoon) && (
-          <section className="space-y-3">
-            <div>
-              <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
-                <User className="h-4 w-4 text-muted-foreground" /> Personal Tax Savings
-              </h2>
-              <p className="text-xs text-muted-foreground mt-1">
-                Tax deductions that reduce your personal taxable income.
-                {showBusinessSection && " Solo 401(k), SEP and other business retirement plans belong under Business Tax Savings."}
-              </p>
-            </div>
-            {renderCategories(personalItems)}
+        {activePersonalItems.length > 0 && (
+          <section className="space-y-2">
+            <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <User className="h-4 w-4 text-muted-foreground" /> Personal Tax Savings
+            </h2>
+            {renderCategories(activePersonalItems)}
           </section>
         )}
 
-        {comingSoonItems.length > 0 && (
-          <Collapsible open={comingSoonOpen} onOpenChange={setComingSoonOpen}>
-            <CollapsibleTrigger className="w-full rounded-xl border border-border bg-card px-4 py-4 min-h-[60px] flex items-center justify-between gap-3 text-left">
-              <span className="flex items-center gap-2 text-sm font-semibold text-card-foreground">
-                More Tax Savings (Coming Soon)
-                <Badge variant="outline" className="text-[11px] font-medium px-2 py-0.5 border-transparent bg-muted text-muted-foreground">
-                  {comingSoonItems.length} Coming Soon
-                </Badge>
-              </span>
-              <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${comingSoonOpen ? "rotate-180" : ""}`} />
-            </CollapsibleTrigger>
-            <CollapsibleContent className="space-y-3 pt-3">
-              {comingSoonItems.map((item) => (
-                <ComingSoonOpportunityCard
-                  key={`${item.value}-coming-soon`}
-                  icon={item.icon}
-                  label={item.label}
-                  description={item.description}
-                  insightTrigger={
-                    DEDUCTION_INSIGHTS[item.value] ? (
-                      <WhyThisMattersButton
-                        open={openInsight === `soon-${item.value}`}
-                        onToggle={() => toggleInsight(`soon-${item.value}`)}
-                        controlsId={`insight-soon-${item.value}`}
-                      />
-                    ) : undefined
-                  }
-                  insightPanel={
-                    openInsight === `soon-${item.value}` && DEDUCTION_INSIGHTS[item.value] ? (
-                      <DeductionInsightPanel
-                        id={`insight-soon-${item.value}`}
-                        content={DEDUCTION_INSIGHTS[item.value]}
-                      />
-                    ) : undefined
-                  }
-                />
-
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
+        {moreItems.length > 0 && (
+          <section className="space-y-2">
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 className="text-sm font-semibold text-foreground">More Tax Savings</h2>
+              <span className="text-xs text-muted-foreground">{moreItems.length} opportunities</span>
+            </div>
+            <div className="overflow-hidden rounded-lg border border-border bg-card">
+              {moreItems.map((item) => {
+                const Icon = item.icon;
+                const canSetUp = !item.comingSoon && Boolean(item.content);
+                const row = (
+                  <div className="flex min-h-[52px] w-full items-center gap-3 px-3 py-2.5 text-left sm:px-4">
+                    <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-card-foreground">{item.label}</span>
+                    <span className="shrink-0 text-xs text-muted-foreground">{item.comingSoon ? "Coming soon" : "Not set up"}</span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  </div>
+                );
+                return canSetUp ? (
+                  <Button
+                    key={`${item.value}-more`}
+                    type="button"
+                    variant="ghost"
+                    className="h-auto w-full rounded-none border-b border-border p-0 font-normal last:border-b-0 hover:bg-muted/40"
+                    onClick={() => setSetupItemValue(item.value)}
+                  >
+                    {row}
+                  </Button>
+                ) : (
+                  <div key={`${item.value}-more`} className="border-b border-border last:border-b-0">
+                    {row}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
         )}
       </div>
+
+      <Dialog open={Boolean(setupItem)} onOpenChange={(open) => { if (!open) setSetupItemValue(null); }}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{setupItem?.label}</DialogTitle>
+          </DialogHeader>
+          {setupItem && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">{setupItem.description}</p>
+              {setupItem.content}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
 
 
