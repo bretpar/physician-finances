@@ -6,6 +6,7 @@ import {
   X, RotateCcw, CheckCircle2, AlertCircle, Link2, ExternalLink,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/DateField";
@@ -48,7 +49,7 @@ import {
   useAddBonus, useDeleteBonus, useUpdateBonus,
   useAddOverride, useUpdateOverride, useDeleteOverride,
   usePlannerConversions, useConfirmSuggestedMatch, useManualPlannerConvert,
-  generateProjectedPaychecks, getProjectedTotals,
+  generateProjectedPaychecks, getProjectedTotals, getProjectedFederalWithholdingBreakdown,
   isStreamExpired, resolveOccurrenceDetail,
   type ProjectedIncomeStream, type ProjectedPaycheck, type ProjectedIncomeOverride,
 } from "@/hooks/useProjectedIncome";
@@ -496,6 +497,10 @@ export default function ProjectedIncome() {
   }, [streams, bonuses, incomeEntriesForMatching, overrides, plannerConversions, businessTxsForMatching]);
 
   const projectedTotals = useMemo(() => getProjectedTotals(projectedPaychecks, streams || []), [projectedPaychecks, streams]);
+  const federalWithholdingBreakdown = useMemo(
+    () => getProjectedFederalWithholdingBreakdown(projectedPaychecks, streams || []),
+    [projectedPaychecks, streams],
+  );
 
   // Confirmation summary for "Stop future income": how many planned future
   // occurrences disappear, and what stays untouched.
