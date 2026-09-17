@@ -6,6 +6,7 @@ import {
   X, RotateCcw, CheckCircle2, AlertCircle, Link2, ExternalLink,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { InfoTooltip } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/DateField";
@@ -48,7 +49,7 @@ import {
   useAddBonus, useDeleteBonus, useUpdateBonus,
   useAddOverride, useUpdateOverride, useDeleteOverride,
   usePlannerConversions, useConfirmSuggestedMatch, useManualPlannerConvert,
-  generateProjectedPaychecks, getProjectedTotals,
+  generateProjectedPaychecks, getProjectedTotals, getProjectedFederalWithholdingBreakdown,
   isStreamExpired, resolveOccurrenceDetail,
   type ProjectedIncomeStream, type ProjectedPaycheck, type ProjectedIncomeOverride,
 } from "@/hooks/useProjectedIncome";
@@ -496,6 +497,10 @@ export default function ProjectedIncome() {
   }, [streams, bonuses, incomeEntriesForMatching, overrides, plannerConversions, businessTxsForMatching]);
 
   const projectedTotals = useMemo(() => getProjectedTotals(projectedPaychecks, streams || []), [projectedPaychecks, streams]);
+  const federalWithholdingBreakdown = useMemo(
+    () => getProjectedFederalWithholdingBreakdown(projectedPaychecks, streams || []),
+    [projectedPaychecks, streams],
+  );
 
   // Confirmation summary for "Stop future income": how many planned future
   // occurrences disappear, and what stays untouched.
@@ -1225,6 +1230,39 @@ export default function ProjectedIncome() {
           </div>
         </div>
       </div>
+
+      {/* Projected federal withholding breakdown */}
+      {federalWithholdingBreakdown.length > 0 && (
+        <Card>
+          <CardContent className="p-4 sm:p-5 space-y-3">
+            <div className="flex items-center gap-2">
+              <Shield className="h-4 w-4 text-muted-foreground shrink-0" />
+              <h2 className="text-sm font-semibold text-foreground">Projected Federal Withholding</h2>
+              <InfoTooltip>Federal income tax withholding only, summed per paycheck. Social Security and Medicare payroll taxes are excluded — they are settled through payroll and never credited against your federal income-tax estimate.</InfoTooltip>
+            </div>
+            <div className="divide-y divide-border">
+              {federalWithholdingBreakdown.map((row) => (
+                <div key={row.streamId} className="flex items-center justify-between gap-3 py-2">
+                  <div className="min-w-0">
+                    <p className="text-sm text-foreground truncate">{row.label}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {row.occurrenceCount} planned {row.occurrenceCount === 1 ? "paycheck" : "paychecks"}
+                    </p>
+                  </div>
+                  <p className="text-sm font-semibold tabular-nums text-foreground shrink-0">{fmt(row.federalWithheld)}</p>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
+              <p className="text-sm font-medium text-foreground">Total projected federal withholding</p>
+              <p className="text-base font-bold tabular-nums text-primary">{fmt(projectedTotals.federalWithheld)}</p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Social Security and Medicare are excluded — only federal income tax withholding counts toward your tax estimate.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
 
 

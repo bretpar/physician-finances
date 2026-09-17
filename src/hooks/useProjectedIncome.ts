@@ -2045,6 +2045,58 @@ export function getProjectedTotals(
   return acc;
 }
 
+export interface FederalWithholdingBreakdownRow {
+  streamId: string;
+  label: string;
+  occurrenceCount: number;
+  federalWithheld: number;
+}
+
+/**
+ * Per-stream breakdown of projected FEDERAL INCOME TAX withholding, summed
+ * per occurrence using the same canonical occurrence-level logic as
+ * getProjectedTotals (override > stream; legacy fallback to the stream's
+ * income-tax-only withholding). Social Security and Medicare are payroll
+ * taxes and are NEVER included here.
+ */
+export function getProjectedFederalWithholdingBreakdown(
+  paychecks: ProjectedPaycheck[],
+  streams: ProjectedIncomeStream[] = [],
+): FederalWithholdingBreakdownRow[] {
+  const streamById = new Map(streams.map((s) => [s.id, s] as const));
+  const rows = new Map<string, FederalWithholdingBreakdownRow>();
+
+  for (const p of paychecks) {
+    if (p.matchStatus !== "active") continue;
+    const stream = streamById.get(p.streamId);
+
+    let fed = getFederalIncomeTaxWithheld({
+      taxes_withheld: p.taxesWithheld,
+      federal_withholding: p.federalWithholding,
+      ss_withholding: p.ssWithholding,
+      medicare_withholding: p.medicareWithholding,
+    });
+    const st = Number(p.stateWithholding ?? stream?.state_withholding ?? 0);
+    if (fed === 0 && st === 0 && stream) {
+      fed = getFederalIncomeTaxWithheld(stream as any);
+    }
+    if (fed === 0) continue;
+
+    const key = p.streamId || p.label;
+    const row = rows.get(key) ?? {
+      streamId: key,
+      label: p.label,
+      occurrenceCount: 0,
+      federalWithheld: 0,
+    };
+    row.occurrenceCount += 1;
+    row.federalWithheld += fed;
+    rows.set(key, row);
+  }
+
+  return Array.from(rows.values()).sort((a, b) => b.federalWithheld - a.federalWithheld);
+}
+
 /**
  * Source-of-truth for planner-side monthly breakdown. Use everywhere the
  * Income Planner monthly totals are surfaced (Dashboard "Monthly Income"
