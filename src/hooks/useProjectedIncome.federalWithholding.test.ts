@@ -108,6 +108,47 @@ describe("getProjectedTotals — federal income-tax withholding only", () => {
     expect(totals.count).toBe(0);
   });
 
+  it("E. converted/merged occurrence with zero federal withholding: no double-count, no parent inheritance", () => {
+    const stream = makeStream();
+    // A converted occurrence whose merged actual had $0 federal income-tax
+    // withholding (e.g. a Roth-heavy or exempt paycheck). Its occurrence-level
+    // fields are explicitly zero — it must contribute 0, not fall back to the
+    // parent stream's 700, and the sibling active occurrence must be counted
+    // exactly once.
+    const convertedZeroFed = makePaycheck({
+      date: "2026-06-01",
+      matchStatus: "matched" as any, // converted/merged — excluded from projection
+      taxesWithheld: 0,
+      federalWithholding: 0,
+      ssWithholding: 0,
+      medicareWithholding: 0,
+    });
+    const active = makePaycheck({ date: "2026-06-15" });
+    const totals = getProjectedTotals([convertedZeroFed, active], [stream]);
+    // Only the active occurrence's 700 — the converted one adds nothing and
+    // the parent stream total is never inherited for it.
+    expect(totals.federalWithheld).toBe(700);
+    expect(totals.count).toBe(1);
+    expect(totals.federalWithheld).not.toBe(1400); // no double-count
+  });
+
+  it("F. active occurrence explicitly overridden to zero federal withholding stays zero", () => {
+    const stream = makeStream();
+    // An active occurrence whose override explicitly zeroes federal income-tax
+    // withholding (hasDetailedBreakdown) must not inherit the stream's 700.
+    const zeroed = makePaycheck({
+      isModified: true,
+      hasDetailedBreakdown: true,
+      taxesWithheld: 500, // SS + Medicare only
+      federalWithholding: 0,
+      ssWithholding: 310,
+      medicareWithholding: 190,
+      stateWithholding: 0,
+    });
+    const totals = getProjectedTotals([zeroed], [stream]);
+    expect(totals.federalWithheld).toBe(0);
+  });
+
   it("projectedFederalWithheld equals the sum of federal income-tax withholding only", () => {
     const stream = makeStream();
     const paychecks = [
