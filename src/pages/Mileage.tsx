@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import {
+  ActiveStrategyRow,
   type OpportunityActionLabel,
   type OpportunityStatus,
 } from "@/components/tax-savings/OpportunityCard";
@@ -68,6 +69,7 @@ import { cn } from "@/lib/utils";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const fmt = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
+const fmtWhole = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(n);
 /** Display form of the IRS rate applied to a specific entry, e.g. "72.5¢/mi". */
 const fmtRate = (rate: number) => `${(rate * 100).toFixed(1)}¢/mi`;
 const num = (v: string) => parseFloat(v) || 0;
@@ -609,7 +611,7 @@ export default function Mileage() {
     actionLabel?: OpportunityActionLabel;
     content?: ReactNode;
     comingSoon?: boolean;
-    /** Pre-formatted deduction amount shown prominently when configured. */
+    /** Pre-formatted deduction amount retained for strategy-specific content. */
     amount?: string;
     /** Raw amount used only for the display-only summary card totals. */
     deductionValue?: number;
@@ -1471,48 +1473,36 @@ export default function Mileage() {
         className="overflow-hidden rounded-lg border border-border bg-card"
       >
         {items.map((item) => {
-          const Icon = item.icon;
+          const deductionAmount = Number(item.deductionValue || 0);
+          const strategyTaxSavings = deductionAmount * (marginalRatePct / 100);
           return (
-            <AccordionItem
+            <ActiveStrategyRow
               key={item.value}
               value={item.value}
-              ref={(el) => { itemRefs.current[item.value] = el; }}
-              className="border-b border-border px-3 last:border-b-0 data-[state=open]:bg-muted/20 scroll-mt-4 sm:px-4"
-            >
-              <AccordionTrigger className="min-h-[54px] gap-3 py-2.5 hover:no-underline [&>svg]:hidden">
-                <div className="flex min-w-0 flex-1 items-center gap-3 text-left">
-                  <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  <span className="min-w-0 flex-1 truncate text-sm font-semibold text-card-foreground">{item.label}</span>
-                  <span className="shrink-0 text-sm font-semibold tabular-nums text-card-foreground">{item.amount ?? fmt(0)}</span>
-                  <ChevronRight className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", activeTab === item.value && "rotate-90")} />
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="pb-3">
-                <div className="border-t border-border/70 pt-3">
-                  <div className="mb-3 space-y-1">
-                    <p className="text-xs leading-relaxed text-muted-foreground">{item.description}</p>
-                    {item.summary && <p className="text-xs font-medium text-foreground/80">{item.summary}</p>}
-                  </div>
-                  {DEDUCTION_INSIGHTS[item.value] && (
-                    <>
-                      <WhyThisMattersButton
-                        open={openInsight === item.value}
-                        onToggle={() => toggleInsight(item.value)}
-                        controlsId={`insight-${item.value}`}
-                        className="mb-1"
-                      />
-                      {openInsight === item.value && (
-                        <DeductionInsightPanel
-                          id={`insight-${item.value}`}
-                          content={DEDUCTION_INSIGHTS[item.value]}
-                        />
-                      )}
-                    </>
+              icon={item.icon}
+              label={item.label}
+              taxSavings={strategyTaxSavings}
+              deductionAmount={deductionAmount}
+              marginalRatePct={marginalRatePct}
+              description={item.description}
+              summary={item.summary}
+              isOpen={activeTab === item.value}
+              itemRef={(el) => { itemRefs.current[item.value] = el; }}
+              supportingContent={DEDUCTION_INSIGHTS[item.value] ? (
+                <>
+                  <WhyThisMattersButton
+                    open={openInsight === item.value}
+                    onToggle={() => toggleInsight(item.value)}
+                    controlsId={`insight-${item.value}`}
+                  />
+                  {openInsight === item.value && (
+                    <DeductionInsightPanel id={`insight-${item.value}`} content={DEDUCTION_INSIGHTS[item.value]} />
                   )}
-                  <div className="pt-1">{item.content}</div>
-                </div>
-              </AccordionContent>
-            </AccordionItem>
+                </>
+              ) : undefined}
+            >
+              {item.content}
+            </ActiveStrategyRow>
           );
         })}
       </Accordion>
@@ -1529,23 +1519,13 @@ export default function Mileage() {
 
       <Card>
         <CardContent className="p-4 sm:p-5">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <div className="col-span-2 border-b border-border pb-3 sm:col-span-1 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-4">
-              <p className="text-[11px] uppercase text-muted-foreground">Annual tax savings</p>
-              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">≈ {fmt(estimatedTaxSavings)}</p>
-              <p className="text-[11px] text-muted-foreground">At your {marginalRatePct.toFixed(0)}% marginal rate</p>
-            </div>
-            <div className="min-w-0">
-              <p className="text-[11px] uppercase text-muted-foreground">Deductions</p>
-              <p className="text-lg font-bold text-card-foreground tabular-nums sm:text-2xl">{fmt(totalEstimatedDeductions)}</p>
-            </div>
-            <div>
-              <p className="text-[11px] uppercase text-muted-foreground">Active</p>
-              <p className="text-lg font-bold text-card-foreground tabular-nums sm:text-2xl">{activeStrategyCount}</p>
-            </div>
+          <div className="space-y-1">
+            <p className="text-[11px] uppercase text-muted-foreground">Estimated Annual Tax Savings</p>
+            <p className="text-3xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{fmtWhole(estimatedTaxSavings)}</p>
+            <p className="text-xs text-muted-foreground">At your {marginalRatePct.toFixed(0)}% marginal rate</p>
             {activeStrategyCount > 0 && (
-              <p className="col-span-2 flex items-center gap-1.5 border-t border-border pt-2 text-xs font-medium text-emerald-700 dark:text-emerald-400 sm:col-span-3">
-                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> Your active strategies are reflected in this estimate.
+              <p className="flex items-center gap-1.5 pt-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> Active strategies are reflected in this estimate.
               </p>
             )}
           </div>
