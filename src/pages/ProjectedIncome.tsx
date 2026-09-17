@@ -1238,7 +1238,7 @@ export default function ProjectedIncome() {
             <div className="flex items-center gap-2">
               <Shield className="h-4 w-4 text-muted-foreground shrink-0" />
               <h2 className="text-sm font-semibold text-foreground">Projected Federal Withholding</h2>
-              <InfoTooltip content="Federal income tax withholding only, summed per paycheck. Social Security and Medicare payroll taxes are excluded — they are settled through payroll and never credited against your federal income-tax estimate." />
+              <InfoTooltip>Federal income tax withholding only, summed per paycheck. Social Security and Medicare payroll taxes are excluded — they are settled through payroll and never credited against your federal income-tax estimate.</InfoTooltip>
             </div>
             <div className="divide-y divide-border">
               {federalWithholdingBreakdown.map((row) => (
