@@ -27,7 +27,6 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Plus, Trash2, Download, Pencil, Car, PiggyBank, HeartPulse, Home, Info, Wallet, Briefcase, User, ChevronRight, CheckCircle2 } from "lucide-react";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTransactions } from "@/hooks/useTransactions";
@@ -1531,7 +1530,7 @@ export default function Mileage() {
       <Card>
         <CardContent className="p-4 sm:p-5">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <div className="col-span-3 border-b border-border pb-3 sm:col-span-1 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-4">
+            <div className="col-span-2 border-b border-border pb-3 sm:col-span-1 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-4">
               <p className="text-[11px] uppercase text-muted-foreground">Annual tax savings</p>
               <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">≈ {fmt(estimatedTaxSavings)}</p>
               <p className="text-[11px] text-muted-foreground">At your {marginalRatePct.toFixed(0)}% marginal rate</p>
