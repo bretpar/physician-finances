@@ -12,6 +12,7 @@ import { type QuarterLabel, getCurrentQuarter } from "@/lib/quarters";
 import type { TaxPayment } from "@/hooks/useTaxPayments";
 import { type InvestmentIncomeEntry } from "@/hooks/useInvestmentIncome";
 import { buildQuarterRecommendation, getActivePaymentTarget } from "@/lib/quarterRecommendation";
+import { useQuarterDashboardState, findQuarterState } from "@/hooks/useQuarterDashboardState";
 import { isW2FilingType } from "@/lib/filingTypes";
 
 /** Per-company current-quarter row split into paid (real withholdings) vs saved (reserves). */
@@ -202,6 +203,12 @@ export default function QuarterlyTracker({
   // Quarter target, paid, saved, progress, recommended payment, and source
   // rows all come from `buildQuarterRecommendation` so this component
   // cannot drift from Dashboard / Tax Overview.
+  // Closed-quarter targets are frozen so later-quarter income cannot
+  // retroactively increase them — same source as the Dashboard callout.
+  const { data: quarterStates } = useQuarterDashboardState();
+  const frozenTarget =
+    findQuarterState(quarterStates, view.year, view.quarter)?.frozen_quarter_target ?? null;
+
   const recommendation = useMemo(
     () =>
       buildQuarterRecommendation({
@@ -216,8 +223,9 @@ export default function QuarterlyTracker({
         projectedPaychecks,
         payments,
         manualSavings,
+        frozenQuarterTarget: frozenTarget,
       }),
-    [annualTaxLiability, view.year, view.quarter, quarterMethod, incomeEntries, personalEntries, transactions, investmentEntries, projectedPaychecks, payments, manualSavings],
+    [annualTaxLiability, view.year, view.quarter, quarterMethod, incomeEntries, personalEntries, transactions, investmentEntries, projectedPaychecks, payments, manualSavings, frozenTarget],
   );
 
   const quarterTarget = recommendation.quarterTarget;
