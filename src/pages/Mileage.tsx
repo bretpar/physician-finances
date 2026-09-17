@@ -65,6 +65,7 @@ import {
   type PlanInput,
 } from "@/lib/retirementContributionRoom";
 import { RetirementRoomSummary } from "@/components/retirement/RetirementRoomSummary";
+import { cn } from "@/lib/utils";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 const fmt = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
@@ -1455,7 +1456,10 @@ export default function Mileage() {
       setActiveTab("");
       setSetupItemValue(unfinished.value);
     }
-  }, [location.hash, moreItems]);
+    // `moreItems` is derived from the current category data; its signature
+    // reruns this when an item's setup state changes after initial loading.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.hash, moreItems.map((item) => `${item.value}:${item.status}`).join("|")]);
 
   const renderCategories = (items: CategoryItem[]) => {
     if (items.length === 0) return null;
@@ -1467,48 +1471,51 @@ export default function Mileage() {
         onValueChange={handleAccordionChange}
         className="overflow-hidden rounded-lg border border-border bg-card"
       >
-        {items.map((item) => (
-          <AccordionItem
-            key={item.value}
-            value={item.value}
-            ref={(el) => { itemRefs.current[item.value] = el; }}
-            className="border-b border-border px-3 last:border-b-0 data-[state=open]:bg-muted/20 scroll-mt-4 sm:px-4"
-          >
-            <AccordionTrigger className="min-h-[54px] gap-3 py-2.5 hover:no-underline [&>svg]:hidden">
-              <div className="flex min-w-0 flex-1 items-center gap-3 text-left">
-                <item.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-card-foreground">{item.label}</span>
-                <span className="shrink-0 text-sm font-semibold tabular-nums text-card-foreground">{item.amount ?? fmt(0)}</span>
-                <ChevronRight className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", activeTab === item.value && "rotate-90")} />
-              </div>
-            </AccordionTrigger>
-            <AccordionContent className="pb-3">
-              <div className="border-t border-border/70 pt-3">
-                <div className="mb-3 space-y-1">
-                  <p className="text-xs leading-relaxed text-muted-foreground">{item.description}</p>
-                  {item.summary && <p className="text-xs font-medium text-foreground/80">{item.summary}</p>}
+        {items.map((item) => {
+          const Icon = item.icon;
+          return (
+            <AccordionItem
+              key={item.value}
+              value={item.value}
+              ref={(el) => { itemRefs.current[item.value] = el; }}
+              className="border-b border-border px-3 last:border-b-0 data-[state=open]:bg-muted/20 scroll-mt-4 sm:px-4"
+            >
+              <AccordionTrigger className="min-h-[54px] gap-3 py-2.5 hover:no-underline [&>svg]:hidden">
+                <div className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                  <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  <span className="min-w-0 flex-1 truncate text-sm font-semibold text-card-foreground">{item.label}</span>
+                  <span className="shrink-0 text-sm font-semibold tabular-nums text-card-foreground">{item.amount ?? fmt(0)}</span>
+                  <ChevronRight className={cn("h-4 w-4 shrink-0 text-muted-foreground transition-transform", activeTab === item.value && "rotate-90")} />
                 </div>
-                {DEDUCTION_INSIGHTS[item.value] && (
-                  <>
-                    <WhyThisMattersButton
-                      open={openInsight === item.value}
-                      onToggle={() => toggleInsight(item.value)}
-                      controlsId={`insight-${item.value}`}
-                      className="mb-1"
-                    />
-                    {openInsight === item.value && (
-                      <DeductionInsightPanel
-                        id={`insight-${item.value}`}
-                        content={DEDUCTION_INSIGHTS[item.value]}
+              </AccordionTrigger>
+              <AccordionContent className="pb-3">
+                <div className="border-t border-border/70 pt-3">
+                  <div className="mb-3 space-y-1">
+                    <p className="text-xs leading-relaxed text-muted-foreground">{item.description}</p>
+                    {item.summary && <p className="text-xs font-medium text-foreground/80">{item.summary}</p>}
+                  </div>
+                  {DEDUCTION_INSIGHTS[item.value] && (
+                    <>
+                      <WhyThisMattersButton
+                        open={openInsight === item.value}
+                        onToggle={() => toggleInsight(item.value)}
+                        controlsId={`insight-${item.value}`}
+                        className="mb-1"
                       />
-                    )}
-                  </>
-                )}
-                <div className="pt-1">{item.content}</div>
-              </div>
-            </AccordionContent>
-          </AccordionItem>
-        ))}
+                      {openInsight === item.value && (
+                        <DeductionInsightPanel
+                          id={`insight-${item.value}`}
+                          content={DEDUCTION_INSIGHTS[item.value]}
+                        />
+                      )}
+                    </>
+                  )}
+                  <div className="pt-1">{item.content}</div>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          );
+        })}
       </Accordion>
     );
   };
@@ -1523,7 +1530,7 @@ export default function Mileage() {
 
       <Card>
         <CardContent className="p-4 sm:p-5">
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div className="col-span-3 border-b border-border pb-3 sm:col-span-1 sm:border-b-0 sm:border-r sm:pb-0 sm:pr-4">
               <p className="text-[11px] uppercase text-muted-foreground">Annual tax savings</p>
               <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">≈ {fmt(estimatedTaxSavings)}</p>
@@ -1537,9 +1544,11 @@ export default function Mileage() {
               <p className="text-[11px] uppercase text-muted-foreground">Active</p>
               <p className="text-lg font-bold text-card-foreground tabular-nums sm:text-2xl">{activeStrategyCount}</p>
             </div>
-            <div className="flex justify-end sm:col-span-1">
-              {activeStrategyCount > 0 && <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" aria-label="Active tax-saving strategies" />}
-            </div>
+            {activeStrategyCount > 0 && (
+              <p className="col-span-2 flex items-center gap-1.5 border-t border-border pt-2 text-xs font-medium text-emerald-700 dark:text-emerald-400 sm:col-span-3">
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0" /> Your active strategies are reflected in this estimate.
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
