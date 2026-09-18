@@ -1445,7 +1445,10 @@ export default function Mileage() {
   const moreItems = [...businessItems, ...personalItems].filter(
     (i) => i.comingSoon || i.status !== "configured",
   );
-  const setupItem = moreItems.find((i) => i.value === setupItemValue) ?? null;
+  // Look up across ALL items (not just moreItems) so the setup dialog stays
+  // open when saving the first entry flips the strategy to "configured".
+  const setupItem =
+    [...businessItems, ...personalItems].find((i) => i.value === setupItemValue) ?? null;
 
   // Deep links to unfinished strategies open their setup surface rather than an
   // accordion row. Configured strategies retain the existing accordion flow.
