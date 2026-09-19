@@ -62,6 +62,7 @@ import {
 import { computeRetirementRoomView } from "@/lib/retirementRoomView";
 import { aggregatePlannedBusinessExpenses } from "@/lib/plannedBusinessExpenses";
 import { RetirementRoomSummary } from "@/components/retirement/RetirementRoomSummary";
+import { RetirementContributionDetails } from "@/components/retirement/RetirementContributionDetails";
 import { cn } from "@/lib/utils";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -906,75 +907,12 @@ export default function Mileage() {
       </Button>
 
       <RetirementRoomSummary
-        taxYear={currentYear}
-        employeeRoom={retirementRoom.employeeRoom}
-        employerContributionTotal={retirementRoom.employerContributionTotal}
-        plans={retirementRoom.plans}
+        room={retirementRoom}
         hasPlannerAccess={hasPlannerAccess && canFeature("projectedContributionCapacity")}
         hasEmployerOpportunityAccess={canFeature("employerContributionOpportunity")}
         hasCapacityAccess={canFeature("projectedContributionCapacity")}
-        iraRoom={retirementRoom.iraRoom}
       />
 
-
-
-          {retirementIsEmpty ? (
-            <>
-              <Card>
-                <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Total Contributions</CardTitle></CardHeader>
-                <CardContent><p className="text-2xl font-bold">{fmt(annualized.total + paycheckLinked.total)}</p></CardContent>
-              </Card>
-              <p className="text-sm text-muted-foreground">
-                Pre-tax retirement contributions lower your taxable income. Add a contribution to see how much you save.
-              </p>
-            </>
-          ) : (
-          /* Summary cards — include both standalone + paycheck-linked */
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Total Contributions (YTD)</CardTitle></CardHeader>
-              <CardContent><p className="text-2xl font-bold">{fmt(annualized.total + paycheckLinked.total)}</p><p className="text-xs text-muted-foreground">Standalone + employee + employer</p></CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Estimated Personal Deduction</CardTitle></CardHeader>
-              <CardContent><p className="text-2xl font-bold text-success">{fmt(annualized.employeeTotal + paycheckLinked.employeeTotal)}</p><p className="text-xs text-muted-foreground">Employer contributions excluded</p></CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Standalone (Annual)</CardTitle></CardHeader>
-              <CardContent><p className="text-2xl font-bold">{fmt(annualized.total)}</p><p className="text-xs text-muted-foreground">{contributions?.length || 0} configured</p></CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Employee (YTD)</CardTitle></CardHeader>
-              <CardContent><p className="text-2xl font-bold">{fmt(paycheckLinked.employeeTotal)}</p><p className="text-xs text-muted-foreground">{paycheckLinked.entries.length} income entries</p></CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Employer (YTD)</CardTitle></CardHeader>
-              <CardContent><p className="text-2xl font-bold">{fmt(paycheckLinked.employerTotal)}</p><p className="text-xs text-muted-foreground">Employer match / profit sharing</p></CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Affects Withholding</CardTitle></CardHeader>
-              <CardContent><p className="text-2xl font-bold text-success">{fmt(annualized.withholding)}</p><p className="text-xs text-muted-foreground">From standalone contributions</p></CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-xs font-medium text-muted-foreground">Per Paycheck (Est.)</CardTitle></CardHeader>
-              <CardContent><p className="text-2xl font-bold">{fmt(annualized.perPaycheck)}</p><p className="text-xs text-muted-foreground">Estimated per pay period</p></CardContent>
-            </Card>
-          </div>
-          )}
-
-          {paycheckLinked.entries.length > 0 && (
-            <Card>
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-semibold">Recent activity</CardTitle></CardHeader>
-              <CardContent className="space-y-2">
-                {paycheckLinked.entries.slice(0, 5).map((ie) => (
-                  <div key={ie.id} className="flex items-center justify-between text-sm gap-3">
-                    <span className="text-muted-foreground truncate">{ie.income_date} — {ie.name}</span>
-                    <span className="tabular-nums font-medium shrink-0">{fmt(Number(ie.retirement_401k || 0) + Number((ie as any).employer_retirement_contribution || 0))}</span>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
 
 
           {/* Add / edit contribution — modal so it opens visibly on tap */}
@@ -1095,126 +1033,14 @@ export default function Mileage() {
             </DialogContent>
           </Dialog>
 
-          {/* Contributions table */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <PiggyBank className="h-4 w-4" /> Retirement Contributions ({contributions?.length || 0})
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Plan</TableHead>
-                      <TableHead className="text-right whitespace-nowrap">Amount</TableHead>
-                      <TableHead className="hidden sm:table-cell">Date</TableHead>
-                      <TableHead className="text-right whitespace-nowrap hidden md:table-cell">Annual</TableHead>
-                      <TableHead className="text-right whitespace-nowrap hidden lg:table-cell">Employer Match</TableHead>
-                      <TableHead className="hidden md:table-cell">Withholding</TableHead>
-                      <TableHead className="w-24"></TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(!contributions || contributions.length === 0) ? (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                          No retirement contributions yet. Click "Add Contribution" to get started.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      contributions.map((c) => {
-                        const amt = Number(c.contribution_amount);
-                        const contribCompany = c.company_id
-                          ? companies.find((co) => co.id === c.company_id)
-                          : undefined;
-                        const annual = annualizeContributionAmount(c, {
-                          taxYear: currentYear,
-                          payFrequency: contribCompany?.payFrequency ?? null,
-                        }).annual;
-                        const companyName = contribCompany?.name || null;
-                        return (
-                          <TableRow key={c.id}>
-                            <TableCell className="font-medium">
-                              <span className="block truncate">
-                                {getAccountLabel(c.account_type)} · {getContributionTypeLabel(c.contribution_type)}
-                              </span>
-                              <span className="block truncate text-xs font-normal text-muted-foreground">
-                                {companyName || (isIraPlan(c.account_type) ? "Personal" : "No company")}
-                              </span>
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums whitespace-nowrap">{fmt(amt)}</TableCell>
-                            <TableCell className="hidden sm:table-cell">
-                              <span className="block whitespace-nowrap">{c.contribution_date || c.start_date}</span>
-                              <Badge variant="outline" className="mt-1">{getFreqLabel(c.frequency)}</Badge>
-                            </TableCell>
-                            <TableCell className="text-right tabular-nums whitespace-nowrap font-medium hidden md:table-cell">{fmt(annual)}</TableCell>
-                            <TableCell className="text-right tabular-nums whitespace-nowrap text-muted-foreground hidden lg:table-cell">{Number(c.employer_match) > 0 ? fmt(Number(c.employer_match)) : "—"}</TableCell>
-                            <TableCell className="hidden md:table-cell">
-                              <Badge variant="outline" className={c.apply_to_withholding ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-muted text-muted-foreground"}>
-                                {c.apply_to_withholding ? "Active" : "Projection Only"}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex gap-1 justify-end">
-                                <Button size="icon" variant="ghost" onClick={() => startEditContrib(c)}><Pencil className="h-4 w-4" /></Button>
-                                <Button size="icon" variant="ghost" className="text-destructive" onClick={() => setContribDeleteId(c.id)}><Trash2 className="h-4 w-4" /></Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-           </Card>
-
-          {/* Paycheck-linked retirement contributions from income entries */}
-          {paycheckLinked.entries.length > 0 && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Wallet className="h-4 w-4" /> Paycheck-Linked Contributions ({paycheckLinked.entries.length})
-                </CardTitle>
-                <p className="text-xs text-muted-foreground mt-1">
-                  These retirement contributions were recorded with income entries and automatically reduce taxable income.
-                </p>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div>
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Income Entry</TableHead>
-                        <TableHead>Company</TableHead>
-                        <TableHead>Type</TableHead>
-                        <TableHead className="text-right">Employee</TableHead>
-                        <TableHead className="text-right">Employer</TableHead>
-                        <TableHead className="text-right">Paycheck</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {paycheckLinked.entries.slice(0, 20).map((ie) => (
-                        <TableRow key={ie.id}>
-                          <TableCell className="whitespace-nowrap">{ie.income_date}</TableCell>
-                          <TableCell className="font-medium">{ie.name}</TableCell>
-                          <TableCell>{ie.company}</TableCell>
-                          <TableCell><Badge variant="outline">{ie.income_type}</Badge></TableCell>
-                          <TableCell className="text-right tabular-nums font-medium">{fmt(Number(ie.retirement_401k || 0))}</TableCell>
-                          <TableCell className="text-right tabular-nums font-medium">{fmt(Number((ie as any).employer_retirement_contribution || 0))}</TableCell>
-                          <TableCell className="text-right tabular-nums text-muted-foreground">{fmt(Number(ie.paycheck_amount))}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          <RetirementContributionDetails
+            contributions={contributions || []}
+            paycheckEntries={paycheckLinked.entries as never}
+            companyName={(companyId) => companyId ? companies.find((company) => company.id === companyId)?.name || null : null}
+            annualAmount={(contribution) => annualizeContributionAmount(contribution, { taxYear: currentYear, payFrequency: contribution.company_id ? payFrequencyByCompany.get(contribution.company_id) ?? null : null }).annual}
+            onEdit={startEditContrib}
+            onDelete={setContribDeleteId}
+          />
     </div>
   );
 
