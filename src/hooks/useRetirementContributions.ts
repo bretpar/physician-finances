@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import { useMemo } from "react";
+import { annualizeRetirementContribution } from "@/lib/retirementOpportunityEngine";
 
 /**
  * Standalone retirement contributions (made outside the paycheck flow).
