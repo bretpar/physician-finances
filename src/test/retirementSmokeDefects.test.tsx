@@ -93,14 +93,50 @@ describe("Schedule C employer contribution basis", () => {
 /* 4 — Solo employer deduction reaches federal tax without touching SE tax */
 
 describe("Solo 401(k) employer deduction tax routing", () => {
-  const input = (employerContribution: number): UnifiedTaxInput =>
-    ({
-      businessIncome: 50_000,
-      seEligibleBusinessIncome: 50_000,
-      businessRetirement: employerContribution,
-      filingStatus: "single",
-      includeProjectedIncome: false,
-    }) as unknown as UnifiedTaxInput;
+  const base: UnifiedTaxInput = {
+    businessIncome: 50_000,
+    seEligibleBusinessIncome: 50_000,
+    businessW2: 0,
+    businessFederalWithheld: 0,
+    businessStateWithheld: 0,
+    businessPreTax: 0,
+    businessRetirement: 0,
+    ownerHealthcare: 0,
+    businessStateEligibleGross: 0,
+    businessStateEligibleExpenses: 0,
+    businessStateEligibleMileage: 0,
+    businessStateEligibleOwnerAdjustments: 0,
+    personalIncome: 0,
+    personalW2: 0,
+    personalNonW2Income: 0,
+    personalFederalWithheld: 0,
+    personalStateWithheld: 0,
+    personalPreTax: 0,
+    personalRetirement: 0,
+    netStockGain: 0,
+    businessExpenses: 0,
+    mileageDeduction: 0,
+    annualizedRetirement: 0,
+    txActualWithholding: 0,
+    actualEstimatedPaymentsMade: 0,
+    taxSavingsSetAside: 0,
+    remainingPayPeriods: 0,
+    projectedW2Income: 0,
+    projectedSEIncome: 0,
+    projectedOtherIncome: 0,
+    projectedFederalWithheld: 0,
+    projectedStateWithheld: 0,
+    projectedPreTax: 0,
+    projectedRetirement: 0,
+    projectedHealthInsuranceDeduction: 0,
+    filingStatus: "single",
+    lastYearTax: 0,
+    includeProjectedIncome: false,
+  };
+  const input = (employerContribution: number): UnifiedTaxInput => ({
+    ...base,
+    businessRetirement: employerContribution,
+  });
 
   it("changes federal taxable income while SE tax stays identical", () => {
     const low = computeUnifiedTaxEstimate(input(1));
