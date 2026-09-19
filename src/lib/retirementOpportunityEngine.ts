@@ -832,12 +832,14 @@ export function computeRetirementOpportunity(
       input.coveredByWorkplacePlan ?? (planInputs.length > 0 ? true : null),
     spouseCoveredByWorkplacePlan: input.spouseCoveredByWorkplacePlan ?? null,
     eligibleTaxableCompensation: input.eligibleTaxableCompensation ?? null,
+    livedWithSpouseDuringYear: input.livedWithSpouseDuringYear ?? null,
     traditionalContributed: nonNeg(input.ira?.traditionalContributed),
     rothContributed: nonNeg(input.ira?.rothContributed),
   });
 
-  /* Explicit tax routing categories — never one overloaded retirement value. */
-  const employeePreTaxDeduction = plans.reduce((s, p) => s + p.employeeContribution, 0);
+  /* Explicit tax routing categories — never one overloaded retirement value.
+     Disallowed money (e.g. SEP employee deferrals) is never deducted. */
+  const employeePreTaxDeduction = plans.reduce((s, p) => s + p.employeeDeferralCounted, 0);
   const selfEmployedEmployerDeduction = plans
     .filter((p) => SELF_EMPLOYED_ENTITIES.includes(p.entityKind))
     .reduce((s, p) => s + p.employerContribution, 0);
