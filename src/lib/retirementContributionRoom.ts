@@ -294,21 +294,21 @@ export interface IraYearLimits {
   catchUp50: number;
 }
 
-export const IRA_LIMITS_BY_YEAR: Record<number, IraYearLimits> = {
-  2024: { contribution: 7_000, catchUp50: 1_000 },
-  2025: { contribution: 7_000, catchUp50: 1_000 },
-  2026: { contribution: 7_500, catchUp50: 1_100 },
-};
-
-const LATEST_IRA_YEAR = Math.max(...Object.keys(IRA_LIMITS_BY_YEAR).map(Number));
+/** Derived from the canonical engine rule table. */
+export const IRA_LIMITS_BY_YEAR: Record<number, IraYearLimits> = Object.fromEntries(
+  Object.entries(RETIREMENT_RULES_BY_YEAR).map(([year, r]) => [
+    Number(year),
+    { contribution: r.ira.limit, catchUp50: r.ira.catchUp50 },
+  ]),
+) as Record<number, IraYearLimits>;
 
 export function getIraContributionLimit(
   taxYear: number,
   dateOfBirth?: string | Date | null,
 ): number {
-  const limits = IRA_LIMITS_BY_YEAR[taxYear] ?? IRA_LIMITS_BY_YEAR[LATEST_IRA_YEAR];
+  const limits = getRetirementRules(taxYear).ira;
   const age = ageAttainedInTaxYear(dateOfBirth, taxYear);
-  return limits.contribution + (age != null && age >= 50 ? limits.catchUp50 : 0);
+  return limits.limit + (age != null && age >= 50 ? limits.catchUp50 : 0);
 }
 
 export interface IraRoomSummary {
