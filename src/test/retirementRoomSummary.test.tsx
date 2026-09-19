@@ -5,7 +5,7 @@ import { computeRetirementRoomView } from "@/lib/retirementRoomView";
 
 const room = computeRetirementRoomView({
   taxYear: 2026,
-  age: 45,
+  dateOfBirth: "1981-01-01",
   filingStatus: "single",
   magi: 85_000,
   eligibleTaxableCompensation: 200_000,
