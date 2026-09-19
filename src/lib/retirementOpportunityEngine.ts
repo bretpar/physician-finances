@@ -781,7 +781,9 @@ export function computeRetirementOpportunity(
   const plans = planInputs.map((p) => computePlanOpportunity(p, { taxYear, age }));
 
   const sumBucket = (bucket: DeferralBucket) =>
-    plans.filter((p) => p.deferralBucket === bucket).reduce((s, p) => s + p.employeeContribution, 0);
+    plans
+      .filter((p) => p.deferralBucket === bucket)
+      .reduce((s, p) => s + p.employeeDeferralCounted, 0);
 
   /* §402(g): ONE shared bucket across every employer and Solo 401(k). */
   const catchUp402g = catchUpFor(rules, age);
