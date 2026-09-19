@@ -1,43 +1,33 @@
 import { describe, it, expect } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { RetirementRoomSummary } from "@/components/retirement/RetirementRoomSummary";
-import {
-  computeEmployeeContributionRoom,
-  computePlanCapacities,
-} from "@/lib/retirementContributionRoom";
+import { computeRetirementRoomView } from "@/lib/retirementRoomView";
 
-const plans = computePlanCapacities(2026, [
-  {
-    companyId: "a",
-    companyName: "Independent Consulting",
-    planType: "1099_schedule_c",
-    eligibleCompensationYtd: 30_000,
-    projectedEligibleCompensation: 45_000,
-    employeeContribution: 5_000,
-    employerContribution: 8_000,
-  },
-  {
-    companyId: "b",
-    companyName: "Unknown Comp Co",
-    planType: "w2",
-    eligibleCompensationYtd: null,
-    employeeContribution: 7_500,
-    employerContribution: 0,
-  },
-]);
-
-const employeeRoom = computeEmployeeContributionRoom({
+const room = computeRetirementRoomView({
   taxYear: 2026,
-  employeeContributions: [5_000, 7_500],
+  age: 45,
+  filingStatus: "single",
+  magi: 85_000,
+  eligibleTaxableCompensation: 200_000,
+  coveredByWorkplacePlan: true,
+  companies: [
+    { id: "a", name: "Independent Consulting", companyType: "1099_schedule_c" },
+    { id: "b", name: "Unknown Comp Co", companyType: "w2" },
+  ],
+  paychecks: [{ incomeEntryId: "pay", companyId: "b", employee: 7_500, employer: 0, wages: 100_000 }],
+  standalone: [
+    { id: "solo", companyId: "a", accountType: "solo_401k", contributionType: "employee", annualAmount: 5_000 },
+    { id: "employer", companyId: "a", accountType: "solo_401k", contributionType: "employer", annualAmount: 8_000 },
+  ],
+  ira: { traditionalContributed: 1_000, rothContributed: 500 },
+  actualNetProfitByCompany: new Map([["a", 50_000]]),
+  remainingPlannedGrossByCompany: new Map([["a", 20_000]]),
 });
 
-const setup = (hasPlannerAccess: boolean, room = employeeRoom) =>
+const setup = (hasPlannerAccess: boolean) =>
   render(
     <RetirementRoomSummary
-      taxYear={2026}
-      employeeRoom={room}
-      employerContributionTotal={8_000}
-      plans={plans}
+      room={room}
       hasPlannerAccess={hasPlannerAccess}
     />,
   );
@@ -50,40 +40,32 @@ describe("RetirementRoomSummary UI", () => {
     expect(screen.getByText(/\$12,000/)).toBeInTheDocument();
   });
 
-  it("toggling basis only changes capacity values, not the employee total", () => {
+  it("uses projected employer opportunity by default when available", () => {
     setup(true);
-    expect(screen.getAllByText("Current available capacity")).toHaveLength(2);
-    fireEvent.click(screen.getByText("Projected year end"));
-    expect(screen.getAllByText("Projected year-end capacity")).toHaveLength(2);
-    expect(screen.getByText(/\$12,500/)).toBeInTheDocument();
+    expect(screen.getByText("Based on projected 2026 income")).toBeInTheDocument();
   });
 
-  it("shows the projected opportunity insight once", () => {
+  it("shows unknown employer capacity without inventing a dollar amount", () => {
     setup(true);
-    expect(screen.getAllByTestId("projected-opportunity")).toHaveLength(1);
+    expect(screen.getByText("Additional employer contribution depends on your employer's plan.")).toBeInTheDocument();
+    expect(screen.getByText(/Additional employer opportunity may be available for 1 plan/)).toBeInTheDocument();
   });
 
-  it("hides projected values without Income Planner access", () => {
+  it("falls back to current employer opportunity without Planner access", () => {
     setup(false);
-    expect(screen.queryByText("Projected year end")).toBeNull();
-    expect(screen.queryByTestId("projected-opportunity")).toBeNull();
-    expect(screen.getAllByText("Current available capacity")).toHaveLength(2);
-    expect(screen.getByText(/Income Planner\./)).toBeInTheDocument();
+    expect(screen.queryByText("Based on projected 2026 income")).toBeNull();
   });
 
-  it("shows an unavailable state instead of a fabricated capacity", () => {
+  it("distinguishes Traditional IRA contributed and deductible amounts", () => {
     setup(true);
-    expect(screen.getByText("Contribution capacity unavailable")).toBeInTheDocument();
-    expect(screen.getByText(/More plan or compensation information/)).toBeInTheDocument();
+    expect(screen.getByText("$1,000 contributed")).toBeInTheDocument();
+    expect(screen.getByText("$600")).toBeInTheDocument();
   });
 
-  it("clamps remaining room at $0 and shows a subtle over-limit note", () => {
-    const over = computeEmployeeContributionRoom({
-      taxYear: 2026,
-      employeeContributions: [30_000],
-    });
-    setup(true, over);
-    expect(screen.getByTestId("employee-room").textContent).toContain("$0 remaining");
-    expect(screen.getByTestId("employee-over-limit").textContent).toContain("$5,500");
+  it("reveals canonical reason explanations without raw codes", () => {
+    setup(true);
+    fireEvent.click(screen.getByLabelText("Show Unknown Comp Co details"));
+    expect(screen.getByText("More plan information is needed to calculate this opportunity.")).toBeInTheDocument();
+    expect(screen.queryByText("unknown_plan_data")).toBeNull();
   });
 });

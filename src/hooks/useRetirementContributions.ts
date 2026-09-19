@@ -23,7 +23,7 @@ export const ACCOUNT_TYPES = [
   { value: "401k", label: "401(k)" },
   { value: "solo_401k", label: "Solo 401(k)" },
   { value: "403b", label: "403(b)" },
-  { value: "457b", label: "457(b)" },
+  { value: "457b", label: "Governmental 457(b)" },
   { value: "sep_ira", label: "SEP IRA" },
   { value: "simple_ira", label: "SIMPLE IRA" },
   { value: "traditional_ira", label: "Traditional IRA" },

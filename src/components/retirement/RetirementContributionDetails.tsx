@@ -78,7 +78,7 @@ export function RetirementContributionDetails({
                     <div className="min-w-0">
                       <p className="text-sm font-medium">{getAccountTypeLabel(row.account_type)}</p>
                       <p className="mt-0.5 text-xs text-muted-foreground">
-                        {getContributionTypeLabel(row.contribution_type)} · {row.frequency === "one_time" ? row.contribution_date : `${row.frequency.replaceAll("_", " ")} from ${row.start_date}`}
+                        {getContributionTypeLabel(row.contribution_type)} · {row.frequency === "one_time" ? row.contribution_date : `${row.frequency.replace(/_/g, " ")} from ${row.start_date}`}
                       </p>
                       {row.frequency !== "one_time" && <p className="mt-1 text-xs text-muted-foreground">{fmt(Number(row.contribution_amount))} each · {fmt(annualAmount(row))} this year</p>}
                     </div>

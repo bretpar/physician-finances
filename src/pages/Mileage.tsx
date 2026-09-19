@@ -540,9 +540,14 @@ export default function Mileage() {
 
     if (contribRequiresCompany && !contribForm.company_id) return;
 
+    const normalizedContributionType = isIraPlan(contribForm.account_type)
+      ? "personal"
+      : contribForm.account_type === "sep_ira"
+        ? "employer"
+        : contribForm.contribution_type;
     const payload: Partial<RetirementContribution> = {
       account_type: contribForm.account_type,
-      contribution_type: contribForm.contribution_type,
+      contribution_type: normalizedContributionType,
       // IRAs are personal and never belong to a company.
       company_id: isIraPlan(contribForm.account_type) ? null : contribForm.company_id || null,
       contribution_amount: num(contribForm.contribution_amount),
@@ -925,14 +930,7 @@ export default function Mileage() {
               <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <Label>Contribution Type *</Label>
-                    <Select value={contribForm.contribution_type} onValueChange={(v) => setContribField("contribution_type", v)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>{CONTRIBUTION_TYPES.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Retirement Plan *</Label>
+                    <Label>Contribution account *</Label>
                     <Select
                       value={contribForm.account_type}
                       onValueChange={(v) => {
@@ -940,6 +938,8 @@ export default function Mileage() {
                         if (isIraPlan(v)) {
                           setContribField("company_id", "");
                           setContribField("contribution_type", "personal");
+                        } else if (v === "sep_ira") {
+                          setContribField("contribution_type", "employer");
                         }
                       }}
                     >
@@ -947,6 +947,15 @@ export default function Mileage() {
                       <SelectContent>{ACCOUNT_TYPES.map((a) => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
+                  {!isIraPlan(contribForm.account_type) && contribForm.account_type !== "sep_ira" && (
+                    <div className="space-y-1.5">
+                      <Label>Who made this contribution? *</Label>
+                      <Select value={contribForm.contribution_type} onValueChange={(v) => setContribField("contribution_type", v)}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>{CONTRIBUTION_TYPES.filter((c) => c.value !== "personal").map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                  )}
                 </div>
 
                 {!isIraPlan(contribForm.account_type) && (
@@ -970,6 +979,9 @@ export default function Mileage() {
                       ? " Roth contributions are tracked against the IRA limit but do not reduce taxable income."
                       : " Traditional IRA contributions are tracked; deductibility depends on IRA rules."}
                   </p>
+                )}
+                {contribForm.account_type === "sep_ira" && (
+                  <p className="text-xs text-muted-foreground">SEP IRA contributions are recorded as employer/business contributions.</p>
                 )}
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
