@@ -200,8 +200,14 @@ export interface AnnualizedContributions {
   deductibleTotal: number;
   /** Employee-funded plan contributions (excludes IRAs). */
   employeeTotal: number;
-  /** Employer-funded plan contributions. */
+  /** Employer-funded plan contributions (all plans, tracking only). */
   employerTotal: number;
+  /**
+   * Employer money that is a SELF-EMPLOYED business deduction (Solo 401(k) /
+   * SEP profit sharing). W-2 employer contributions are excluded — they are
+   * never a personal deduction and must not enter `businessRetirement`.
+   */
+  employerBusinessTotal: number;
   /** Employee elective deferrals counting against the 402(g) limit. */
   employeeDeferralTotal: number;
   traditionalIraTotal: number;
