@@ -42,7 +42,7 @@ describe("RetirementRoomSummary UI", () => {
 
   it("uses projected employer opportunity by default when available", () => {
     setup(true);
-    expect(screen.getByText("Based on projected 2026 income")).toBeInTheDocument();
+    expect(screen.getByText("Based on projected 2026 business profit")).toBeInTheDocument();
   });
 
   it("shows unknown employer capacity without inventing a dollar amount", () => {
@@ -53,7 +53,7 @@ describe("RetirementRoomSummary UI", () => {
 
   it("falls back to current employer opportunity without Planner access", () => {
     setup(false);
-    expect(screen.queryByText("Based on projected 2026 income")).toBeNull();
+    expect(screen.queryByText("Based on projected 2026 business profit")).toBeNull();
   });
 
   it("distinguishes Traditional IRA contributed and deductible amounts", () => {

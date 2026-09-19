@@ -198,36 +198,69 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
    */
   const standaloneRetirementRouting = useMemo(() => {
     const year = new Date().getFullYear();
-    const standalone = (retirementContribs || []).map((c) => ({
+    const canonicalCompanies = (companies || []).map((c) => ({
       id: c.id,
-      companyId: c.company_id,
-      accountType: c.account_type,
-      contributionType: c.contribution_type,
-      annualAmount: annualizeContributionAmount(c, {
-        taxYear: year,
-        payFrequency: (c.company_id && payFrequencyByCompany.get(c.company_id)) || null,
-      }).annual,
-      contributionDate: c.contribution_date,
+      name: c.name,
+      companyType: c.companyType,
+      payFrequency: c.payFrequency ?? null,
     }));
-    const built = buildRetirementOpportunityInput({
-      taxYear: year,
-      companies: (companies || []).map((c) => ({
+    /* Paycheck-derived retirement, used ONLY as the dedup reference: money
+       already deducted through income_entries must never be deducted again
+       through a standalone row. */
+    const paychecks = (reconciledIncomeEntries || [])
+      .filter((e: any) => String(e.income_date || "").slice(0, 4) === String(year))
+      .map((e: any) => ({
+        incomeEntryId: e.id,
+        companyId: e.source_id || null,
+        employee: Number(e.retirement_401k || 0),
+        employer: Number(e.employer_retirement_contribution || 0),
+        wages: Number(e.paycheck_amount || 0),
+        date: e.income_date || null,
+      }));
+
+    const routingFor = (scope: "actualOnly" | "actualPlusPlanned") => {
+      const rows = (retirementContribs || []).filter(
+        (c) => scope === "actualPlusPlanned" || String(c.contribution_date || "") <= todayStr,
+      );
+      const standalone = rows.map((c) => ({
         id: c.id,
-        name: c.name,
-        companyType: c.companyType,
-        payFrequency: c.payFrequency ?? null,
-      })),
-      sources: dedupeRetirementSources({ paychecks: [], standalone }),
-      // MAGI is not available at this boundary, so Traditional IRA
-      // deductibility stays unknown and routes $0 rather than guessing.
-      magi: null,
-      ira: {
-        traditionalContributed: annualizedRetirement.traditionalIraTotal,
-        rothContributed: annualizedRetirement.rothIraTotal,
-      },
-    });
-    return computeRetirementOpportunity(built.input).taxRouting;
-  }, [retirementContribs, companies, payFrequencyByCompany, annualizedRetirement.traditionalIraTotal, annualizedRetirement.rothIraTotal]);
+        companyId: c.company_id,
+        accountType: c.account_type,
+        contributionType: c.contribution_type,
+        annualAmount: annualizeContributionAmount(c, {
+          taxYear: year,
+          payFrequency: (c.company_id && payFrequencyByCompany.get(c.company_id)) || null,
+        }).annual,
+        contributionDate: c.contribution_date,
+      }));
+      const deduped = dedupeRetirementSources({ paychecks, standalone });
+      // Ambiguous look-alikes of payroll money are NOT deducted twice here;
+      // the payroll path already carries them.
+      const ambiguousIds = new Set(deduped.ambiguous.map((a) => a.standaloneId));
+      const built = buildRetirementOpportunityInput({
+        taxYear: year,
+        companies: canonicalCompanies,
+        sources: {
+          ...deduped,
+          paychecks: [],
+          standalone: deduped.standalone.filter((r) => !ambiguousIds.has(r.id)),
+        },
+        // MAGI is not available at this boundary, so Traditional IRA
+        // deductibility stays unknown and routes $0 rather than guessing.
+        magi: null,
+        ira: {
+          traditionalContributed: annualizedRetirement.traditionalIraTotal,
+          rothContributed: annualizedRetirement.rothIraTotal,
+        },
+      });
+      return computeRetirementOpportunity(built.input).taxRouting;
+    };
+
+    return {
+      actualOnly: routingFor("actualOnly"),
+      actualPlusPlanned: routingFor("actualPlusPlanned"),
+    };
+  }, [retirementContribs, reconciledIncomeEntries, companies, payFrequencyByCompany, todayStr, annualizedRetirement.traditionalIraTotal, annualizedRetirement.rothIraTotal]);
 
   // ── Canonical business income (matches Business Ledger exactly) ──────────
   // The Business Ledger reads `transactions` where status='active'. Tax math
@@ -938,9 +971,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         // deduction and must not enter businessRetirement.
         businessRetirement:
           businessRetirement + cu.business.retirement +
-          (incomeScope === "actualPlusPlanned"
-            ? standaloneRetirementRouting.selfEmployedEmployerDeduction
-            : 0),
+          standaloneRetirementRouting[incomeScope].selfEmployedEmployerDeduction,
         ownerHealthcare,
         businessStateEligibleGross: businessStateEligibleGross + cuBizGross,
         businessStateEligibleExpenses: (businessExpenses * eligibleRatio) + businessStateEligibleHomeOfficeDeduction + (forecastBusinessExpenses * eligibleRatio) + (cu.business.expenses * eligibleRatio),
@@ -966,10 +997,8 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         // Employer money goes through businessRetirement; Roth is never
         // deductible; Traditional IRA needs MAGI, so it routes $0 here.
         annualizedRetirement:
-          incomeScope === "actualPlusPlanned"
-            ? standaloneRetirementRouting.employeePreTaxDeduction +
-              standaloneRetirementRouting.traditionalIraDeduction
-            : 0,
+          standaloneRetirementRouting[incomeScope].employeePreTaxDeduction +
+          standaloneRetirementRouting[incomeScope].traditionalIraDeduction,
         txActualWithholding,
         actualEstimatedPaymentsMade: quarterlyPaid,
         taxSavingsSetAside: savingsTotal,

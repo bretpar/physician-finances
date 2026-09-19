@@ -203,8 +203,10 @@ export interface BuildRetirementInputArgs {
   projectedNetProfitByCompany?: Map<string, number>;
   /** Actual YTD net profit by company id (self-employed). */
   actualNetProfitByCompany?: Map<string, number>;
-  /** Deductible half of SE tax by company id, when known. */
+  /** Deductible half of SE tax by company id (actual profit), when known. */
   deductibleHalfSeTaxByCompany?: Map<string, number>;
+  /** Deductible half of SE tax on PROJECTED year-end profit by company id. */
+  projectedDeductibleHalfSeTaxByCompany?: Map<string, number>;
   ira: { traditionalContributed: number; rothContributed: number };
 }
 
@@ -300,7 +302,11 @@ export function buildRetirementOpportunityInput(
         netBusinessProfit: entityKind === "schedule_c" ? profit : null,
         k1EarnedIncomeFromServices: entityKind === "partnership_k1" ? profit : null,
         deductibleHalfSeTax: isSelfEmployed
-          ? (args.deductibleHalfSeTaxByCompany?.get(companyId) ?? 0)
+          ? ((projected
+              ? args.projectedDeductibleHalfSeTaxByCompany?.get(companyId)
+              : undefined) ??
+            args.deductibleHalfSeTaxByCompany?.get(companyId) ??
+            0)
           : null,
         employerContributionRate: isSelfEmployed ? 0.25 : null,
         employerFormulaKnown: false,
