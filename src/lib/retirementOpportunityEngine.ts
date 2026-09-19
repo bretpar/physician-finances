@@ -655,7 +655,10 @@ function computePlanOpportunity(
     eligibleCompensation = Math.min(eligibleCompensation, rules.compensationCap);
   }
 
-  /* §415(c) ceiling — catch-up dollars sit outside annual additions. */
+  /* §415(c) ceiling — only ACTUAL permitted catch-up dollars sit outside
+     annual additions. Contributions above the base limit that exceed the
+     applicable catch-up maximum (or any excess under age 50, where the
+     catch-up is $0) stay inside annual additions. */
   const baseEmployeeLimit =
     bucket === "governmental_457b"
       ? rules.governmental457b.limit
@@ -663,8 +666,19 @@ function computePlanOpportunity(
         ? rules.simple.limit
         : rules.employeeDeferral;
 
-  const employeeTowardAdditions = Math.min(employeeContribution, baseEmployeeLimit);
-  const totalAdditions = employeeContribution + employerContribution;
+  const applicableCatchUpMax =
+    bucket === "governmental_457b"
+      ? catchUpFor(rules.governmental457b, ctx.age)
+      : bucket === "simple"
+        ? catchUpFor(rules.simple, ctx.age)
+        : bucket === "402g"
+          ? catchUpFor(rules, ctx.age)
+          : 0;
+
+  const excessOverBase = Math.max(0, employeeDeferralCounted - baseEmployeeLimit);
+  const allowableCatchUp = Math.min(excessOverBase, applicableCatchUpMax);
+  const employeeTowardAdditions = employeeDeferralCounted - allowableCatchUp;
+  const totalAdditions = employeeDeferralCounted + employerContribution;
   const additionsUsed = employeeTowardAdditions + employerContribution;
 
   let annualAdditionsLimit: number | null = rules.annualAdditions;
