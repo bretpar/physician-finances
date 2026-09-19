@@ -39,7 +39,7 @@ import {
   useRetirementContributions, useAddRetirementContribution, useUpdateRetirementContribution,
   useDeleteRetirementContribution, useAnnualizedContributions,
   ACCOUNT_TYPES, FREQUENCIES, CONTRIBUTION_TYPES,
-  isIraPlan, isEmployerSponsoredPlan, getAccountTypeLabel, getContributionTypeLabel,
+  isIraPlan, isEmployerSponsoredPlan,
   annualizeContributionAmount,
   type RetirementContribution,
 } from "@/hooks/useRetirementContributions";
@@ -637,8 +637,6 @@ export default function Mileage() {
     setHomeOfficeDeleteId(null);
   }
 
-  const getAccountLabel = getAccountTypeLabel;
-  const getFreqLabel = (v: string) => FREQUENCIES.find((f) => f.value === v)?.label || v;
 
   const streams = taxSettings?.householdIncomeStreams;
   const hasW2Income = !!(streams && (streams.w2Income || streams.spouseW2Income || streams.additionalW2Job));

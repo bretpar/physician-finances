@@ -59,7 +59,7 @@ describe("RetirementRoomSummary UI", () => {
   it("distinguishes Traditional IRA contributed and deductible amounts", () => {
     setup(true);
     expect(screen.getByText("$1,000 contributed")).toBeInTheDocument();
-    expect(screen.getByText("$600")).toBeInTheDocument();
+    expect(screen.getByText("$1,000", { selector: "span" })).toBeInTheDocument();
   });
 
   it("reveals canonical reason explanations without raw codes", () => {

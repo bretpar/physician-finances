@@ -28,7 +28,6 @@ export const ACCOUNT_TYPES = [
   { value: "simple_ira", label: "SIMPLE IRA" },
   { value: "traditional_ira", label: "Traditional IRA" },
   { value: "roth_ira", label: "Roth IRA" },
-  { value: "hsa", label: "HSA (Pre-Tax)" },
 ] as const;
 
 export const CONTRIBUTION_TYPES = [
