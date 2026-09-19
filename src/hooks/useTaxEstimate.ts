@@ -876,12 +876,13 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         businessStateWithheld: businessStateWithheld + cu.business.stateWithheld,
         businessPreTax: businessPreTax + cu.business.payrollPreTax,
         businessNonW2HsaAboveLine: cappedBusinessNonW2Hsa,
-        // Standalone EMPLOYER plan money (e.g. employer Solo 401(k)) is routed
-        // through the existing business/employer retirement path — never through
-        // the generic employee retirement bucket.
+        // Standalone SELF-EMPLOYED employer plan money (employer Solo 401(k),
+        // SEP) is routed through the business/employer retirement path. W-2
+        // employer contributions are excluded: they are never a personal
+        // deduction and must not enter businessRetirement.
         businessRetirement:
           businessRetirement + cu.business.retirement +
-          (incomeScope === "actualPlusPlanned" ? annualizedRetirement.employerTotal : 0),
+          (incomeScope === "actualPlusPlanned" ? annualizedRetirement.employerBusinessTotal : 0),
         ownerHealthcare,
         businessStateEligibleGross: businessStateEligibleGross + cuBizGross,
         businessStateEligibleExpenses: (businessExpenses * eligibleRatio) + businessStateEligibleHomeOfficeDeduction + (forecastBusinessExpenses * eligibleRatio) + (cu.business.expenses * eligibleRatio),
