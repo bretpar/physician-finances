@@ -618,6 +618,15 @@ function computePlanOpportunity(
     reasons.push("unknown_plan_data");
   }
 
+  /* SEP IRAs do not accept employee elective deferrals. Keep the recorded
+     amount visible for review, but never route it as a deferral/deduction.
+     SARSEPs are only honoured with explicit plan metadata. */
+  const sepEmployeeRejected =
+    plan.planKind === "sep_ira" && employeeContribution > 0 && plan.grandfatheredSarsep !== true;
+  if (sepEmployeeRejected) reasons.push("sep_employee_deferral_not_allowed");
+  const employeeContributionDisallowed = sepEmployeeRejected ? employeeContribution : 0;
+  const employeeDeferralCounted = employeeContribution - employeeContributionDisallowed;
+
   /* Eligible compensation, per entity type. */
   let eligibleCompensation: number | null = null;
   const isSelfEmployedPlan =
