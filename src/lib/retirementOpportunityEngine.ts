@@ -565,13 +565,6 @@ function computePlanOpportunity(
   }
 
   /* §415(c) ceiling — catch-up dollars sit outside annual additions. */
-  const catchUpTier: CatchUpTier =
-    bucket === "governmental_457b"
-      ? rules.governmental457b
-      : bucket === "simple"
-        ? rules.simple
-        : rules;
-  const catchUpAllowed = catchUpFor(catchUpTier, ctx.age);
   const baseEmployeeLimit =
     bucket === "governmental_457b"
       ? rules.governmental457b.limit
