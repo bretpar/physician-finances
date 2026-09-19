@@ -171,7 +171,61 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
   }, [incomeEntries, transactions, plaidTxIds]);
 
   const weighted = useWeightedIncome(reconciledIncomeEntries);
-  const annualizedRetirement = useAnnualizedContributions(retirementContribs);
+  const payFrequencyByCompany = useMemo(
+    () => new Map((companies || []).map((c) => [c.id, c.payFrequency ?? null])),
+    [companies],
+  );
+  const annualizedRetirement = useAnnualizedContributions(
+    retirementContribs,
+    new Date().getFullYear(),
+    payFrequencyByCompany,
+  );
+
+  /**
+   * SINGLE retirement tax-routing boundary for STANDALONE contribution rows.
+   *
+   * Paycheck-derived retirement stays on its own path (income_entries →
+   * business/personal retirement). Standalone rows are classified exactly once
+   * by the canonical engine, which decides what is deductible:
+   *   employeePreTaxDeduction        → employee pre-tax deferrals
+   *   selfEmployedEmployerDeduction  → Solo 401(k)/SEP employer money
+   *   traditionalIraDeduction        → deductible Traditional IRA only
+   *   w2EmployerExcluded / rothDeduction → never a personal deduction
+   * Disallowed money (e.g. an employee deferral recorded against a SEP) and
+   * nondeductible IRA dollars are dropped here, not silently deducted.
+   */
+  const standaloneRetirementRouting = useMemo(() => {
+    const year = new Date().getFullYear();
+    const standalone = (retirementContribs || []).map((c) => ({
+      id: c.id,
+      companyId: c.company_id,
+      accountType: c.account_type,
+      contributionType: c.contribution_type,
+      annualAmount: annualizeContributionAmount(c, {
+        taxYear: year,
+        payFrequency: (c.company_id && payFrequencyByCompany.get(c.company_id)) || null,
+      }).annual,
+      contributionDate: c.contribution_date,
+    }));
+    const built = buildRetirementOpportunityInput({
+      taxYear: year,
+      companies: (companies || []).map((c) => ({
+        id: c.id,
+        name: c.name,
+        companyType: c.companyType,
+        payFrequency: c.payFrequency ?? null,
+      })),
+      sources: dedupeRetirementSources({ paychecks: [], standalone }),
+      // MAGI is not available at this boundary, so Traditional IRA
+      // deductibility stays unknown and routes $0 rather than guessing.
+      magi: null,
+      ira: {
+        traditionalContributed: annualizedRetirement.traditionalIraTotal,
+        rothContributed: annualizedRetirement.rothIraTotal,
+      },
+    });
+    return computeRetirementOpportunity(built.input).taxRouting;
+  }, [retirementContribs, companies, payFrequencyByCompany, annualizedRetirement.traditionalIraTotal, annualizedRetirement.rothIraTotal]);
 
   // ── Canonical business income (matches Business Ledger exactly) ──────────
   // The Business Ledger reads `transactions` where status='active'. Tax math
