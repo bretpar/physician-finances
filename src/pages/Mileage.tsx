@@ -221,7 +221,16 @@ export default function Mileage() {
   const addContrib = useAddRetirementContribution();
   const updateContrib = useUpdateRetirementContribution();
   const deleteContrib = useDeleteRetirementContribution();
-  const annualized = useAnnualizedContributions(contributions);
+  // Real company pay schedules drive per-paycheck annualization (no blind ×26).
+  const payFrequencyByCompany = useMemo(
+    () => new Map(companies.map((c) => [c.id, c.payFrequency ?? null])),
+    [companies],
+  );
+  const annualized = useAnnualizedContributions(
+    contributions,
+    now.getFullYear(),
+    payFrequencyByCompany,
+  );
   // Read-only: used for the collapsed HSA summary line.
   const { data: hsaContributions = [] } = useHsaContributions(now.getFullYear());
 
