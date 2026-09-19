@@ -320,86 +320,121 @@ export default function Mileage() {
     }
   }, [hasPlannerAccess, plannerStreams, plannerBonuses, incomeEntries, plannerOverrides, plannerConversions]);
 
+  /**
+   * Retirement room comes ENTIRELY from the canonical engine
+   * (`computeRetirementRoomView` → `computeRetirementOpportunity`). This page
+   * only assembles normalized inputs; it performs no limit/capacity math.
+   */
   const retirementRoom = useMemo(() => {
-    const yearEntries = (incomeEntries || []).filter(
-      (e) => String(e.income_date || "").slice(0, 4) === String(currentYear),
-    );
-    const perCompany = new Map<string, { employee: number; employer: number; wages: number }>();
-    for (const e of yearEntries) {
-      const key = (e as any).source_id || "";
-      const rec = perCompany.get(key) || { employee: 0, employer: 0, wages: 0 };
-      rec.employee += Number((e as any).retirement_401k || 0);
-      rec.employer += Number((e as any).employer_retirement_contribution || 0);
-      rec.wages += Number((e as any).paycheck_amount || 0);
-      perCompany.set(key, rec);
+    const todayISO = new Date().toISOString().split("T")[0];
+
+    const paycheckSources = (incomeEntries || [])
+      .filter((e) => String(e.income_date || "").slice(0, 4) === String(currentYear))
+      .map((e: any) => ({
+        incomeEntryId: e.id,
+        companyId: e.source_id || null,
+        employee: Number(e.retirement_401k || 0),
+        employer: Number(e.employer_retirement_contribution || 0),
+        wages: Number(e.paycheck_amount || 0),
+        date: e.income_date || null,
+      }));
+
+    // Standalone rows, annualized once by the canonical annualizer.
+    const standaloneSources = (contributions || []).map((c) => ({
+      id: c.id,
+      companyId: c.company_id,
+      accountType: c.account_type,
+      contributionType: c.contribution_type,
+      annualAmount: annualizeContributionAmount(c, {
+        taxYear: currentYear,
+        payFrequency: (c.company_id && payFrequencyByCompany.get(c.company_id)) || null,
+      }).annual,
+      contributionDate: c.contribution_date,
+    }));
+
+    // Remaining ACTIVE planned gross income (matched/converted excluded).
+    const remainingPlannedGrossByCompany = new Map<string, number>();
+    if (hasPlannerAccess) {
+      for (const p of plannerOccurrences as any[]) {
+        if (p.matchStatus !== "active") continue;
+        if (!p.date || Number(String(p.date).slice(0, 4)) !== currentYear) continue;
+        if (String(p.date) < todayISO) continue;
+        const key = p.streamSourceId || "";
+        if (!key) continue;
+        remainingPlannedGrossByCompany.set(
+          key,
+          (remainingPlannedGrossByCompany.get(key) || 0) + (Number(p.grossAmount) || 0),
+        );
+      }
     }
 
-    const employeeRoom = computeEmployeeContributionRoom({
-      taxYear: currentYear,
-      employeeContributions: [
-        // Only employee elective deferrals — employer money and IRAs excluded.
-        annualized.employeeDeferralTotal,
-        ...Array.from(perCompany.values()).map((r) => r.employee),
-      ],
-      // Age-based catch-up (50+, and the higher 60–63 band) comes from the
-      // date of birth saved in Tax Profile settings.
-      dateOfBirth: taxSettings?.dateOfBirth ?? null,
-    });
+    // Remaining planned business expenses reduce projected profit.
+    const remainingPlannedExpensesByCompany = new Map<string, number>();
+    if (hasPlannerAccess && plannerStreams) {
+      const buckets = aggregatePlannedBusinessExpenses(
+        (plannerStreams as any[]).map((s) => ({
+          id: s.id,
+          company: s.company,
+          company_type: s.company_type,
+          source_id: s.source_id ?? null,
+          is_active: s.is_active,
+          forecast_expense_per_period: Number(s.forecast_expense_per_period || 0),
+        })),
+        (plannerOccurrences as any[]).map((p) => ({
+          streamId: p.streamId,
+          type: p.type,
+          matchStatus: p.matchStatus,
+        })),
+        companies.map((c) => ({ id: c.id, name: c.name })),
+      );
+      for (const bucket of buckets.values()) {
+        if (!bucket.companyId) continue;
+        remainingPlannedExpensesByCompany.set(
+          bucket.companyId,
+          (remainingPlannedExpensesByCompany.get(bucket.companyId) || 0) + bucket.total,
+        );
+      }
+    }
 
-    const remainingPlanned = sumRemainingPlannedIncomeByCompany(
-      plannerOccurrences.map((p) => ({
-        date: p.date,
-        grossAmount: p.grossAmount,
-        matchStatus: p.matchStatus,
-        streamSourceId: p.streamSourceId ?? null,
+    return computeRetirementRoomView({
+      taxYear: currentYear,
+      dateOfBirth: taxSettings?.dateOfBirth ?? null,
+      filingStatus: (taxSettings?.filingStatus as any) ?? null,
+      // MAGI is not modeled on this page; IRA deductibility stays "unknown"
+      // rather than assuming a favorable phaseout result.
+      magi: null,
+      companies: companies.map((c) => ({
+        id: c.id,
+        name: c.name,
+        companyType: c.companyType,
+        payFrequency: payFrequencyByCompany.get(c.id) ?? null,
       })),
-      currentYear,
-      new Date().toISOString().split("T")[0],
-    );
-
-    // Fold standalone company-linked contributions into the same per-company
-    // buckets so they are counted exactly once.
-    for (const [companyId, rec] of annualized.byCompany.entries()) {
-      const existing = perCompany.get(companyId) || { employee: 0, employer: 0, wages: 0 };
-      existing.employee += rec.employee;
-      existing.employer += rec.employer;
-      perCompany.set(companyId, existing);
-    }
-
-    const planInputs: PlanInput[] = Array.from(perCompany.entries())
-      .filter(([, r]) => r.employee > 0 || r.employer > 0)
-      .map(([companyId, r]) => {
-        const company = companies.find((c) => c.id === companyId);
-        const isBusiness = !!companyId && availableProfitByCompany.has(companyId);
-        // Self-employed plans use existing business profit, not gross revenue.
-        const ytdComp = isBusiness
-          ? Math.max(0, availableProfitByCompany.get(companyId) || 0) || null
-          : r.wages > 0
-            ? r.wages
-            : null;
-        const planned = companyId ? remainingPlanned.get(companyId) || 0 : 0;
-        return {
-          companyId: companyId || null,
-          companyName: company?.name || "Unassigned",
-          planType: company ? normalizeFilingType(company.companyType) : null,
-          eligibleCompensationYtd: ytdComp,
-          projectedEligibleCompensation:
-            hasPlannerAccess && ytdComp != null ? ytdComp + planned : null,
-          employeeContribution: r.employee,
-          employerContribution: r.employer,
-        };
-      });
-
-    const plans = computePlanCapacities(currentYear, planInputs);
-    const employerContributionTotal = plans.reduce((s, p) => s + p.employerContribution, 0);
-    const iraRoom = computeIraRoom({
-      taxYear: currentYear,
-      traditionalTotal: annualized.traditionalIraTotal,
-      rothTotal: annualized.rothIraTotal,
-      dateOfBirth: taxSettings?.dateOfBirth ?? null,
+      paychecks: paycheckSources,
+      standalone: standaloneSources,
+      ira: {
+        traditionalContributed: annualized.traditionalIraTotal,
+        rothContributed: annualized.rothIraTotal,
+      },
+      actualNetProfitByCompany: availableProfitByCompany,
+      remainingPlannedGrossByCompany,
+      remainingPlannedExpensesByCompany,
+      includeProjection: hasPlannerAccess,
     });
-    return { employeeRoom, plans, employerContributionTotal, iraRoom };
-  }, [incomeEntries, currentYear, annualized, companies, availableProfitByCompany, plannerOccurrences, hasPlannerAccess, taxSettings?.dateOfBirth]);
+  }, [
+    incomeEntries,
+    contributions,
+    currentYear,
+    annualized.traditionalIraTotal,
+    annualized.rothIraTotal,
+    companies,
+    payFrequencyByCompany,
+    availableProfitByCompany,
+    plannerOccurrences,
+    plannerStreams,
+    hasPlannerAccess,
+    taxSettings?.dateOfBirth,
+    taxSettings?.filingStatus,
+  ]);
 
 
 
