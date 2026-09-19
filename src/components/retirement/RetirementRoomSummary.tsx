@@ -75,6 +75,13 @@ export function RetirementRoomSummary({
     return (projected ?? plan.employerCapacityRemaining) == null && plan.reasons.includes("unknown_plan_data");
   }).length;
   const bucketPlans = (bucket: "402g" | "governmental_457b" | "simple") => engine.plans.filter((p) => p.deferralBucket === bucket);
+  // SIMPLE deferrals also consume the shared employee ceiling. Count that
+  // overlapping room once in the overview, while retaining both bucket cards.
+  const sharedEmployeeOpportunity = bucketPlans("402g").length > 0
+    ? engine.employee402g.remaining
+    : (engine.simple?.remaining ?? 0);
+  const additionalOpportunity = sharedEmployeeOpportunity + (engine.governmental457b?.remaining ?? 0) +
+    (engine.ira.remainingContributionRoom ?? 0) + knownEmployerOpportunity;
   const reasonLines = (reasons: typeof engine.employee402g.reasons) => Array.from(new Set(reasons)).map(retirementReasonMessage);
 
   return (
