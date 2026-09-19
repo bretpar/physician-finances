@@ -34,9 +34,10 @@ describe("Retirement premium intelligence gating", () => {
     expect(screen.getByTestId("plan-capacity-card").textContent).toContain("$500");
   });
 
-  it("gates projected capacity, remaining room and employer opportunity for a Free user", () => {
+  it("gates projected/employer capacity but always shows statutory employee remaining", () => {
     renderRoom({ capacity: false, planner: false, employer: false });
-    expect(screen.getByTestId("employee-room").textContent).toContain("$0 remaining");
+    // The shared §402(g) remainder is a statutory fact, never gated.
+    expect(screen.getByTestId("employee-room").textContent).toContain("$23,500 remaining");
     expect(screen.getByText("—")).toBeTruthy();
   });
 
