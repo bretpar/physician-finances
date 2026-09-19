@@ -261,7 +261,7 @@ export function useAnnualizedContributions(
 ): AnnualizedContributions {
   return useMemo(() => {
     const empty: AnnualizedContributions = {
-      total: 0, deductibleTotal: 0, employeeTotal: 0, employerTotal: 0,
+      total: 0, deductibleTotal: 0, employeeTotal: 0, employerTotal: 0, employerBusinessTotal: 0,
       employeeDeferralTotal: 0, traditionalIraTotal: 0, rothIraTotal: 0,
       withholding: 0, projectionOnly: 0, perPaycheck: 0, byCompany: new Map(),
     };
