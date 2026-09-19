@@ -276,7 +276,10 @@ export function useAnnualizedContributions(
       }
 
 
-      const { annual, perPaycheck } = annualizeContributionAmount(c);
+      const { annual, perPaycheck } = annualizeContributionAmount(c, {
+        taxYear: year,
+        payFrequency: (c.company_id && payFrequencyByCompany?.get(c.company_id)) || null,
+      });
       const type = c.contribution_type || "employee";
 
       out.total += annual;
