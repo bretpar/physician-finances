@@ -420,6 +420,7 @@ export function computeIraOpportunity(input: {
   coveredByWorkplacePlan: boolean | null;
   spouseCoveredByWorkplacePlan: boolean | null;
   eligibleTaxableCompensation: number | null;
+  livedWithSpouseDuringYear?: boolean | null;
   traditionalContributed: number;
   rothContributed: number;
 }): IraResult {
@@ -430,91 +431,128 @@ export function computeIraOpportunity(input: {
   const rothContributed = nonNeg(input.rothContributed);
   const combinedContributed = traditionalContributed + rothContributed;
 
-  const statutoryLimit = iraCombinedLimit(input.taxYear, input.age);
+  const statutoryCombinedLimit = iraCombinedLimit(input.taxYear, input.age);
   const comp =
     input.eligibleTaxableCompensation == null ||
     !Number.isFinite(Number(input.eligibleTaxableCompensation))
       ? null
       : nonNeg(input.eligibleTaxableCompensation);
 
-  // IRA contributions can never exceed eligible taxable compensation.
-  let combinedLimit = statutoryLimit;
-  if (comp != null && comp < statutoryLimit) {
-    combinedLimit = comp;
-    reasons.push("insufficient_taxable_compensation");
+  /* Contribution capacity. Without compensation it is UNKNOWN, never the
+     statutory maximum — a missing input must not create favorable room. */
+  const capacityUnknown = comp == null;
+  let combinedLimit: number | null = null;
+  if (comp != null) {
+    combinedLimit = Math.min(statutoryCombinedLimit, comp);
+    if (comp < statutoryCombinedLimit) reasons.push("insufficient_taxable_compensation");
+  } else {
+    reasons.push("compensation_unknown");
   }
+  const remainingContributionRoom =
+    combinedLimit == null ? null : Math.max(0, combinedLimit - combinedContributed);
 
-  const remainingContributionRoom = Math.max(0, combinedLimit - combinedContributed);
-
-  /* Traditional deductibility — contribution room ≠ deductible room. */
   const isJoint = input.filingStatus === "married_filing_jointly";
   const isSeparate = input.filingStatus === "married_filing_separately";
   const covered = input.coveredByWorkplacePlan === true;
   const spouseCovered = input.spouseCoveredByWorkplacePlan === true;
+  const livedWithSpouse = input.livedWithSpouseDuringYear ?? null;
 
-  // The amount eligible for deduction can never exceed what was contributed
-  // or the compensation-capped combined limit attributable to Traditional.
-  const traditionalCeiling = Math.min(traditionalContributed, combinedLimit);
+  /* MFS taxpayers who did not live with their spouse are treated as single for
+     both the Traditional deduction and direct Roth eligibility. When the fact
+     is unknown and MFS materially changes the answer, return unknown. */
+  const mfsStatusUnknown = isSeparate && livedWithSpouse == null;
+  const mfsTreatedAsSingle = isSeparate && livedWithSpouse === false;
+  if (mfsStatusUnknown) reasons.push("mfs_spouse_status_unknown");
 
-  let traditionalDeductible = traditionalCeiling;
+  /* ── Traditional IRA deductibility ─────────────────────────────────────
+     Phase the STATUTORY maximum deductible amount, then cap by what was
+     actually contributed. Phasing the contributed amount itself would wrongly
+     shrink small contributions. */
+  const deductionBase = combinedLimit ?? statutoryCombinedLimit;
   const phaseouts = rules.traditionalIraPhaseouts;
 
-  if (traditionalCeiling > 0) {
-    let range: PhaseoutRange | null = null;
-    if (isSeparate && (covered || spouseCovered)) {
-      range = phaseouts.marriedFilingSeparatelyCovered;
-    } else if (covered) {
-      range = isJoint ? phaseouts.coveredMarriedJoint : phaseouts.coveredSingle;
-    } else if (isJoint && spouseCovered) {
-      range = phaseouts.uncoveredWithCoveredSpouse;
-    }
-
-    if (range) {
-      if (input.magi == null || !Number.isFinite(Number(input.magi))) {
-        // Cannot evaluate the phaseout without MAGI — flag instead of guessing.
-        reasons.push("unknown_plan_data");
-      } else {
-        traditionalDeductible = prorateForPhaseout(traditionalCeiling, Number(input.magi), range);
-        if (traditionalDeductible < traditionalCeiling) {
-          reasons.push("traditional_ira_magi_phaseout");
-        }
-      }
-    }
-    // Neither spouse covered by a workplace plan → fully deductible.
+  let range: PhaseoutRange | null = null;
+  if (isSeparate && !mfsTreatedAsSingle && (covered || spouseCovered)) {
+    range = phaseouts.marriedFilingSeparatelyCovered;
+  } else if (covered) {
+    range = isJoint ? phaseouts.coveredMarriedJoint : phaseouts.coveredSingle;
+  } else if (isJoint && spouseCovered) {
+    range = phaseouts.uncoveredWithCoveredSpouse;
   }
 
+  const magi =
+    input.magi == null || !Number.isFinite(Number(input.magi)) ? null : Number(input.magi);
+
+  let traditionalDeductibleCeiling: number | null = deductionBase;
+  let deductibilityUnknown = false;
+
+  if (range) {
+    if (magi == null) {
+      traditionalDeductibleCeiling = null;
+      deductibilityUnknown = true;
+      if (!reasons.includes("magi_unknown")) reasons.push("magi_unknown");
+    } else if (mfsStatusUnknown) {
+      traditionalDeductibleCeiling = null;
+      deductibilityUnknown = true;
+    } else {
+      traditionalDeductibleCeiling = prorateForPhaseout(deductionBase, magi, range);
+      if (traditionalDeductibleCeiling < deductionBase) {
+        reasons.push("traditional_ira_magi_phaseout");
+      }
+    }
+  } else if (mfsStatusUnknown && (covered || spouseCovered)) {
+    traditionalDeductibleCeiling = null;
+    deductibilityUnknown = true;
+  }
+  // Neither spouse covered by a workplace plan → no MAGI phaseout applies.
+
+  const traditionalDeductible =
+    traditionalDeductibleCeiling == null
+      ? 0
+      : Math.min(traditionalContributed, traditionalDeductibleCeiling);
   const traditionalNondeductible = Math.max(0, traditionalContributed - traditionalDeductible);
 
-  /* Roth direct-contribution eligibility. */
+  /* ── Direct Roth eligibility ──────────────────────────────────────────── */
   const rothPhaseouts = rules.rothIraPhaseouts;
   const rothRange: PhaseoutRange = isJoint
     ? rothPhaseouts.marriedJoint
-    : isSeparate
+    : isSeparate && !mfsTreatedAsSingle
       ? rothPhaseouts.marriedFilingSeparately
       : rothPhaseouts.single;
 
-  let rothAllowed = combinedLimit;
-  if (input.magi == null || !Number.isFinite(Number(input.magi))) {
-    if (!reasons.includes("unknown_plan_data")) reasons.push("unknown_plan_data");
+  let rothAllowed: number | null = null;
+  let rothEligibilityUnknown = false;
+  if (magi == null || mfsStatusUnknown) {
+    rothEligibilityUnknown = true;
+    if (magi == null && !reasons.includes("magi_unknown")) reasons.push("magi_unknown");
   } else {
-    rothAllowed = prorateForPhaseout(combinedLimit, Number(input.magi), rothRange);
-    if (rothAllowed < combinedLimit) reasons.push("roth_ira_magi_phaseout");
+    rothAllowed = prorateForPhaseout(deductionBase, magi, rothRange);
+    if (rothAllowed < deductionBase) reasons.push("roth_ira_magi_phaseout");
   }
-  // Traditional dollars already used consume shared IRA room.
-  const rothCeiling = Math.max(0, Math.min(rothAllowed, combinedLimit - traditionalContributed));
+
+  let rothRemaining: number | null = null;
+  if (rothAllowed != null && combinedLimit != null) {
+    const rothCeiling = Math.max(0, Math.min(rothAllowed, combinedLimit - traditionalContributed));
+    rothRemaining = Math.max(0, rothCeiling - rothContributed);
+  }
 
   return {
     combinedContributed,
     combinedLimit,
+    statutoryCombinedLimit,
     remainingContributionRoom,
+    capacityUnknown,
     traditionalContributed,
     traditionalDeductible,
     traditionalNondeductible,
+    traditionalDeductibleCeiling,
+    deductibilityUnknown,
     rothContributed,
     rothAllowed,
-    rothRemaining: Math.max(0, rothCeiling - rothContributed),
-    eligibleTaxableCompensation: comp ?? 0,
-    reasons,
+    rothRemaining,
+    rothEligibilityUnknown,
+    eligibleTaxableCompensation: comp,
+    reasons: Array.from(new Set(reasons)),
   };
 }
 
