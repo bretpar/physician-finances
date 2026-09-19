@@ -659,8 +659,6 @@ function computePlanOpportunity(
     employerCapacityRemaining,
     eligibleCompensation,
     reasons: Array.from(new Set(reasons)),
-    // catch-up is surfaced on the bucket results, not per plan
-    ...(catchUpAllowed >= 0 ? {} : {}),
   };
 }
 
