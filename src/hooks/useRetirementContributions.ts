@@ -267,25 +267,26 @@ export function useAnnualizedContributions(
     };
     if (!contributions || contributions.length === 0) return empty;
 
-    const today = new Date().toISOString().split("T")[0];
     const year = taxYear ?? new Date().getFullYear();
     const out: AnnualizedContributions = { ...empty, byCompany: new Map() };
 
     for (const c of contributions) {
       const recurring = c.frequency !== "one_time";
-      if (recurring && c.end_date && c.end_date < today) continue;
-      if (recurring && c.start_date > today) continue;
       // One-time rows belong to the year of their contribution date only.
       if (!recurring) {
         const d = c.contribution_date || c.start_date;
         if (!d || Number(String(d).slice(0, 4)) !== year) continue;
       }
 
-
+      // Recurring rows are windowed by the engine against the TAX YEAR (not
+      // today): a schedule that already ended earlier this year still counts
+      // its earlier occurrences, and one starting later this year counts its
+      // later occurrences. Zero occurrences in the year ⇒ nothing to add.
       const { annual, perPaycheck } = annualizeContributionAmount(c, {
         taxYear: year,
         payFrequency: (c.company_id && payFrequencyByCompany?.get(c.company_id)) || null,
       });
+      if (annual <= 0) continue;
       const type = c.contribution_type || "employee";
 
       out.total += annual;
@@ -299,6 +300,13 @@ export function useAnnualizedContributions(
       if (isTraditionalIra(c.account_type)) {
         // Tracking only — deductibility depends on IRA rules not modeled here.
         out.traditionalIraTotal += annual;
+        continue;
+      }
+
+      // A SEP IRA cannot accept employee elective deferrals. Keep the amount
+      // visible for review, but never deduct it or count it as a deferral.
+      if (c.account_type === "sep_ira" && type === "employee") {
+        out.disallowedSepEmployeeTotal += annual;
         continue;
       }
 
