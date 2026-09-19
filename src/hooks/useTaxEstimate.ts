@@ -938,7 +938,9 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         // deduction and must not enter businessRetirement.
         businessRetirement:
           businessRetirement + cu.business.retirement +
-          (incomeScope === "actualPlusPlanned" ? annualizedRetirement.employerBusinessTotal : 0),
+          (incomeScope === "actualPlusPlanned"
+            ? standaloneRetirementRouting.selfEmployedEmployerDeduction
+            : 0),
         ownerHealthcare,
         businessStateEligibleGross: businessStateEligibleGross + cuBizGross,
         businessStateEligibleExpenses: (businessExpenses * eligibleRatio) + businessStateEligibleHomeOfficeDeduction + (forecastBusinessExpenses * eligibleRatio) + (cu.business.expenses * eligibleRatio),
