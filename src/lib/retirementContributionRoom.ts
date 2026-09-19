@@ -13,6 +13,12 @@
  *    planProjectedCapacity → per company/plan, never pooled across plans.
  */
 
+import {
+  RETIREMENT_RULES_BY_YEAR,
+  getRetirementRules,
+  getRetirementRules as _getRules,
+} from "./retirementOpportunityEngine";
+
 export interface RetirementYearLimits {
   /** 402(g) employee elective-deferral limit. */
   employeeDeferral: number;
