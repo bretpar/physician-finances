@@ -971,9 +971,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         // deduction and must not enter businessRetirement.
         businessRetirement:
           businessRetirement + cu.business.retirement +
-          (incomeScope === "actualPlusPlanned"
-            ? standaloneRetirementRouting.selfEmployedEmployerDeduction
-            : 0),
+          standaloneRetirementRouting[incomeScope].selfEmployedEmployerDeduction,
         ownerHealthcare,
         businessStateEligibleGross: businessStateEligibleGross + cuBizGross,
         businessStateEligibleExpenses: (businessExpenses * eligibleRatio) + businessStateEligibleHomeOfficeDeduction + (forecastBusinessExpenses * eligibleRatio) + (cu.business.expenses * eligibleRatio),
@@ -999,10 +997,8 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         // Employer money goes through businessRetirement; Roth is never
         // deductible; Traditional IRA needs MAGI, so it routes $0 here.
         annualizedRetirement:
-          incomeScope === "actualPlusPlanned"
-            ? standaloneRetirementRouting.employeePreTaxDeduction +
-              standaloneRetirementRouting.traditionalIraDeduction
-            : 0,
+          standaloneRetirementRouting[incomeScope].employeePreTaxDeduction +
+          standaloneRetirementRouting[incomeScope].traditionalIraDeduction,
         txActualWithholding,
         actualEstimatedPaymentsMade: quarterlyPaid,
         taxSavingsSetAside: savingsTotal,
