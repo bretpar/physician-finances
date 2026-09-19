@@ -212,6 +212,11 @@ export interface AnnualizedContributions {
   employeeDeferralTotal: number;
   traditionalIraTotal: number;
   rothIraTotal: number;
+  /**
+   * Employee money recorded against a SEP IRA. SEPs do not accept elective
+   * deferrals, so this is kept visible for review but never deducted.
+   */
+  disallowedSepEmployeeTotal: number;
   /** Deductible amount flagged as affecting withholding. */
   withholding: number;
   projectionOnly: number;
