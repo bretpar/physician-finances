@@ -68,8 +68,6 @@ export function RetirementRoomSummary({
     const capacity = projected ?? plan.employerCapacityRemaining;
     return sum + (capacity ?? 0);
   }, 0);
-  const additionalOpportunity = engine.employee402g.remaining + (engine.governmental457b?.remaining ?? 0) +
-    (engine.simple?.remaining ?? 0) + (engine.ira.remainingContributionRoom ?? 0) + knownEmployerOpportunity;
   const unknownEmployerCount = employerPlans.filter((plan) => {
     const projected = hasPlannerAccess ? projectedById.get(plan.planId)?.employerCapacityRemaining : null;
     return (projected ?? plan.employerCapacityRemaining) == null && plan.reasons.includes("unknown_plan_data");
