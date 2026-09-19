@@ -307,8 +307,13 @@ export function useAnnualizedContributions(
       if (c.apply_to_withholding) out.withholding += annual;
       else out.projectionOnly += annual;
 
-      if (type === "employer") out.employerTotal += annual;
-      else out.employeeTotal += annual;
+      if (type === "employer") {
+        out.employerTotal += annual;
+        // Only self-employed plan types are a business retirement deduction.
+        if (c.account_type === "solo_401k" || c.account_type === "sep_ira") {
+          out.employerBusinessTotal += annual;
+        }
+      } else out.employeeTotal += annual;
 
       if (countsTowardEmployeeDeferral(c)) out.employeeDeferralTotal += annual;
 
