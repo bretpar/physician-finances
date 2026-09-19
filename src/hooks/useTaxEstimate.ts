@@ -11,7 +11,9 @@ import { useMileageYTD, getMileageEntryDeduction } from "@/hooks/useMileage";
 import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks, getProjectedTotals, useStreamOverrides, usePlannerConversions } from "@/hooks/useProjectedIncome";
 import { useStockTransactions } from "@/hooks/useStocks";
 import { aggregateInvestmentTaxBuckets, sumInvestmentActualTaxSaved, useInvestmentIncomeEntries } from "@/hooks/useInvestmentIncome";
-import { useRetirementContributions, useAnnualizedContributions } from "@/hooks/useRetirementContributions";
+import { useRetirementContributions, useAnnualizedContributions, annualizeContributionAmount } from "@/hooks/useRetirementContributions";
+import { computeRetirementOpportunity } from "@/lib/retirementOpportunityEngine";
+import { buildRetirementOpportunityInput, dedupeRetirementSources } from "@/lib/retirementCanonicalInput";
 import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { useTaxSavings } from "@/hooks/useTaxSavings";
 import { useHsaContributions } from "@/hooks/useHsaContributions";
@@ -171,7 +173,61 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
   }, [incomeEntries, transactions, plaidTxIds]);
 
   const weighted = useWeightedIncome(reconciledIncomeEntries);
-  const annualizedRetirement = useAnnualizedContributions(retirementContribs);
+  const payFrequencyByCompany = useMemo(
+    () => new Map((companies || []).map((c) => [c.id, c.payFrequency ?? null])),
+    [companies],
+  );
+  const annualizedRetirement = useAnnualizedContributions(
+    retirementContribs,
+    new Date().getFullYear(),
+    payFrequencyByCompany,
+  );
+
+  /**
+   * SINGLE retirement tax-routing boundary for STANDALONE contribution rows.
+   *
+   * Paycheck-derived retirement stays on its own path (income_entries →
+   * business/personal retirement). Standalone rows are classified exactly once
+   * by the canonical engine, which decides what is deductible:
+   *   employeePreTaxDeduction        → employee pre-tax deferrals
+   *   selfEmployedEmployerDeduction  → Solo 401(k)/SEP employer money
+   *   traditionalIraDeduction        → deductible Traditional IRA only
+   *   w2EmployerExcluded / rothDeduction → never a personal deduction
+   * Disallowed money (e.g. an employee deferral recorded against a SEP) and
+   * nondeductible IRA dollars are dropped here, not silently deducted.
+   */
+  const standaloneRetirementRouting = useMemo(() => {
+    const year = new Date().getFullYear();
+    const standalone = (retirementContribs || []).map((c) => ({
+      id: c.id,
+      companyId: c.company_id,
+      accountType: c.account_type,
+      contributionType: c.contribution_type,
+      annualAmount: annualizeContributionAmount(c, {
+        taxYear: year,
+        payFrequency: (c.company_id && payFrequencyByCompany.get(c.company_id)) || null,
+      }).annual,
+      contributionDate: c.contribution_date,
+    }));
+    const built = buildRetirementOpportunityInput({
+      taxYear: year,
+      companies: (companies || []).map((c) => ({
+        id: c.id,
+        name: c.name,
+        companyType: c.companyType,
+        payFrequency: c.payFrequency ?? null,
+      })),
+      sources: dedupeRetirementSources({ paychecks: [], standalone }),
+      // MAGI is not available at this boundary, so Traditional IRA
+      // deductibility stays unknown and routes $0 rather than guessing.
+      magi: null,
+      ira: {
+        traditionalContributed: annualizedRetirement.traditionalIraTotal,
+        rothContributed: annualizedRetirement.rothIraTotal,
+      },
+    });
+    return computeRetirementOpportunity(built.input).taxRouting;
+  }, [retirementContribs, companies, payFrequencyByCompany, annualizedRetirement.traditionalIraTotal, annualizedRetirement.rothIraTotal]);
 
   // ── Canonical business income (matches Business Ledger exactly) ──────────
   // The Business Ledger reads `transactions` where status='active'. Tax math
@@ -882,7 +938,9 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         // deduction and must not enter businessRetirement.
         businessRetirement:
           businessRetirement + cu.business.retirement +
-          (incomeScope === "actualPlusPlanned" ? annualizedRetirement.employerBusinessTotal : 0),
+          (incomeScope === "actualPlusPlanned"
+            ? standaloneRetirementRouting.selfEmployedEmployerDeduction
+            : 0),
         ownerHealthcare,
         businessStateEligibleGross: businessStateEligibleGross + cuBizGross,
         businessStateEligibleExpenses: (businessExpenses * eligibleRatio) + businessStateEligibleHomeOfficeDeduction + (forecastBusinessExpenses * eligibleRatio) + (cu.business.expenses * eligibleRatio),
@@ -904,10 +962,14 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         longTermCapitalGains,
         businessExpenses: businessExpenses + homeOfficeDeduction + forecastBusinessExpenses + cu.business.expenses,
         mileageDeduction,
-        // EMPLOYEE pre-tax plan money only. Employer plan money goes through
-        // businessRetirement; Roth IRA is never deductible and Traditional IRA
-        // deductibility is not modeled, so both are tracked only.
-        annualizedRetirement: incomeScope === "actualPlusPlanned" ? annualizedRetirement.employeeTotal : 0,
+        // EMPLOYEE pre-tax plan money only, classified by the canonical engine.
+        // Employer money goes through businessRetirement; Roth is never
+        // deductible; Traditional IRA needs MAGI, so it routes $0 here.
+        annualizedRetirement:
+          incomeScope === "actualPlusPlanned"
+            ? standaloneRetirementRouting.employeePreTaxDeduction +
+              standaloneRetirementRouting.traditionalIraDeduction
+            : 0,
         txActualWithholding,
         actualEstimatedPaymentsMade: quarterlyPaid,
         taxSavingsSetAside: savingsTotal,
@@ -965,7 +1027,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
   // generateProjectedPaychecks inside buildInput. Omitting them froze the
   // headline Projected Income / Projected Taxes numbers after an occurrence
   // edit or a planner conversion.
-}, [rates, reconciledIncomeEntries, scopedTaxData, hsaRows, todayStr, mileageEntries, taxPayments, taxSavings, streams, bonuses, overrides, plannerConversions, companies, annualizedRetirement, homeOfficeDeductions, ytdCatchups, itemizedDeductionsAllowed]);
+}, [rates, reconciledIncomeEntries, scopedTaxData, hsaRows, todayStr, mileageEntries, taxPayments, taxSavings, streams, bonuses, overrides, plannerConversions, companies, annualizedRetirement, standaloneRetirementRouting, homeOfficeDeductions, ytdCatchups, itemizedDeductionsAllowed]);
 
   const actualResult = useMemo(() => {
     if (!scopedBaseInputs) return null;
