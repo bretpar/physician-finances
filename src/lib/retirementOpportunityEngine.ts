@@ -26,6 +26,16 @@ export type RetirementReasonCode =
   | "traditional_ira_magi_phaseout"
   | "roth_ira_magi_phaseout"
   | "insufficient_taxable_compensation"
+  /** MAGI is required to evaluate an IRA phaseout but was not supplied. */
+  | "magi_unknown"
+  /** Eligible taxable compensation unknown → IRA capacity is unknown. */
+  | "compensation_unknown"
+  /** MFS: the lived-with-spouse fact materially changes the answer. */
+  | "mfs_spouse_status_unknown"
+  /** A SEP IRA row was recorded as an employee elective deferral. */
+  | "sep_employee_deferral_not_allowed"
+  /** Two records may describe the same contribution; both were preserved. */
+  | "duplicate_contribution_ambiguous"
   | "unknown_plan_data";
 
 /* ─────────────────────────────── Rule tables ────────────────────────────── */
