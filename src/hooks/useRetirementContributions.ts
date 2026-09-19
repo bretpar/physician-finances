@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import { useMemo } from "react";
+import { annualizeRetirementContribution } from "@/lib/retirementOpportunityEngine";
 
 /**
  * Standalone retirement contributions (made outside the paycheck flow).
@@ -199,8 +200,14 @@ export interface AnnualizedContributions {
   deductibleTotal: number;
   /** Employee-funded plan contributions (excludes IRAs). */
   employeeTotal: number;
-  /** Employer-funded plan contributions. */
+  /** Employer-funded plan contributions (all plans, tracking only). */
   employerTotal: number;
+  /**
+   * Employer money that is a SELF-EMPLOYED business deduction (Solo 401(k) /
+   * SEP profit sharing). W-2 employer contributions are excluded — they are
+   * never a personal deduction and must not enter `businessRetirement`.
+   */
+  employerBusinessTotal: number;
   /** Employee elective deferrals counting against the 402(g) limit. */
   employeeDeferralTotal: number;
   traditionalIraTotal: number;
@@ -214,36 +221,47 @@ export interface AnnualizedContributions {
 }
 
 /**
- * Annualize recurring contributions; one-time contributions keep their exact
- * amount (never multiplied into a per-paycheck series).
+ * Annualize recurring contributions — delegates to the canonical retirement
+ * engine so the real pay schedule, start/end dates and tax-year window are
+ * honoured instead of a blind ×26. One-time rows keep their exact amount.
  */
-export function annualizeContributionAmount(c: {
-  contribution_amount: number | string;
-  frequency: string;
-}): { annual: number; perPaycheck: number } {
-  const amt = Number(c.contribution_amount) || 0;
-  switch (c.frequency) {
-    case "one_time":
-      return { annual: amt, perPaycheck: 0 };
-    case "per_paycheck":
-      return { annual: amt * 26, perPaycheck: amt };
-    case "monthly":
-      return { annual: amt * 12, perPaycheck: amt / 2 };
-    case "yearly":
-      return { annual: amt, perPaycheck: amt / 26 };
-    default:
-      return { annual: amt * 12, perPaycheck: amt / 12 };
-  }
+export function annualizeContributionAmount(
+  c: {
+    contribution_amount: number | string;
+    frequency: string;
+    start_date?: string | null;
+    end_date?: string | null;
+    contribution_date?: string | null;
+  },
+  opts?: { taxYear?: number; payFrequency?: string | null },
+): { annual: number; perPaycheck: number; occurrences: number; usedFallback: boolean } {
+  const r = annualizeRetirementContribution({
+    amount: c.contribution_amount,
+    frequency: c.frequency,
+    taxYear: opts?.taxYear ?? new Date().getFullYear(),
+    payFrequency: opts?.payFrequency ?? null,
+    startDate: c.start_date ?? null,
+    endDate: c.end_date ?? null,
+    contributionDate: c.contribution_date ?? null,
+  });
+  return {
+    annual: r.annual,
+    perPaycheck: r.perPeriod,
+    occurrences: r.occurrences,
+    usedFallback: r.usedFallback,
+  };
 }
 
 export function useAnnualizedContributions(
   contributions: RetirementContribution[] | undefined,
   /** Tax year the totals apply to. One-time rows outside it are excluded. */
   taxYear?: number,
+  /** company_id → pay frequency, so per-paycheck rows use the real schedule. */
+  payFrequencyByCompany?: Map<string, string | null>,
 ): AnnualizedContributions {
   return useMemo(() => {
     const empty: AnnualizedContributions = {
-      total: 0, deductibleTotal: 0, employeeTotal: 0, employerTotal: 0,
+      total: 0, deductibleTotal: 0, employeeTotal: 0, employerTotal: 0, employerBusinessTotal: 0,
       employeeDeferralTotal: 0, traditionalIraTotal: 0, rothIraTotal: 0,
       withholding: 0, projectionOnly: 0, perPaycheck: 0, byCompany: new Map(),
     };
@@ -264,7 +282,10 @@ export function useAnnualizedContributions(
       }
 
 
-      const { annual, perPaycheck } = annualizeContributionAmount(c);
+      const { annual, perPaycheck } = annualizeContributionAmount(c, {
+        taxYear: year,
+        payFrequency: (c.company_id && payFrequencyByCompany?.get(c.company_id)) || null,
+      });
       const type = c.contribution_type || "employee";
 
       out.total += annual;
@@ -286,8 +307,13 @@ export function useAnnualizedContributions(
       if (c.apply_to_withholding) out.withholding += annual;
       else out.projectionOnly += annual;
 
-      if (type === "employer") out.employerTotal += annual;
-      else out.employeeTotal += annual;
+      if (type === "employer") {
+        out.employerTotal += annual;
+        // Only self-employed plan types are a business retirement deduction.
+        if (c.account_type === "solo_401k" || c.account_type === "sep_ira") {
+          out.employerBusinessTotal += annual;
+        }
+      } else out.employeeTotal += annual;
 
       if (countsTowardEmployeeDeferral(c)) out.employeeDeferralTotal += annual;
 
@@ -300,5 +326,5 @@ export function useAnnualizedContributions(
     }
 
     return out;
-  }, [contributions, taxYear]);
+  }, [contributions, taxYear, payFrequencyByCompany]);
 }

@@ -1085,10 +1085,14 @@ export default function Mileage() {
                     ) : (
                       contributions.map((c) => {
                         const amt = Number(c.contribution_amount);
-                        const annual = annualizeContributionAmount(c).annual;
-                        const companyName = c.company_id
-                          ? companies.find((co) => co.id === c.company_id)?.name || null
-                          : null;
+                        const contribCompany = c.company_id
+                          ? companies.find((co) => co.id === c.company_id)
+                          : undefined;
+                        const annual = annualizeContributionAmount(c, {
+                          taxYear: currentYear,
+                          payFrequency: contribCompany?.payFrequency ?? null,
+                        }).annual;
+                        const companyName = contribCompany?.name || null;
                         return (
                           <TableRow key={c.id}>
                             <TableCell className="font-medium">

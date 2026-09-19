@@ -11,3 +11,4 @@ transactions table (status='active') is single source of truth for both Business
 ## Memories
 - [Tax rates](mem://features/tax-rates) — Federal, SE, WA B&O rates used in calculations
 - [Canonical transactions](mem://features/canonical-transactions) — transactions table drives both Business Ledger and Tax Overview; income_entries only enriches
+- [Retirement opportunity engine](mem://features/retirement-opportunity-engine) — canonical retirement limits, IRA deductibility, employer capacity, annualization rules

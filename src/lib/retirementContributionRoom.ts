@@ -13,6 +13,8 @@
  *    planProjectedCapacity → per company/plan, never pooled across plans.
  */
 
+import { RETIREMENT_RULES_BY_YEAR, getRetirementRules } from "./retirementOpportunityEngine";
+
 export interface RetirementYearLimits {
   /** 402(g) employee elective-deferral limit. */
   employeeDeferral: number;
@@ -24,17 +26,30 @@ export interface RetirementYearLimits {
   catchUp60to63: number;
 }
 
-/** Statutory limits by tax year. Add new years here — never inline in components. */
-export const RETIREMENT_LIMITS_BY_YEAR: Record<number, RetirementYearLimits> = {
-  2024: { employeeDeferral: 23_000, overallPlan: 69_000, catchUp50: 7_500, catchUp60to63: 7_500 },
-  2025: { employeeDeferral: 23_500, overallPlan: 70_000, catchUp50: 7_500, catchUp60to63: 11_250 },
-  2026: { employeeDeferral: 24_500, overallPlan: 72_000, catchUp50: 8_000, catchUp60to63: 11_250 },
-};
-
-const LATEST_YEAR = Math.max(...Object.keys(RETIREMENT_LIMITS_BY_YEAR).map(Number));
+/**
+ * Statutory limits by tax year — DERIVED from the canonical rule table in
+ * `retirementOpportunityEngine.ts`. Add new years there, never here.
+ */
+export const RETIREMENT_LIMITS_BY_YEAR: Record<number, RetirementYearLimits> = Object.fromEntries(
+  Object.entries(RETIREMENT_RULES_BY_YEAR).map(([year, r]) => [
+    Number(year),
+    {
+      employeeDeferral: r.employeeDeferral,
+      overallPlan: r.annualAdditions,
+      catchUp50: r.catchUp50,
+      catchUp60to63: r.catchUp60to63,
+    },
+  ]),
+) as Record<number, RetirementYearLimits>;
 
 export function getRetirementLimits(taxYear: number): RetirementYearLimits {
-  return RETIREMENT_LIMITS_BY_YEAR[taxYear] ?? RETIREMENT_LIMITS_BY_YEAR[LATEST_YEAR];
+  const r = getRetirementRules(taxYear);
+  return {
+    employeeDeferral: r.employeeDeferral,
+    overallPlan: r.annualAdditions,
+    catchUp50: r.catchUp50,
+    catchUp60to63: r.catchUp60to63,
+  };
 }
 
 export function getEmployeeDeferralLimit(taxYear: number, extraCatchUp = 0): number {
@@ -279,21 +294,21 @@ export interface IraYearLimits {
   catchUp50: number;
 }
 
-export const IRA_LIMITS_BY_YEAR: Record<number, IraYearLimits> = {
-  2024: { contribution: 7_000, catchUp50: 1_000 },
-  2025: { contribution: 7_000, catchUp50: 1_000 },
-  2026: { contribution: 7_500, catchUp50: 1_100 },
-};
-
-const LATEST_IRA_YEAR = Math.max(...Object.keys(IRA_LIMITS_BY_YEAR).map(Number));
+/** Derived from the canonical engine rule table. */
+export const IRA_LIMITS_BY_YEAR: Record<number, IraYearLimits> = Object.fromEntries(
+  Object.entries(RETIREMENT_RULES_BY_YEAR).map(([year, r]) => [
+    Number(year),
+    { contribution: r.ira.limit, catchUp50: r.ira.catchUp50 },
+  ]),
+) as Record<number, IraYearLimits>;
 
 export function getIraContributionLimit(
   taxYear: number,
   dateOfBirth?: string | Date | null,
 ): number {
-  const limits = IRA_LIMITS_BY_YEAR[taxYear] ?? IRA_LIMITS_BY_YEAR[LATEST_IRA_YEAR];
+  const limits = getRetirementRules(taxYear).ira;
   const age = ageAttainedInTaxYear(dateOfBirth, taxYear);
-  return limits.contribution + (age != null && age >= 50 ? limits.catchUp50 : 0);
+  return limits.limit + (age != null && age >= 50 ? limits.catchUp50 : 0);
 }
 
 export interface IraRoomSummary {
