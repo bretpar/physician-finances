@@ -1,282 +1,113 @@
-import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { PiggyBank, Lock, Info, TrendingUp, AlertTriangle } from "lucide-react";
-import type {
-  EmployeeRoomSummary,
-  IraRoomSummary,
-  PlanCapacity,
-} from "@/lib/retirementContributionRoom";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { InfoTooltip } from "@/components/ui/tooltip";
+import { ChevronDown, PiggyBank } from "lucide-react";
+import type { RetirementRoomView } from "@/lib/retirementRoomView";
+import { retirementReasonMessage } from "@/lib/retirementReasonMessages";
 
 const fmt = (n: number) =>
   n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
-const PLAN_TYPE_LABELS: Record<string, string> = {
-  w2: "W-2 employer plan",
-  "1099_schedule_c": "Self-employed plan",
-  k1: "Partnership / K-1 plan",
-  s_corp: "S-corp plan",
+const PLAN_LABELS: Record<string, string> = {
+  "401k": "401(k)",
+  "403b": "403(b)",
+  tsp: "TSP",
+  solo_401k: "Solo 401(k)",
+  governmental_457b: "Governmental 457(b)",
+  simple_ira: "SIMPLE IRA",
+  simple_401k: "SIMPLE 401(k)",
+  sep_ira: "SEP IRA",
 };
 
-const planTypeLabel = (t?: string | null) => (t ? PLAN_TYPE_LABELS[t] ?? null : null);
-
 export interface RetirementRoomSummaryProps {
-  taxYear: number;
-  employeeRoom: EmployeeRoomSummary;
-  employerContributionTotal: number;
-  plans: PlanCapacity[];
-  /** Access to the projected contribution capacity view. */
+  room: RetirementRoomView;
   hasPlannerAccess: boolean;
-  /** Access to employer contribution opportunity insights. Defaults to on. */
   hasEmployerOpportunityAccess?: boolean;
-  /**
-   * Access to forward-looking contribution capacity intelligence (remaining
-   * room, per-plan available/projected capacity). Basic contributed amounts and
-   * annual limits stay visible without it. Defaults to on.
-   */
   hasCapacityAccess?: boolean;
-  /** IRA tracking (Traditional + Roth). Uses its own limit, not the 401(k) one. */
-  iraRoom?: IraRoomSummary;
 }
 
+const BucketCard = ({ title, contributed, limit, remaining, description, catchUp, children, testId }: {
+  title: string; contributed: number; limit: number; remaining: number; description: string;
+  catchUp?: number; children?: React.ReactNode; testId?: string;
+}) => (
+  <Collapsible asChild>
+    <Card data-testid={testId}>
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold">{title}</p>
+            <p className="mt-1 text-2xl font-bold tabular-nums">
+              {fmt(contributed)} <span className="text-sm font-normal text-muted-foreground">of {fmt(limit)}</span>
+            </p>
+          </div>
+          {children && <CollapsibleTrigger className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted" aria-label={`Show ${title} details`}><ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" /></CollapsibleTrigger>}
+        </div>
+        <Progress value={limit > 0 ? Math.min(100, contributed / limit * 100) : 0} className="mt-3 h-2" />
+        <p className="mt-2 text-sm"><span className="font-semibold tabular-nums">{fmt(remaining)}</span> remaining</p>
+        <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+        {!!catchUp && <p className="mt-1 text-xs text-muted-foreground">Includes {fmt(catchUp)} {catchUp > 8_000 ? "age 60–63" : "age 50+"} catch-up</p>}
+        {children && <CollapsibleContent className="mt-4 border-t pt-3">{children}</CollapsibleContent>}
+      </CardContent>
+    </Card>
+  </Collapsible>
+);
+
 export function RetirementRoomSummary({
-  taxYear,
-  employeeRoom,
-  employerContributionTotal,
-  plans,
+  room,
   hasPlannerAccess,
   hasEmployerOpportunityAccess = true,
   hasCapacityAccess = true,
-  iraRoom,
 }: RetirementRoomSummaryProps) {
-  const [basis, setBasis] = useState<"ytd" | "projected">("ytd");
-  const projected = hasPlannerAccess && hasCapacityAccess && basis === "projected";
-
-  const overLimitBy = Math.max(
-    0,
-    employeeRoom.employeeContributionTotal - employeeRoom.employeeDeferralLimit,
-  );
-
-  // Extra capacity that projected income could unlock, using only plans where
-  // both figures are computable. Read-only comparison of validated values.
-  const projectedUpside = plans.reduce((sum, p) => {
-    if (p.planProjectedCapacity == null || p.planCurrentCapacity == null) return sum;
-    return sum + Math.max(0, p.planProjectedCapacity - p.planCurrentCapacity);
+  const { engine, engineProjected } = room;
+  const projectedById = new Map((engineProjected?.plans ?? []).map((plan) => [plan.planId, plan]));
+  const totalContributed = engine.plans.reduce((sum, plan) => sum + plan.totalAdditions, 0) + engine.ira.combinedContributed;
+  const employerPlans = engine.plans.filter((plan) => plan.deferralBucket !== "governmental_457b");
+  const knownEmployerOpportunity = employerPlans.reduce((sum, plan) => {
+    const projected = hasPlannerAccess ? projectedById.get(plan.planId)?.employerCapacityRemaining : null;
+    const capacity = projected ?? plan.employerCapacityRemaining;
+    return sum + (capacity ?? 0);
   }, 0);
+  const additionalOpportunity = engine.employee402g.remaining + (engine.governmental457b?.remaining ?? 0) +
+    (engine.simple?.remaining ?? 0) + (engine.ira.remainingContributionRoom ?? 0) + knownEmployerOpportunity;
+  const unknownEmployerCount = employerPlans.filter((plan) => {
+    const projected = hasPlannerAccess ? projectedById.get(plan.planId)?.employerCapacityRemaining : null;
+    return (projected ?? plan.employerCapacityRemaining) == null && plan.reasons.includes("unknown_plan_data");
+  }).length;
+  const bucketPlans = (bucket: "402g" | "governmental_457b" | "simple") => engine.plans.filter((p) => p.deferralBucket === bucket);
+  const reasonLines = (reasons: typeof engine.employee402g.reasons) => Array.from(new Set(reasons)).map(retirementReasonMessage);
 
   return (
-    <Card data-testid="retirement-room-summary">
-      <CardHeader className="pb-3">
-        <div className="flex items-start justify-between gap-2">
-          <CardTitle className="text-base flex items-center gap-2">
-            <PiggyBank className="h-4 w-4" /> {taxYear} Retirement Contribution Room
-          </CardTitle>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-7 w-7 shrink-0 text-muted-foreground"
-                aria-label="How contribution room works"
-              >
-                <Info className="h-4 w-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-72 text-xs space-y-2">
-              <p>
-                Employee elective-deferral room generally follows you as an individual across all
-                applicable plans — one shared annual limit.
-              </p>
-              <p>
-                Employer / plan capacity depends on each specific company: compensation, plan type,
-                and business structure. Capacity is not transferable between plans.
-              </p>
-              <p>Projected capacity uses your Income Planner estimates and is not a guarantee.</p>
-            </PopoverContent>
-          </Popover>
+    <div className="space-y-4" data-testid="retirement-room-summary">
+      <section className="border-b pb-4">
+        <div className="flex items-center gap-2"><PiggyBank className="h-5 w-5 text-primary" /><h3 className="text-lg font-semibold">{engine.taxYear} Retirement</h3></div>
+        <div className="mt-4 grid grid-cols-2 gap-4">
+          <div><p className="text-xs text-muted-foreground">Total contributed</p><p className="mt-1 text-2xl font-bold tabular-nums">{fmt(totalContributed)}</p></div>
+          <div><p className="text-xs text-muted-foreground">Additional contribution opportunity</p><p className="mt-1 text-2xl font-bold tabular-nums">{hasCapacityAccess ? fmt(additionalOpportunity) : "—"}</p></div>
         </div>
-      </CardHeader>
+        {unknownEmployerCount > 0 && <p className="mt-3 text-xs text-muted-foreground">Additional employer opportunity may be available for {unknownEmployerCount} {unknownEmployerCount === 1 ? "plan" : "plans"}.</p>}
+      </section>
 
-      <CardContent className="space-y-5">
-        {/* Employee — primary */}
-        <div data-testid="employee-room">
-          <p className="text-xs text-muted-foreground">Employee contributions</p>
-          <p className="text-3xl font-bold tabular-nums">
-            {fmt(employeeRoom.employeeContributionTotal)}{" "}
-            <span className="text-base font-normal text-muted-foreground">
-              of {fmt(employeeRoom.employeeDeferralLimit)}
-            </span>
-          </p>
-          <Progress value={employeeRoom.employeeUsedFraction * 100} className="mt-2 h-2" />
-          {hasCapacityAccess ? (
-            <p className="mt-1.5 text-sm text-muted-foreground" data-testid="employee-remaining-room">
-              <span className="font-medium text-foreground tabular-nums">
-                {fmt(employeeRoom.employeeRemainingRoom)}
-              </span>{" "}
-              remaining
-            </p>
-          ) : (
-            <p
-              className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground"
-              data-testid="employee-remaining-room-locked"
-            >
-              <Lock className="mt-0.5 h-3 w-3 shrink-0" />
-              Premium shows how much contribution room you have left and what you could still
-              contribute.
-            </p>
-          )}
-          {overLimitBy > 0 && (
-            <p
-              data-testid="employee-over-limit"
-              className="mt-1.5 flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400"
-            >
-              <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-              Employee contributions exceed the current annual limit by {fmt(overLimitBy)}.
-            </p>
-          )}
-        </div>
+      <BucketCard title="Employee retirement" contributed={engine.employee402g.contributed} limit={engine.employee402g.limit} remaining={hasCapacityAccess ? engine.employee402g.remaining : 0} catchUp={engine.employee402g.catchUp} description="Shared across your eligible 401(k), 403(b), and Solo 401(k) employee contributions." testId="employee-room">
+        <div className="space-y-2">{bucketPlans("402g").map((plan) => <div key={plan.planId ?? plan.companyName} className="flex justify-between gap-3 text-sm"><span>{plan.companyName} {PLAN_LABELS[plan.planKind]}</span><span className="shrink-0 font-medium tabular-nums">{fmt(plan.employeeContribution)}</span></div>)}</div>
+      </BucketCard>
 
-        {/* Basis toggle */}
-        {hasPlannerAccess && hasCapacityAccess ? (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-muted-foreground">Based on:</span>
-            <div className="inline-flex rounded-md border p-0.5">
-              <Button
-                size="sm"
-                variant={basis === "ytd" ? "secondary" : "ghost"}
-                className="h-7 px-2 text-xs"
-                onClick={() => setBasis("ytd")}
-              >
-                Current YTD
-              </Button>
-              <Button
-                size="sm"
-                variant={basis === "projected" ? "secondary" : "ghost"}
-                className="h-7 px-2 text-xs"
-                onClick={() => setBasis("projected")}
-              >
-                Projected year end
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
-            <Lock className="mt-0.5 h-3 w-3 shrink-0" />
-            See how future income could change your retirement contribution room with Income Planner.
-          </p>
-        )}
+      {engine.governmental457b && <BucketCard title="Governmental 457(b)" contributed={engine.governmental457b.contributed} limit={engine.governmental457b.limit} remaining={engine.governmental457b.remaining} catchUp={engine.governmental457b.catchUp} description="This plan has a separate contribution limit from your 401(k)/403(b) employee limit.">
+        <div className="space-y-2">{bucketPlans("governmental_457b").map((plan) => <div key={plan.planId ?? plan.companyName} className="flex justify-between text-sm"><span>{plan.companyName}</span><span className="font-medium tabular-nums">{fmt(plan.employeeContribution)}</span></div>)}</div>
+      </BucketCard>}
 
-        {/* Projected opportunity insight */}
-        {hasPlannerAccess && hasCapacityAccess && hasEmployerOpportunityAccess && projectedUpside > 0 && (
-          <div
-            data-testid="projected-opportunity"
-            className="rounded-lg border bg-muted/40 p-3 text-sm"
-          >
-            <p className="flex items-center gap-1.5 font-medium">
-              <TrendingUp className="h-3.5 w-3.5" /> Projected opportunity
-            </p>
-            <p className="mt-1 text-muted-foreground">
-              Based on your planned income, you may have approximately{" "}
-              <span className="font-medium text-foreground tabular-nums">
-                {fmt(projectedUpside)}
-              </span>{" "}
-              more contribution capacity by year end. This is an estimate.
-            </p>
-          </div>
-        )}
+      {engine.simple && <BucketCard title="SIMPLE" contributed={engine.simple.contributed} limit={engine.simple.limit} remaining={engine.simple.remaining} catchUp={engine.simple.catchUp} description="SIMPLE plans use their own annual contribution limit.">
+        <div className="space-y-2">{bucketPlans("simple").map((plan) => <div key={plan.planId ?? plan.companyName} className="flex justify-between text-sm"><span>{plan.companyName} {PLAN_LABELS[plan.planKind]}</span><span className="font-medium tabular-nums">{fmt(plan.employeeContribution)}</span></div>)}</div>
+      </BucketCard>}
 
-        {/* Employer total */}
-        <div>
-          <p className="text-xs text-muted-foreground">Employer contributions</p>
-          <p className="text-2xl font-bold tabular-nums">{fmt(employerContributionTotal)}</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Counts toward plan limits — not a personal deduction
-          </p>
-        </div>
+      {employerPlans.length > 0 && <section className="space-y-2"><h4 className="text-sm font-semibold">Employer retirement opportunity</h4>{employerPlans.map((plan) => {
+        const projectedPlan = hasPlannerAccess ? projectedById.get(plan.planId) : undefined;
+        const capacity = projectedPlan?.employerCapacityRemaining ?? plan.employerCapacityRemaining;
+        const isProjected = !!projectedPlan && projectedPlan.employerCapacityRemaining != null;
+        return <Collapsible key={plan.planId ?? `${plan.companyName}-${plan.planKind}`} asChild><Card data-testid="plan-capacity-card"><CardContent className="p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="font-semibold">{plan.companyName}</p><p className="text-xs text-muted-foreground">{PLAN_LABELS[plan.planKind]} · Employer</p><p className="mt-2 text-sm"><span className="font-semibold tabular-nums">{fmt(plan.employerContribution)}</span> contributed</p>{hasCapacityAccess && hasEmployerOpportunityAccess && (capacity == null ? <p className="mt-1 text-sm text-muted-foreground">Additional employer contribution depends on your employer's plan. <InfoTooltip>PaycheckMD knows the IRS ceiling, but your employer's match or profit-sharing formula determines what can actually be added.</InfoTooltip></p> : <p className="mt-1 text-sm"><span className="font-semibold tabular-nums">Up to {fmt(capacity)} additional</span></p>)}{isProjected && <p className="mt-1 text-xs text-muted-foreground">Based on projected {engine.taxYear} income</p>}</div><CollapsibleTrigger className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted" aria-label={`Show ${plan.companyName} details`}><ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" /></CollapsibleTrigger></div><CollapsibleContent className="mt-4 border-t pt-3"><dl className="space-y-2 text-sm"><div className="flex justify-between"><dt className="text-muted-foreground">Current allowable employer contribution</dt><dd>{plan.employerCapacityRemaining == null ? "Unknown" : fmt(plan.employerContribution + plan.employerCapacityRemaining)}</dd></div>{projectedPlan && <div className="flex justify-between"><dt className="text-muted-foreground">Projected year-end allowable contribution</dt><dd>{projectedPlan.employerCapacityRemaining == null ? "Unknown" : fmt(projectedPlan.employerContribution + projectedPlan.employerCapacityRemaining)}</dd></div>}<div className="flex justify-between"><dt className="text-muted-foreground">Current eligible compensation</dt><dd>{plan.eligibleCompensation == null ? "Unknown" : fmt(plan.eligibleCompensation)}</dd></div>{projectedPlan && <div className="flex justify-between"><dt className="text-muted-foreground">Projected eligible compensation</dt><dd>{projectedPlan.eligibleCompensation == null ? "Unknown" : fmt(projectedPlan.eligibleCompensation)}</dd></div>}<div className="flex justify-between"><dt className="text-muted-foreground">Total plan additions</dt><dd>{fmt(plan.totalAdditions)}</dd></div><div className="flex justify-between"><dt className="text-muted-foreground">Plan ceiling</dt><dd>{plan.annualAdditionsLimit == null ? "Unknown" : fmt(plan.annualAdditionsLimit)}</dd></div></dl><div className="mt-3 space-y-1 text-xs text-muted-foreground">{reasonLines(plan.reasons).map((message) => <p key={message}>{message}</p>)}</div></CollapsibleContent></CardContent></Card></Collapsible>;
+      })}</section>}
 
-        {/* IRA tracking — separate limit from 401(k) deferrals */}
-        {iraRoom && iraRoom.combinedTotal > 0 && (
-          <div data-testid="ira-room">
-            <p className="text-xs text-muted-foreground">IRA contributions</p>
-            <p className="text-2xl font-bold tabular-nums">
-              {fmt(iraRoom.combinedTotal)}{" "}
-              <span className="text-sm font-normal text-muted-foreground">
-                of {fmt(iraRoom.limit)}
-              </span>
-            </p>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Traditional {fmt(iraRoom.traditionalTotal)} · Roth {fmt(iraRoom.rothTotal)} — tracked
-              against the IRA limit, not your 401(k) limit. Roth contributions do not reduce taxable
-              income.
-            </p>
-          </div>
-        )}
-
-        {/* Per company / plan cards */}
-        {plans.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground">Capacity by company / plan</p>
-            {plans.map((p) => {
-              const label = planTypeLabel(p.planType);
-              const capacity = projected ? p.planProjectedCapacity : p.planCurrentCapacity;
-              return (
-                <div
-                  key={p.companyId || p.companyName}
-                  data-testid="plan-capacity-card"
-                  className="rounded-lg border p-3"
-                >
-                  <p className="truncate text-sm font-medium">{p.companyName}</p>
-                  {label && <p className="text-xs text-muted-foreground">{label}</p>}
-
-                  <dl className="mt-2 space-y-1 text-sm">
-                    <div className="flex items-center justify-between gap-2">
-                      <dt className="text-muted-foreground">Employee contributions</dt>
-                      <dd className="tabular-nums">{fmt(p.employeeContribution)}</dd>
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <dt className="text-muted-foreground">Employer contributions</dt>
-                      <dd className="tabular-nums">{fmt(p.employerContribution)}</dd>
-                    </div>
-                    <div className="flex items-center justify-between gap-2 border-t pt-1">
-                      <dt className="text-muted-foreground">Total contributed</dt>
-                      <dd className="font-medium tabular-nums">{fmt(p.planContributionTotal)}</dd>
-                    </div>
-                    {hasCapacityAccess && (
-                    <div className="flex items-start justify-between gap-2" data-testid="plan-capacity-row">
-                      <dt className="text-muted-foreground">
-                        {projected ? "Projected year-end capacity" : "Current available capacity"}
-                      </dt>
-                      <dd className="text-right">
-                        {capacity == null ? (
-                          <span className="text-xs text-muted-foreground">
-                            Contribution capacity unavailable
-                          </span>
-                        ) : (
-                          <span className="font-medium tabular-nums">{fmt(capacity)}</span>
-                        )}
-                      </dd>
-                    </div>
-                    )}
-                  </dl>
-
-                  {hasCapacityAccess && capacity == null && (
-                    <p className="mt-1.5 text-xs text-muted-foreground">
-                      More plan or compensation information is needed to estimate this limit.
-                    </p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        <p className="text-xs text-muted-foreground">
-          Final limits can depend on plan type, compensation, business structure, and plan rules.
-          Capacity is calculated per plan and cannot be moved between plans.
-        </p>
-      </CardContent>
-    </Card>
+      <Collapsible asChild><Card data-testid="ira-room"><CardContent className="p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-semibold">IRA</p><p className="mt-1 text-2xl font-bold tabular-nums">{fmt(engine.ira.combinedContributed)} <span className="text-sm font-normal text-muted-foreground">of {fmt(engine.ira.combinedLimit ?? engine.ira.statutoryCombinedLimit)}</span></p><p className="mt-1 text-sm"><span className="font-semibold tabular-nums">{engine.ira.remainingContributionRoom == null ? "Unknown" : fmt(engine.ira.remainingContributionRoom)}</span> remaining</p></div><CollapsibleTrigger className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted" aria-label="Show IRA details"><ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" /></CollapsibleTrigger></div><div className="mt-4 space-y-2 border-t pt-3 text-sm"><div className="flex justify-between"><span>Traditional IRA</span><span className="font-medium tabular-nums">{fmt(engine.ira.traditionalContributed)} contributed</span></div><div className="flex justify-between"><span>Roth IRA</span><span className="font-medium tabular-nums">{fmt(engine.ira.rothContributed)} contributed</span></div><div className="flex items-start justify-between gap-3"><span>Tax deductible <InfoTooltip>Traditional IRA contributions may be fully deductible, partially deductible, or nondeductible depending on income and workplace retirement-plan coverage.</InfoTooltip></span><span className="text-right font-medium">{engine.ira.deductibilityUnknown ? "Eligibility needs your income estimate" : fmt(engine.ira.traditionalDeductible)}</span></div></div><CollapsibleContent className="mt-3 border-t pt-3 text-sm"><p><span className="text-muted-foreground">Direct Roth contribution eligibility: </span>{engine.ira.rothEligibilityUnknown ? "Eligibility needs your income estimate" : engine.ira.rothAllowed === 0 ? "Not eligible" : (engine.ira.rothAllowed ?? 0) < (engine.ira.combinedLimit ?? engine.ira.statutoryCombinedLimit) ? "Partially eligible" : "Eligible"}</p>{engine.ira.rothRemaining != null && <p className="mt-1 text-muted-foreground">Remaining direct Roth amount: {fmt(engine.ira.rothRemaining)}</p>}<div className="mt-2 space-y-1 text-xs text-muted-foreground">{reasonLines(engine.ira.reasons).map((message) => <p key={message}>{message}</p>)}</div></CollapsibleContent></CardContent></Card></Collapsible>
+    </div>
   );
 }
