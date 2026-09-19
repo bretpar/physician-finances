@@ -23,6 +23,8 @@ import {
   type PaycheckRetirementSource,
   type StandaloneRetirementSource,
 } from "@/lib/retirementCanonicalInput";
+import { calculateSETax } from "@/lib/taxEngine";
+import type { FilingStatus } from "@/lib/taxBrackets";
 import type {
   CapacityBasis,
   EmployeeRoomSummary,
@@ -99,6 +101,27 @@ export function computeRetirementRoomView(args: RetirementRoomViewArgs): Retirem
     );
   }
 
+  /* Self-employed earned income must be NET of the deductible half of SE tax
+     before the reduced employer rate applies. The authoritative SE-tax helper
+     is reused here — no SE formula is duplicated, and the employer retirement
+     deduction never feeds back into the SE-tax base. */
+  const seFilingStatus = (args.filingStatus ?? "single") as FilingStatus;
+  const halfSeTax = (profit: number | undefined) =>
+    profit == null || profit <= 0 ? 0 : calculateSETax(profit, seFilingStatus).deductibleHalf;
+  const deductibleHalfSeTaxByCompany = new Map<string, number>();
+  const projectedDeductibleHalfSeTaxByCompany = new Map<string, number>();
+  for (const c of args.companies) {
+    const override = args.deductibleHalfSeTaxByCompany?.get(c.id);
+    deductibleHalfSeTaxByCompany.set(
+      c.id,
+      override ?? halfSeTax(args.actualNetProfitByCompany?.get(c.id)),
+    );
+    projectedDeductibleHalfSeTaxByCompany.set(
+      c.id,
+      halfSeTax(projectedNetProfitByCompany.get(c.id)),
+    );
+  }
+
   const common = {
     taxYear: args.taxYear,
     dateOfBirth: args.dateOfBirth ?? null,
@@ -112,6 +135,8 @@ export function computeRetirementRoomView(args: RetirementRoomViewArgs): Retirem
     sources,
     actualNetProfitByCompany: args.actualNetProfitByCompany,
     projectedNetProfitByCompany,
+    deductibleHalfSeTaxByCompany,
+    projectedDeductibleHalfSeTaxByCompany,
     ira: args.ira,
   };
 
