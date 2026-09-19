@@ -309,6 +309,12 @@ export interface RetirementOpportunityInput {
   spouseCoveredByWorkplacePlan?: boolean | null;
   /** Taxable compensation eligible to support IRA contributions. */
   eligibleTaxableCompensation?: number | null;
+  /**
+   * MFS only: did the taxpayer live with their spouse at any time during the
+   * tax year? `null`/undefined => unknown; the engine refuses to assume the
+   * favorable (single-like) treatment.
+   */
+  livedWithSpouseDuringYear?: boolean | null;
   plans?: PlanOpportunityInput[];
   ira?: {
     traditionalContributed?: number | null;
@@ -328,18 +334,31 @@ export interface DeferralBucketResult {
 
 export interface IraResult {
   combinedContributed: number;
-  combinedLimit: number;
-  remainingContributionRoom: number;
+  /** Compensation-capped combined IRA limit. `null` when compensation unknown. */
+  combinedLimit: number | null;
+  /** Statutory combined limit ignoring compensation — display/reference only. */
+  statutoryCombinedLimit: number;
+  /** `null` when contribution capacity cannot be established. */
+  remainingContributionRoom: number | null;
+  /** True when eligible taxable compensation was not supplied. */
+  capacityUnknown: boolean;
 
   traditionalContributed: number;
+  /** 0 when deductibility cannot be established — see `deductibilityUnknown`. */
   traditionalDeductible: number;
   traditionalNondeductible: number;
+  /** Statutory phased deductible ceiling. `null` when it cannot be evaluated. */
+  traditionalDeductibleCeiling: number | null;
+  /** True when required data (MAGI / MFS status) is missing. */
+  deductibilityUnknown: boolean;
 
   rothContributed: number;
-  rothAllowed: number;
-  rothRemaining: number;
+  /** `null` when direct-Roth eligibility cannot be established. */
+  rothAllowed: number | null;
+  rothRemaining: number | null;
+  rothEligibilityUnknown: boolean;
 
-  eligibleTaxableCompensation: number;
+  eligibleTaxableCompensation: number | null;
   reasons: RetirementReasonCode[];
 }
 
