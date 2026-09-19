@@ -131,6 +131,7 @@ describe("Solo 401(k) employer deduction tax routing", () => {
     projectedHealthInsuranceDeduction: 0,
     filingStatus: "single",
     lastYearTax: 0,
+    ssWageCap: 184_500,
     includeProjectedIncome: false,
   };
   const input = (employerContribution: number): UnifiedTaxInput => ({
