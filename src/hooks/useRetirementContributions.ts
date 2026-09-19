@@ -214,32 +214,43 @@ export interface AnnualizedContributions {
 }
 
 /**
- * Annualize recurring contributions; one-time contributions keep their exact
- * amount (never multiplied into a per-paycheck series).
+ * Annualize recurring contributions — delegates to the canonical retirement
+ * engine so the real pay schedule, start/end dates and tax-year window are
+ * honoured instead of a blind ×26. One-time rows keep their exact amount.
  */
-export function annualizeContributionAmount(c: {
-  contribution_amount: number | string;
-  frequency: string;
-}): { annual: number; perPaycheck: number } {
-  const amt = Number(c.contribution_amount) || 0;
-  switch (c.frequency) {
-    case "one_time":
-      return { annual: amt, perPaycheck: 0 };
-    case "per_paycheck":
-      return { annual: amt * 26, perPaycheck: amt };
-    case "monthly":
-      return { annual: amt * 12, perPaycheck: amt / 2 };
-    case "yearly":
-      return { annual: amt, perPaycheck: amt / 26 };
-    default:
-      return { annual: amt * 12, perPaycheck: amt / 12 };
-  }
+export function annualizeContributionAmount(
+  c: {
+    contribution_amount: number | string;
+    frequency: string;
+    start_date?: string | null;
+    end_date?: string | null;
+    contribution_date?: string | null;
+  },
+  opts?: { taxYear?: number; payFrequency?: string | null },
+): { annual: number; perPaycheck: number; occurrences: number; usedFallback: boolean } {
+  const r = annualizeRetirementContribution({
+    amount: c.contribution_amount,
+    frequency: c.frequency,
+    taxYear: opts?.taxYear ?? new Date().getFullYear(),
+    payFrequency: opts?.payFrequency ?? null,
+    startDate: c.start_date ?? null,
+    endDate: c.end_date ?? null,
+    contributionDate: c.contribution_date ?? null,
+  });
+  return {
+    annual: r.annual,
+    perPaycheck: r.perPeriod,
+    occurrences: r.occurrences,
+    usedFallback: r.usedFallback,
+  };
 }
 
 export function useAnnualizedContributions(
   contributions: RetirementContribution[] | undefined,
   /** Tax year the totals apply to. One-time rows outside it are excluded. */
   taxYear?: number,
+  /** company_id → pay frequency, so per-paycheck rows use the real schedule. */
+  payFrequencyByCompany?: Map<string, string | null>,
 ): AnnualizedContributions {
   return useMemo(() => {
     const empty: AnnualizedContributions = {
