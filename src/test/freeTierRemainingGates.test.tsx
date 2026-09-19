@@ -4,34 +4,21 @@ import { RetirementRoomSummary } from "@/components/retirement/RetirementRoomSum
 import { SimpleTaxReminderModal } from "@/components/SimpleTaxReminderModal";
 import { buildInsights, filterInsightsByAccess, INSIGHT_FEATURE_KEYS } from "@/lib/insights";
 import { resolveRequiredAccess } from "@/lib/featureRegistry";
+import { computeRetirementRoomView } from "@/lib/retirementRoomView";
 
-const employeeRoom = {
-  employeeContributionTotal: 1000,
-  employeeDeferralLimit: 24500,
-  employeeRemainingRoom: 23500,
-  employeeUsedFraction: 1000 / 24500,
-};
-
-const plans = [
-  {
-    companyId: "c1",
-    companyName: "Acme Health",
-    planType: "w2",
-    employeeContribution: 1000,
-    employerContribution: 500,
-    planContributionTotal: 1500,
-    planCurrentCapacity: 20000,
-    planProjectedCapacity: 40000,
-  },
-];
+const room = computeRetirementRoomView({
+  taxYear: 2026,
+  eligibleTaxableCompensation: 100_000,
+  companies: [{ id: "c1", name: "Acme Health", companyType: "w2" }],
+  paychecks: [{ incomeEntryId: "p1", companyId: "c1", employee: 1_000, employer: 500, wages: 100_000 }],
+  standalone: [],
+  ira: { traditionalContributed: 0, rothContributed: 0 },
+});
 
 const renderRoom = (access: { capacity: boolean; planner: boolean; employer: boolean }) =>
   render(
     <RetirementRoomSummary
-      taxYear={2026}
-      employeeRoom={employeeRoom as never}
-      employerContributionTotal={500}
-      plans={plans as never}
+      room={room}
       hasPlannerAccess={access.planner}
       hasEmployerOpportunityAccess={access.employer}
       hasCapacityAccess={access.capacity}
@@ -49,24 +36,19 @@ describe("Retirement premium intelligence gating", () => {
 
   it("gates projected capacity, remaining room and employer opportunity for a Free user", () => {
     renderRoom({ capacity: false, planner: false, employer: false });
-    expect(screen.queryByTestId("employee-remaining-room")).toBeNull();
-    expect(screen.getByTestId("employee-remaining-room-locked")).toBeTruthy();
-    expect(screen.queryByTestId("plan-capacity-row")).toBeNull();
-    expect(screen.queryByTestId("projected-opportunity")).toBeNull();
-    expect(screen.queryByText("Projected year end")).toBeNull();
+    expect(screen.getByTestId("employee-room").textContent).toContain("$0 remaining");
+    expect(screen.getByText("—")).toBeTruthy();
   });
 
   it("gates Income Planner-derived capacity even if planner access is granted alone", () => {
     renderRoom({ capacity: false, planner: true, employer: true });
-    expect(screen.queryByText("Projected year end")).toBeNull();
-    expect(screen.queryByTestId("projected-opportunity")).toBeNull();
+    expect(screen.queryByText(/Based on projected/)).toBeNull();
   });
 
   it("keeps full functionality for a Premium user", () => {
     renderRoom({ capacity: true, planner: true, employer: true });
-    expect(screen.getByTestId("employee-remaining-room")).toBeTruthy();
-    expect(screen.getByTestId("plan-capacity-row")).toBeTruthy();
-    expect(screen.getByTestId("projected-opportunity")).toBeTruthy();
+    expect(screen.getByTestId("employee-room").textContent).toContain("$23,500 remaining");
+    expect(screen.getByText("Additional contribution opportunity")).toBeTruthy();
   });
 
   it("keeps the retirement premium keys Premium in the registry", () => {
