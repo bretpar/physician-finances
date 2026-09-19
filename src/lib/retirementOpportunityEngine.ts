@@ -294,6 +294,12 @@ export interface PlanOpportunityInput {
   k1EarnedIncomeFromServices?: number | null;
   /** 457(b) final-three-years catch-up metadata (unsupported → data needed). */
   requestsSpecial457Catchup?: boolean | null;
+  /**
+   * SEP only: explicit plan metadata saying this is a grandfathered SARSEP
+   * (pre-1997) that may still accept employee elective deferrals. Absent this
+   * flag, employee deferrals into a SEP are rejected as a data-quality issue.
+   */
+  grandfatheredSarsep?: boolean | null;
 }
 
 export interface RetirementOpportunityInput {
