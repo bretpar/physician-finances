@@ -860,24 +860,27 @@ export function countContributionOccurrences(input: {
 
   const freq = input.payFrequency;
   let count = 0;
-  const cursor = new Date(start);
 
+  if (freq === "semimonthly") {
+    // Twice-monthly cadence: the 15th and the last day of each month.
+    for (let month = 0; month < 12; month++) {
+      const lastDay = new Date(input.taxYear, month + 1, 0).getDate();
+      for (const day of [15, lastDay]) {
+        const d = new Date(input.taxYear, month, day);
+        if (d >= windowStart && d <= windowEnd && d >= start && d <= end) count++;
+      }
+    }
+    return count;
+  }
+
+  const cursor = new Date(start);
   // Walk the schedule from its own start date so alignment is preserved.
   for (let i = 0; i < 400; i++) {
     if (cursor > windowEnd) break;
     if (cursor >= windowStart) count++;
     if (freq === "weekly") cursor.setDate(cursor.getDate() + 7);
     else if (freq === "biweekly") cursor.setDate(cursor.getDate() + 14);
-    else if (freq === "semimonthly") {
-      // 1st/15th-style cadence: alternate +15/+16 days within the month cycle.
-      const day = cursor.getDate();
-      if (day <= 15) cursor.setDate(15 + (day <= 15 ? 0 : 0) === 15 ? 15 : 15);
-      if (day < 15) cursor.setDate(15);
-      else {
-        cursor.setMonth(cursor.getMonth() + 1);
-        cursor.setDate(1);
-      }
-    } else if (freq === "monthly") cursor.setMonth(cursor.getMonth() + 1);
+    else if (freq === "monthly") cursor.setMonth(cursor.getMonth() + 1);
     else if (freq === "quarterly") cursor.setMonth(cursor.getMonth() + 3);
     else cursor.setFullYear(cursor.getFullYear() + 1);
   }
