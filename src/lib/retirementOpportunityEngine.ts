@@ -375,7 +375,16 @@ export interface PlanOpportunity {
   planKind: RetirementPlanKind;
   entityKind: RetirementEntityKind;
   deferralBucket: DeferralBucket;
+  /** Employee money as recorded (kept visible even when disallowed). */
   employeeContribution: number;
+  /** Employee money that legitimately counts as an elective deferral. */
+  employeeDeferralCounted: number;
+  /** Employee money rejected by plan rules (e.g. SEP elective deferral). */
+  employeeContributionDisallowed: number;
+  /** Actual permitted catch-up = min(excess over base limit, catch-up max). */
+  allowableCatchUp: number;
+  /** Employee dollars that DO count toward §415(c) annual additions. */
+  employeeTowardAnnualAdditions: number;
   employerContribution: number;
   totalAdditions: number;
   /** §415(c) ceiling for this plan, capped by eligible compensation when known. */
