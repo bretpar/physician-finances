@@ -21,5 +21,12 @@ type: feature
 - Per-paycheck annualization uses real company `pay_frequency` and tax-year occurrences; documented fallback is biweekly. One-time rows stay exact and belong to their contribution year only.
 - Projected self-employed room = actual YTD net profit + remaining planned gross − remaining planned expenses (never gross-only).
 
+## Production wiring (engine is authoritative)
+- `retirementCanonicalInput.ts` — the ONLY normalization/dedup boundary. Explicit `linkedIncomeEntryId` drops a duplicate standalone row; unlinked look-alikes are flagged `ambiguous`, never merged. Plan candidates come from the company catalog so $0 plans stay visible (or return `unknown_plan_data`).
+- `retirementRoomView.ts` — the ONLY retirement-room view (Tax Savings / Mileage.tsx). No independent limit, capacity, IRA or catch-up math anywhere else.
+- `useTaxEstimate.ts` — standalone retirement deductions come from `computeRetirementOpportunity(...).taxRouting` at ONE boundary: `employeePreTaxDeduction + traditionalIraDeduction` → `annualizedRetirement`; `selfEmployedEmployerDeduction` → `businessRetirement`. Roth = 0, W-2 employer excluded. MAGI is not available there, so Traditional IRA routes $0 (`magi_unknown`) rather than guessing.
+- `useRetirementContributions.ts` — annualization via the engine with a real company pay-frequency map; no today-based prefilter (tax-year windowed). SEP employee rows go to `disallowedSepEmployeeTotal`.
+- Catch-up exclusion from §415(c) is capped at the actual allowable catch-up (`min(excess over base 402(g), catchUpFor(bucket, age))`); under 50 excludes $0.
+
 ## Delegating callers
-`retirementContributionRoom.ts` (limits tables), `useRetirementContributions.ts` (annualization), `useTaxEstimate.ts` (businessRetirement routing), `Mileage.tsx` (row annualization).
+`retirementContributionRoom.ts` (legacy limit tables + legacy helpers kept for compatibility only), `Mileage.tsx` (row annualization + `computeRetirementRoomView`).
