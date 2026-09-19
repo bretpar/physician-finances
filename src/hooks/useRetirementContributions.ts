@@ -268,6 +268,7 @@ export function useAnnualizedContributions(
     const empty: AnnualizedContributions = {
       total: 0, deductibleTotal: 0, employeeTotal: 0, employerTotal: 0, employerBusinessTotal: 0,
       employeeDeferralTotal: 0, traditionalIraTotal: 0, rothIraTotal: 0,
+      disallowedSepEmployeeTotal: 0,
       withholding: 0, projectionOnly: 0, perPaycheck: 0, byCompany: new Map(),
     };
     if (!contributions || contributions.length === 0) return empty;
