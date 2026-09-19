@@ -59,11 +59,8 @@ import {
   useProjectedStreams, useProjectedBonuses, useStreamOverrides, usePlannerConversionsFull,
   generateProjectedPaychecks,
 } from "@/hooks/useProjectedIncome";
-import {
-  computeEmployeeContributionRoom, computePlanCapacities, sumRemainingPlannedIncomeByCompany,
-  computeIraRoom,
-  type PlanInput,
-} from "@/lib/retirementContributionRoom";
+import { computeRetirementRoomView } from "@/lib/retirementRoomView";
+import { aggregatePlannedBusinessExpenses } from "@/lib/plannedBusinessExpenses";
 import { RetirementRoomSummary } from "@/components/retirement/RetirementRoomSummary";
 import { cn } from "@/lib/utils";
 
