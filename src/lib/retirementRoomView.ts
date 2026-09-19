@@ -51,6 +51,13 @@ export interface RetirementRoomViewArgs {
   remainingPlannedExpensesByCompany?: Map<string, number>;
   /** When false, projected capacity is not reported. */
   includeProjection?: boolean;
+  /**
+   * Optional override for the deductible half of SE tax by company id. When
+   * omitted the canonical SE-tax helper (`calculateSETax`) derives it from the
+   * company's net profit, so self-employed earned income is always net of the
+   * deductible half before the reduced employer contribution rate applies.
+   */
+  deductibleHalfSeTaxByCompany?: Map<string, number>;
 }
 
 export interface RetirementRoomView {
