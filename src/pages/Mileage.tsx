@@ -403,8 +403,21 @@ export default function Mileage() {
       }
     }
 
+    /* Eligible taxable compensation for IRA capacity: W-2 wages recorded on
+       this year's paychecks plus positive business net profit. Supplied so the
+       IRA card can show real remaining room instead of "Unknown"; when there is
+       no compensation at all it stays null and the engine keeps it unknown. */
+    const wagesTotal = paycheckSources.reduce((s, p) => s + (Number(p.wages) || 0), 0);
+    let profitTotal = 0;
+    for (const v of availableProfitByCompany.values()) {
+      if (Number(v) > 0) profitTotal += Number(v);
+    }
+    const eligibleTaxableCompensation =
+      wagesTotal + profitTotal > 0 ? wagesTotal + profitTotal : null;
+
     return computeRetirementRoomView({
       taxYear: currentYear,
+      eligibleTaxableCompensation,
       dateOfBirth: taxSettings?.dateOfBirth ?? null,
       filingStatus: (taxSettings?.filingStatus as any) ?? null,
       // MAGI is not modeled on this page; IRA deductibility stays "unknown"

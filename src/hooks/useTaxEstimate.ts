@@ -227,10 +227,23 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         companyId: c.company_id,
         accountType: c.account_type,
         contributionType: c.contribution_type,
-        annualAmount: annualizeContributionAmount(c, {
-          taxYear: year,
-          payFrequency: (c.company_id && payFrequencyByCompany.get(c.company_id)) || null,
-        }).annual,
+        /* Actual/YTD scope must only recognize money already contributed:
+           recurring schedules are truncated at today so future occurrences
+           never become a current-year deduction. The canonical annualizer
+           still owns the occurrence math — only the window is narrowed. */
+        annualAmount: annualizeContributionAmount(
+          scope === "actualOnly"
+            ? {
+                ...c,
+                end_date:
+                  c.end_date && String(c.end_date) < todayStr ? c.end_date : todayStr,
+              }
+            : c,
+          {
+            taxYear: year,
+            payFrequency: (c.company_id && payFrequencyByCompany.get(c.company_id)) || null,
+          },
+        ).annual,
         contributionDate: c.contribution_date,
       }));
       const deduped = dedupeRetirementSources({ paychecks, standalone });
