@@ -1,0 +1,4 @@
+import { describe, it } from "vitest";
+import { generateProjectedPaychecks } from "@/hooks/useProjectedIncome";
+const stream: any = { id: "s1", company: "QA Schedule C 20260919", company_type: "1099", ui_income_subtype: "1099_schedule_c", source_id: "co1", is_active: true, pay_frequency: "single", paycheck_amount: 20000, forecast_expense_per_period: 5000, start_date: "2026-10-15", end_date: null, taxes_withheld: 0, retirement_401k: 0, pre_tax_deductions: 0, healthcare_deduction: 0, hsa_contribution: 0, include_in_tax: true };
+describe("repro", () => { it("x", () => { const occ = generateProjectedPaychecks([stream], [], [], [], [], []); console.log(JSON.stringify(occ.map(o=>({date:o.date,gross:o.grossAmount,type:o.type,ms:o.matchStatus,src:o.streamSourceId,sid:o.streamId})),null,1)); }); });
