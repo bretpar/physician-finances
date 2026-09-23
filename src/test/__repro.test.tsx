@@ -1,4 +1,6 @@
 import { describe, it } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { RetirementRoomSummary } from "@/components/retirement/RetirementRoomSummary";
 import { generateProjectedPaychecks } from "@/hooks/useProjectedIncome";
 import { aggregatePlannedBusinessExpenses } from "@/lib/plannedBusinessExpenses";
 import { computeRetirementRoomView } from "@/lib/retirementRoomView";
@@ -41,6 +43,8 @@ describe("repro mileage assembly", () => {
       includeProjection: true,
     });
     console.log("actual plans", JSON.stringify(view.engine.plans.map(p=>({id:p.planId,comp:p.eligibleCompensation,cap:p.employerCapacityRemaining,reasons:p.reasons})),null,1));
+    render(<RetirementRoomSummary room={view} hasPlannerAccess hasEmployerOpportunityAccess hasCapacityAccess />);
+    console.log("CARD:", screen.getAllByTestId("plan-capacity-card").map(c=>c.textContent).join("\n---\n"));
     console.log("projected plans", JSON.stringify(view.engineProjected?.plans.map(p=>({id:p.planId,comp:p.eligibleCompensation,cap:p.employerCapacityRemaining,reasons:p.reasons})),null,1));
   });
 });
