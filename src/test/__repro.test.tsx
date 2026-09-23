@@ -2,7 +2,7 @@ import { describe, it } from "vitest";
 import { generateProjectedPaychecks } from "@/hooks/useProjectedIncome";
 import { aggregatePlannedBusinessExpenses } from "@/lib/plannedBusinessExpenses";
 import { computeRetirementRoomView } from "@/lib/retirementRoomView";
-import { annualizeContributionAmount } from "@/lib/retirementContributionRoom";
+import { annualizeContributionAmount } from "@/hooks/useRetirementContributions";
 
 const stream: any = { id: "s1", company: "QA Schedule C 20260919", company_type: "1099", ui_income_subtype: "1099_schedule_c", source_id: "co-sc", is_active: true, pay_frequency: "single", paycheck_amount: 20000, forecast_expense_per_period: 5000, start_date: "2026-10-15", end_date: null, taxes_withheld: 0, retirement_401k: 0, pre_tax_deductions: 0, healthcare_deduction: 0, hsa_contribution: 0, include_in_tax: true };
 const companies = [ { id: "co-sc", name: "QA Schedule C", companyType: "1099_schedule_c", payFrequency: null }, { id: "co-w2", name: "QA W2", companyType: "w2", payFrequency: null } ];
