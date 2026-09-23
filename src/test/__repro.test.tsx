@@ -16,7 +16,7 @@ const contribs: any[] = [
 
 describe("repro mileage assembly", () => {
   it("shows projected", () => {
-    const occ = generateProjectedPaychecks([stream], [], [], [], [], []);
+    const occ = generateProjectedPaychecks([stream], [], [{ id: "ie1", source_id: "co-sc", income_date: "2026-09-19", paycheck_amount: 50000, income_type: "1099", company: "QA Schedule C 20260919" } as any], [], [], []);
     const todayISO = new Date().toISOString().split("T")[0];
     const gross = new Map<string, number>();
     for (const p of occ as any[]) {
@@ -34,7 +34,7 @@ describe("repro mileage assembly", () => {
       eligibleTaxableCompensation: 50000,
       dateOfBirth: null, filingStatus: "single", magi: null,
       companies,
-      paychecks: [],
+      paychecks: [{ incomeEntryId: "ie1", companyId: "co-sc", employee: 0, employer: 0, wages: 50000, date: "2026-09-19" }],
       standalone: contribs.map(c => ({ id: c.id, companyId: c.company_id, accountType: c.account_type, contributionType: c.contribution_type, annualAmount: annualizeContributionAmount(c as any, { taxYear: 2026, payFrequency: null }).annual, contributionDate: c.contribution_date })),
       ira: { traditionalContributed: 1000, rothContributed: 0 },
       actualNetProfitByCompany: new Map([["co-sc", 50000], ["co-w2", 0]]),
