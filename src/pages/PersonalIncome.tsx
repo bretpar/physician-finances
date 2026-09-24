@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import type { CoverageStatus } from "@/lib/catchUpRecommendation";
 
 import { Plus, Pencil, Trash2, Wallet, ChevronDown, ChevronRight, Paperclip, Link2, Info, X } from "lucide-react";
