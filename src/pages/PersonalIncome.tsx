@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import type { CoverageStatus } from "@/lib/catchUpRecommendation";
 
 import { Plus, Pencil, Trash2, Wallet, ChevronDown, ChevronRight, Paperclip, Link2, Info, X } from "lucide-react";
@@ -34,7 +34,7 @@ import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachment
 import { DateField } from "@/components/DateField";
 import { usePersonalIncomeEntries, useAddPersonalIncome, useUpdatePersonalIncome, useDeletePersonalIncome, type PersonalIncomeEntry } from "@/hooks/usePersonalIncome";
 import { usePlannerConversionsFull, useProjectedStreams, useStreamOverrides } from "@/hooks/useProjectedIncome";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { dedupeYtdPersonalMirrors } from "@/lib/ytdCatchupLedger";
 import { useRepairYtdCatchupMirrors } from "@/hooks/useYtdCatchup";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
@@ -284,6 +284,18 @@ export default function PersonalIncome() {
   const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
   const [mobileViewerEntryId, setMobileViewerEntryId] = useState<string | null>(null);
   const [detailEntry, setDetailEntry] = useState<PersonalIncomeEntry | null>(null);
+  // Deep link from the Dashboard "Payday detected" card: open the specific entry.
+  const focusLocation = useLocation();
+  const focusIncomeId = (focusLocation.state as any)?.focusIncomeId as string | undefined;
+  const [focusHandled, setFocusHandled] = useState<string | null>(null);
+  useEffect(() => {
+    if (!focusIncomeId || focusHandled === focusIncomeId) return;
+    const match = rawEntries.find((e: any) => e.id === focusIncomeId);
+    if (!match) return;
+    setFocusHandled(focusIncomeId);
+    setDetailEntry(match as PersonalIncomeEntry);
+    navigate(focusLocation.pathname + focusLocation.search, { replace: true, state: null });
+  }, [focusIncomeId, focusHandled, rawEntries]);
   const [taxesWithheldOpen, setTaxesWithheldOpen] = useState(false);
   const uploadAttachments = useUploadAttachments();
 

@@ -3,10 +3,19 @@ import { useNavigate } from "react-router-dom";
 import { Sparkles, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+export interface NewIncomeCandidate {
+  id: string;
+  amount: number;
+  /** Income / paycheck date (may be historical). */
+  date: string;
+  /** Database creation timestamp — the only signal for "newly added". */
+  createdAt?: string | null;
+  source: "personal" | "business";
+}
+
 interface PaycheckConfettiProps {
   userId?: string;
-  /** Most recent paycheck-style entries: { id, amount, date } */
-  recentIncome: { id: string; amount: number; date: string }[];
+  recentIncome: NewIncomeCandidate[];
 }
 
 const fmt = (n: number) =>
@@ -18,32 +27,48 @@ const fmt = (n: number) =>
 
 const AUTO_DISMISS_MS = 6000;
 
+/**
+ * Pure detector: returns records created strictly after the stored baseline.
+ * With no baseline (first visit / new device / cleared storage) nothing is
+ * "new" — historical income must never trigger the card.
+ */
+export function detectNewIncome(
+  items: NewIncomeCandidate[],
+  baselineIso: string | null,
+): { fresh: NewIncomeCandidate[]; nextBaseline: string | null } {
+  const stamped = items.filter((i) => i.createdAt && !Number.isNaN(Date.parse(i.createdAt)));
+  const maxCreated = stamped.reduce<number>((m, i) => Math.max(m, Date.parse(i.createdAt!)), 0);
+  const maxIso = maxCreated ? new Date(maxCreated).toISOString() : null;
+  if (!baselineIso) return { fresh: [], nextBaseline: maxIso ?? new Date().toISOString() };
+  const base = Date.parse(baselineIso);
+  const fresh = stamped
+    .filter((i) => Date.parse(i.createdAt!) > base && Math.abs(i.amount) > 0)
+    .sort((a, b) => Date.parse(b.createdAt!) - Date.parse(a.createdAt!));
+  const nextBaseline = maxCreated > base ? maxIso : baselineIso;
+  return { fresh, nextBaseline };
+}
+
 export default function PaycheckConfetti({ userId, recentIncome }: PaycheckConfettiProps) {
   const [show, setShow] = useState(false);
   const [closing, setClosing] = useState(false);
-  const [total, setTotal] = useState(0);
+  const [fresh, setFresh] = useState<NewIncomeCandidate[]>([]);
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!userId || typeof window === "undefined" || recentIncome.length === 0) return;
-    const key = `dashboard:lastSeenIncome:${userId}`;
-    const lastSeen = localStorage.getItem(key) || "";
-    const sorted = [...recentIncome].sort((a, b) => b.date.localeCompare(a.date));
-    const newest = sorted[0];
-    if (!newest || newest.id === lastSeen) return;
+    if (!userId || typeof window === "undefined") return;
+    const key = `dashboard:incomeCreatedBaseline:${userId}`;
+    const { fresh: newOnes, nextBaseline } = detectNewIncome(recentIncome, localStorage.getItem(key));
+    if (nextBaseline) localStorage.setItem(key, nextBaseline);
+    if (newOnes.length === 0) return;
 
-    const lastSeenIdx = sorted.findIndex((i) => i.id === lastSeen);
-    const newOnes = lastSeenIdx === -1 ? sorted.slice(0, 3) : sorted.slice(0, lastSeenIdx);
-    const sum = newOnes.reduce((s, i) => s + Math.abs(i.amount), 0);
-    if (sum <= 0) return;
-
-    setTotal(sum);
+    setFresh(newOnes);
     setShow(true);
-    localStorage.setItem(key, newest.id);
     const t = setTimeout(() => handleClose(), AUTO_DISMISS_MS);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, recentIncome]);
+
+  const total = fresh.reduce((s, i) => s + Math.abs(i.amount), 0);
 
   const sparkles = useMemo(
     () =>
@@ -68,7 +93,11 @@ export default function PaycheckConfetti({ userId, recentIncome }: PaycheckConfe
 
   function handleView() {
     handleClose();
-    navigate("/personal-income");
+    const target = fresh[0];
+    if (!target) return;
+    // If a batch mixes sources, send the user to the most recent item's ledger.
+    const path = target.source === "business" ? "/business-activity" : "/personal-income";
+    navigate(path, { state: { focusIncomeId: target.id } });
   }
 
   if (!show) return null;
@@ -121,8 +150,17 @@ export default function PaycheckConfetti({ userId, recentIncome }: PaycheckConfe
               </button>
             </div>
             <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
-              Your latest income{" "}
-              <span className="font-medium text-foreground">+{fmt(total)}</span> was added.
+              {fresh.length === 1 ? (
+                <>
+                  New income{" "}
+                  <span className="font-medium text-foreground">+{fmt(total)}</span> was added.
+                </>
+              ) : (
+                <>
+                  {fresh.length} new income deposits totaling{" "}
+                  <span className="font-medium text-foreground">+{fmt(total)}</span> were added.
+                </>
+              )}
               Nice work staying on top of your finances.
             </p>
             <div className="mt-3 flex items-center gap-2">
