@@ -194,11 +194,19 @@ export default function Dashboard() {
   const recentIncome = useMemo(() => {
     const fromTx = (transactions || [])
       .filter((t) => t.transaction_type === "income" && !isExcludedFromBusiness(t as any))
-      .map((t) => ({ id: t.id, amount: Math.abs(t.amount), date: t.transaction_date }));
+      .map((t) => ({
+        id: t.id,
+        amount: Math.abs(t.amount),
+        date: t.transaction_date,
+        createdAt: t.created_at,
+        source: "business" as const,
+      }));
     const fromPersonal = (personalEntries || []).map((e) => ({
       id: e.id,
       amount: Number(e.gross_amount || 0),
       date: e.income_date,
+      createdAt: e.created_at,
+      source: "personal" as const,
     }));
     return [...fromTx, ...fromPersonal];
   }, [transactions, personalEntries]);

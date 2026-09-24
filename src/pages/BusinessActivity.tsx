@@ -53,7 +53,7 @@ import {
   resolveIncomeTaxStatus,
   shortTypeChip,
 } from "@/lib/transactionDetailPresentation";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { formatDate, formatDateShort, getTodayLocalDateString } from "@/lib/localDate";
 import { DateField } from "@/components/DateField";
 import {
@@ -274,6 +274,18 @@ export default function Transactions() {
   // Mobile in-ledger receipt viewer
   const [mobileViewerTxId, setMobileViewerTxId] = useState<string | null>(null);
   const [detailTx, setDetailTx] = useState<DbTransaction | null>(null);
+  // Deep link from the Dashboard "Payday detected" card: open the specific transaction.
+  const focusLocation = useLocation();
+  const focusIncomeId = (focusLocation.state as any)?.focusIncomeId as string | undefined;
+  const [focusHandled, setFocusHandled] = useState<string | null>(null);
+  useEffect(() => {
+    if (!focusIncomeId || focusHandled === focusIncomeId) return;
+    const match = rawTransactions.find((t) => t.id === focusIncomeId);
+    if (!match) return;
+    setFocusHandled(focusIncomeId);
+    setDetailTx(match);
+    navigate(focusLocation.pathname + focusLocation.search, { replace: true, state: null });
+  }, [focusIncomeId, focusHandled, rawTransactions]);
   const uploadAttachments = useUploadAttachments();
 
   // Delete
