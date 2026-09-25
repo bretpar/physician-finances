@@ -353,6 +353,7 @@ Deno.serve(async (req) => {
           notes: `From planner${occ.type === "bonus" ? " (bonus)" : ""}`,
           origin_type: "planner_converted",
           origin_planner_conversion_id: conversionId,
+          needs_review: true,
         }).select("id").single();
         if (ieErr) {
           await admin.from("planner_conversions").delete().eq("id", conversionId);

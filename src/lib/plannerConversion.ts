@@ -243,6 +243,7 @@ async function convertOne(args: ConvertOneArgs): Promise<"converted" | "duplicat
         notes: `From planner${paycheck.type === "bonus" ? " (bonus)" : ""}`,
         origin_type: "planner_converted",
         origin_planner_conversion_id: conversionId,
+        needs_review: true,
       } as any)
       .select("id")
       .single();

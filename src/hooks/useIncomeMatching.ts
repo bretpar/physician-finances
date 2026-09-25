@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
 import type { PersonalIncomeEntry } from "@/hooks/usePersonalIncome";
+import { possibleEmployerAlias } from "@/lib/employerAliases";
 import {
   excludeLinkedTransactionForIncomeEntry,
   restoreLinkedTransactionForIncomeEntry,
@@ -481,6 +482,12 @@ export function useSuggestedIncomeLinkCandidates(
     else if (days <= 3) reasons.push(`${Math.round(days)}d apart`);
     else reasons.push(`${Math.round(days)}d apart`);
     if (target.source_id && e.source_id && target.source_id === e.source_id) reasons.push("same employer");
+    else {
+      const alias =
+        possibleEmployerAlias(`${e.name || ""} ${e.company || ""}`, target.company) ||
+        possibleEmployerAlias(`${target.name || ""} ${target.company || ""}`, e.company);
+      if (alias) { score += 5; reasons.push(alias); }
+    }
     out.push({ entry: e, score, reason: reasons.join(" · ") });
   }
   out.sort((a, b) => b.score - a.score);

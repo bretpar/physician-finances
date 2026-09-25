@@ -339,11 +339,19 @@ async function routeRawPlaidTransaction(ctx: RouteContext, plaidTxRow: any, rout
       ctx.lastRouteError = `Unsupported income_type "${incomeType}"`;
       return "needs_review";
     }
+    // Employer context comes only from the account's explicit default
+    // company (user-configured). Never inferred from the payor string.
+    const acct = (ctx.accounts || []).find((a: any) => a.plaid_account_id === plaidTxRow.plaid_account_id);
+    const acctCompanyId = (acct as any)?.default_company_id || null;
     const { error } = await ctx.adminClient.from("income_entries").insert({
       user_id: ctx.user.id,
       organization_id: ctx.orgId,
       name: txnName,
-      company: ctx.item?.institution_name || plaidTxRow.account_source || "Imported bank account",
+      // Payor (e.g. "DFAS-CLEVELAND") rather than the bank institution, so
+      // match suggestions can recognize the employer / alias.
+      company: txnName || ctx.item?.institution_name || plaidTxRow.account_source || "Imported bank account",
+      source_id: acctCompanyId,
+      needs_review: true,
       income_type: incomeType,
       source_bucket: "personal",
       tax_category: "ordinary",
