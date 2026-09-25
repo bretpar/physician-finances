@@ -29,6 +29,7 @@ import { txTone } from "@/lib/transactionTones";
 import { TransactionAttachments, MobileAttachmentViewer, SiblingReceiptsList } from "@/components/TransactionAttachments";
 import { useIncomeMatchGroups, useCreateIncomeMatchGroup, useUnlinkIncomeMatchGroupItem, useMarkIncomeReviewed, isImportedCashIncomeRow } from "@/hooks/useIncomeMatching";
 import { IncomeLinkModal } from "@/components/IncomeLinkModal";
+import { PlannerPlaidMatchSuggestions } from "@/components/PlannerPlaidMatchSuggestions";
 import { CheckCircle2, Unlink } from "lucide-react";
 import { useAttachmentCounts, useUploadAttachments } from "@/hooks/useAttachments";
 import { DateField } from "@/components/DateField";
@@ -1035,6 +1036,11 @@ export default function PersonalIncome() {
         </Popover>
       </div>
 
+
+      <PlannerPlaidMatchSuggestions
+        entries={rawEntries}
+        linkedEntryIds={new Set(linkedEntryMap.keys())}
+      />
 
       {/* Filters */}
       {(fromPlannerCount > 0 || needsReviewCount > 0 || filterReview !== "all" || filterPlanner !== "all") && (
