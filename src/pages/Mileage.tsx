@@ -428,6 +428,7 @@ export default function Mileage() {
         name: c.name,
         companyType: c.companyType,
         payFrequency: payFrequencyByCompany.get(c.id) ?? null,
+        employeeRole: c.employeeRole ?? null,
       })),
       paychecks: paycheckSources,
       standalone: standaloneSources,

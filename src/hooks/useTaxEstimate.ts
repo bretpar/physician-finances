@@ -203,6 +203,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       name: c.name,
       companyType: c.companyType,
       payFrequency: c.payFrequency ?? null,
+      employeeRole: c.employeeRole ?? null,
     }));
     /* Paycheck-derived retirement, used ONLY as the dedup reference: money
        already deducted through income_entries must never be deducted again

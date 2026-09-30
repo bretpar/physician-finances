@@ -1474,6 +1474,27 @@ function CompaniesSection() {
                           />
                         </div>
 
+                        {(() => {
+                          const ft = getValue(company, "companyType") as FilingType;
+                          if (ft !== "w2" && ft !== "scorp_w2") return null;
+                          const role = (getValue(company, "employeeRole") as "primary" | "spouse" | null) ?? null;
+                          return (
+                            <div>
+                              <Label className="text-xs text-muted-foreground mb-1.5 block">Income earner</Label>
+                              <Select
+                                value={role ?? "primary"}
+                                onValueChange={(v) => setField(company.id, "employeeRole", v as "primary" | "spouse")}
+                              >
+                                <SelectTrigger data-testid="settings-company-row-role-select"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="primary" data-testid="company-employee-role-option-primary">You</SelectItem>
+                                  <SelectItem value="spouse" data-testid="company-employee-role-option-spouse">Spouse</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          );
+                        })()}
+
                         <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-3 items-end">
                           <div>
                             <Label className="text-xs text-muted-foreground mb-1.5 block">Default tax set-aside method</Label>
@@ -1601,7 +1622,6 @@ function CompaniesSection() {
                     if (ft !== "w2" && ft !== "scorp_w2") return null;
                     const freq = (getValue(company, "payFrequency") as string | null) ?? "";
                     const override = getValue(company, "remainingPaychecksOverride") as number | null;
-                    const role = (getValue(company, "employeeRole") as "primary" | "spouse" | null) ?? null;
                     const projGross = getValue(company, "projectedAnnualGross") as number | null;
                     const expFedWh = getValue(company, "expectedFederalWithholdingPerPaycheck") as number | null;
                     const curExtraW4 = getValue(company, "currentExtraW4Withholding") as number | null;
@@ -1622,19 +1642,6 @@ function CompaniesSection() {
                         <CollapsibleContent className="pt-3">
                           <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <div>
-                                <Label className="text-xs text-muted-foreground mb-1.5 block">Employee role</Label>
-                                <Select
-                                  value={role ?? "primary"}
-                                  onValueChange={(v) => setField(company.id, "employeeRole", v as "primary" | "spouse")}
-                                >
-                                  <SelectTrigger data-testid="settings-company-row-role-select"><SelectValue /></SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="primary" data-testid="company-employee-role-option-primary">Primary</SelectItem>
-                                    <SelectItem value="spouse" data-testid="company-employee-role-option-spouse">Spouse</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
                               <div>
                                 <Label className="text-xs text-muted-foreground mb-1.5 block">Pay frequency</Label>
                                 <Select

@@ -75,9 +75,12 @@ export function RetirementRoomSummary({
   const bucketPlans = (bucket: "402g" | "governmental_457b" | "simple") => engine.plans.filter((p) => p.deferralBucket === bucket);
   // SIMPLE deferrals also consume the shared employee ceiling. Count that
   // overlapping room once in the overview, while retaining both bucket cards.
-  const sharedEmployeeOpportunity = bucketPlans("402g").length > 0
+  const spouse402g = engine.spouseEmployee402g;
+  const primary402gPlans = bucketPlans("402g").filter((p) => p.earner !== "spouse");
+  const spouse402gPlans = bucketPlans("402g").filter((p) => p.earner === "spouse");
+  const sharedEmployeeOpportunity = (bucketPlans("402g").length > 0
     ? engine.employee402g.remaining
-    : (engine.simple?.remaining ?? 0);
+    : (engine.simple?.remaining ?? 0)) + (spouse402g?.remaining ?? 0);
   const additionalOpportunity = sharedEmployeeOpportunity + (engine.governmental457b?.remaining ?? 0) +
     (engine.ira.remainingContributionRoom ?? 0) + knownEmployerOpportunity;
   const reasonLines = (reasons: typeof engine.employee402g.reasons) => Array.from(new Set(reasons)).map(retirementReasonMessage);
@@ -93,9 +96,13 @@ export function RetirementRoomSummary({
         {unknownEmployerCount > 0 && <p className="mt-3 text-xs text-muted-foreground">Additional employer opportunity may be available for {unknownEmployerCount} {unknownEmployerCount === 1 ? "plan" : "plans"}.</p>}
       </section>
 
-      <BucketCard title="Employee retirement" contributed={engine.employee402g.contributed} limit={engine.employee402g.limit} remaining={engine.employee402g.remaining} catchUp={engine.employee402g.catchUp} description="Shared across your eligible 401(k), 403(b), and Solo 401(k) employee contributions." testId="employee-room">
-        <div className="space-y-2">{bucketPlans("402g").map((plan) => <div key={plan.planId ?? plan.companyName} className="flex justify-between gap-3 text-sm"><span>{plan.companyName} {PLAN_LABELS[plan.planKind]}</span><span className="shrink-0 font-medium tabular-nums">{fmt(plan.employeeContribution)}</span></div>)}</div>
+      <BucketCard title={spouse402g ? "Your employee contributions" : "Employee retirement"} contributed={engine.employee402g.contributed} limit={engine.employee402g.limit} remaining={engine.employee402g.remaining} catchUp={engine.employee402g.catchUp} description="Shared across your eligible 401(k), 403(b), and Solo 401(k) employee contributions." testId="employee-room">
+        <div className="space-y-2">{primary402gPlans.map((plan) => <div key={plan.planId ?? plan.companyName} className="flex justify-between gap-3 text-sm"><span>{plan.companyName} {PLAN_LABELS[plan.planKind]}</span><span className="shrink-0 font-medium tabular-nums">{fmt(plan.employeeContribution)}</span></div>)}</div>
       </BucketCard>
+
+      {spouse402g && <BucketCard title="Spouse employee contributions" contributed={spouse402g.contributed} limit={spouse402g.limit} remaining={spouse402g.remaining} catchUp={spouse402g.catchUp} description="Your spouse has their own employee contribution limit, separate from yours." testId="spouse-employee-room">
+        <div className="space-y-2">{spouse402gPlans.map((plan) => <div key={plan.planId ?? plan.companyName} className="flex justify-between gap-3 text-sm"><span>{plan.companyName} {PLAN_LABELS[plan.planKind]}</span><span className="shrink-0 font-medium tabular-nums">{fmt(plan.employeeContribution)}</span></div>)}</div>
+      </BucketCard>}
 
       {engine.governmental457b && <BucketCard title="Governmental 457(b)" contributed={engine.governmental457b.contributed} limit={engine.governmental457b.limit} remaining={engine.governmental457b.remaining} catchUp={engine.governmental457b.catchUp} description="This plan has a separate contribution limit from your 401(k)/403(b) employee limit.">
         <div className="space-y-2">{bucketPlans("governmental_457b").map((plan) => <div key={plan.planId ?? plan.companyName} className="flex justify-between text-sm"><span>{plan.companyName}</span><span className="font-medium tabular-nums">{fmt(plan.employeeContribution)}</span></div>)}</div>

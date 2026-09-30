@@ -230,6 +230,11 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   );
 }
 
+/** Non-throwing variant for components that may render outside the provider. */
+export function useOptionalCompanies() {
+  return useContext(CompanyContext);
+}
+
 export function useCompanies() {
   const ctx = useContext(CompanyContext);
   if (!ctx) throw new Error("useCompanies must be used within CompanyProvider");
