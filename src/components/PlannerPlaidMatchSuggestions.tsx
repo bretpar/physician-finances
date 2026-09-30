@@ -41,12 +41,17 @@ export function PlannerPlaidMatchSuggestions({ entries, linkedEntryIds }: Props)
     [entries, linkedEntryIds],
   );
 
+  // Minimum confidence for a one-click suggestion: weak pairs (large amount gap
+  // and/or distant dates) remain available in the explicit "Link to bank
+  // transaction" modal, but are never promoted here.
+  const MIN_SUGGESTION_SCORE = 45;
+
   const pairs = useMemo(() => {
     const out: { planner: PersonalIncomeEntry; bank: PersonalIncomeEntry; reason: string }[] = [];
     const usedBank = new Set<string>();
     for (const p of planners) {
       const cands = useSuggestedIncomeLinkCandidates(p, imported, linkedEntryIds)
-        .filter((c) => !usedBank.has(c.entry.id) && !dismissed.has(`${p.id}:${c.entry.id}`));
+        .filter((c) => c.score >= MIN_SUGGESTION_SCORE && !usedBank.has(c.entry.id) && !dismissed.has(`${p.id}:${c.entry.id}`));
       if (cands.length === 0) continue;
       // Ambiguous: two near-equal candidates → don't present as a match.
       if (cands.length > 1 && cands[0].score - cands[1].score < 5) continue;
@@ -54,6 +59,7 @@ export function PlannerPlaidMatchSuggestions({ entries, linkedEntryIds }: Props)
       out.push({ planner: p, bank: cands[0].entry, reason: cands[0].reason });
     }
     return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planners, imported, linkedEntryIds, dismissed]);
 
   if (pairs.length === 0) return null;
