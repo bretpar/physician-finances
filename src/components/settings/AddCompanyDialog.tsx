@@ -285,7 +285,7 @@ export function AddCompanyDialog({ open, onOpenChange }: AddCompanyDialogProps) 
 
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">
-                Employee role{isMFJ ? "" : " (defaults to You)"}
+                Income earner{isMFJ ? "" : " (defaults to You)"}
               </Label>
               <Select value={role} onValueChange={(v) => setRole(v as "primary" | "spouse")}>
                 <SelectTrigger data-testid="settings-company-role-select">
