@@ -22,6 +22,7 @@ import {
   type StockTransaction,
 } from "@/hooks/useStocks";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
+import { roundMoney } from "@/hooks/useInvestmentIncome";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(n);
