@@ -45,7 +45,7 @@ export default function Stocks() {
   const [gainLossOverride, setGainLossOverride] = useState("");
   const [saleType, setSaleType] = useState("short_term");
 
-  const computedGainLoss = (Number(totalSaleAmount) || 0) - (Number(costBasis) || 0);
+  const computedGainLoss = roundMoney((Number(totalSaleAmount) || 0) - (Number(costBasis) || 0));
   const gainLoss = gainLossOverride !== "" ? Number(gainLossOverride) : computedGainLoss;
 
   // Summary calculations

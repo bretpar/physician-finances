@@ -35,14 +35,19 @@ export const investmentIncomeTypeLabels: Record<InvestmentIncomeType, string> = 
   dividend: "Dividend",
 };
 
+/** Round to cents — prevents raw floating-point artifacts (e.g. 2666.8199999999997). */
+export function roundMoney(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
 export function calculateInvestmentTaxableAmount(args: {
   type: InvestmentIncomeType;
   saleProceeds: number;
   costBasis: number;
   taxableAmountOverride?: number | null;
 }) {
-  if (args.type === "dividend") return args.taxableAmountOverride ?? 0;
-  return args.taxableAmountOverride ?? args.saleProceeds - args.costBasis;
+  if (args.type === "dividend") return roundMoney(args.taxableAmountOverride ?? 0);
+  return roundMoney(args.taxableAmountOverride ?? args.saleProceeds - args.costBasis);
 }
 
 export function aggregateInvestmentTaxBuckets(entries: InvestmentIncomeEntry[]) {

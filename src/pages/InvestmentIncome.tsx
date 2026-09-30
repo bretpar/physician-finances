@@ -183,11 +183,15 @@ export default function InvestmentIncome() {
   function setField<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => {
       const next = { ...prev, [key]: value };
-      if ((key === "sale_proceeds" || key === "cost_basis" || key === "investment_income_type") && next.investment_income_type !== "dividend") {
-        if (next.sale_proceeds !== "" && next.cost_basis !== "") {
-          next.taxable_amount = String(num(next.sale_proceeds) - num(next.cost_basis));
+        if ((key === "sale_proceeds" || key === "cost_basis" || key === "investment_income_type") && next.investment_income_type !== "dividend") {
+          if (next.sale_proceeds !== "" && next.cost_basis !== "") {
+            next.taxable_amount = String(calculateInvestmentTaxableAmount({
+              type: next.investment_income_type,
+              saleProceeds: num(next.sale_proceeds),
+              costBasis: num(next.cost_basis),
+            }));
+          }
         }
-      }
       if (key === "investment_income_type" && value === "dividend") {
         next.sale_proceeds = "";
         next.cost_basis = "";
