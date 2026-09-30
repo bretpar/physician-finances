@@ -10,6 +10,8 @@ import { useUpsertYtdCatchup, type YtdCatchupEntry, type YtdCatchupOwnerPerson, 
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import type { IncomeProfileType } from "@/lib/onboarding";
+import { useOptionalCompanies } from "@/contexts/CompanyContext";
+import { resolveIncomeEarnerFor, earnerToOwnerPerson } from "@/lib/incomeEarner";
 
 interface Props {
   initial?: YtdCatchupEntry;
@@ -57,6 +59,7 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType, 
   }, [lockedSource, initial, sourceType]);
 
   const [companyName, setCompanyName] = useState(initial?.company_name ?? lockedCompanyName ?? "");
+  const companiesCtx = useOptionalCompanies();
   const effectiveFilingStatus = filingStatus ?? (taxSettings as any)?.filingStatus ?? "single";
   const isMfj = effectiveFilingStatus === "married_filing_jointly";
   const [ownerPerson, setOwnerPerson] = useState<YtdCatchupOwnerPerson>(
@@ -165,7 +168,10 @@ export function YtdCatchupForm({ initial, onSaved, onCancel, incomeProfileType, 
           id: initial?.id,
           tax_year: taxYear,
           source_type: sourceType,
-          owner_person: "taxpayer", // MVP: spouse attribution deferred; always persist as household taxpayer.
+          // Existing rows keep their owner; new rows default from the linked
+          // company's Income earner (companies.employee_role).
+          owner_person: initial?.owner_person
+            ?? earnerToOwnerPerson(resolveIncomeEarnerFor({ companyName: trimmedName }, companiesCtx?.companies ?? [])),
           company_name: trimmedName,
           period_start: periodStart,
           period_end: periodEnd,
