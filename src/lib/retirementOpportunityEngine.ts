@@ -260,9 +260,13 @@ const SELF_EMPLOYED_ENTITIES: RetirementEntityKind[] = ["schedule_c", "partnersh
 
 /* ───────────────────────────────── Inputs ───────────────────────────────── */
 
+export type RetirementEarner = "primary" | "spouse";
+
 export interface PlanOpportunityInput {
   planId?: string | null;
   companyId?: string | null;
+  /** Income earner for this plan (company employee_role). Defaults to primary. */
+  earner?: RetirementEarner | null;
   companyName?: string | null;
   planKind: RetirementPlanKind;
   entityKind: RetirementEntityKind;
@@ -371,6 +375,7 @@ export interface IraResult {
 export interface PlanOpportunity {
   planId: string | null;
   companyId: string | null;
+  earner: RetirementEarner;
   companyName: string;
   planKind: RetirementPlanKind;
   entityKind: RetirementEntityKind;
@@ -411,7 +416,10 @@ export interface RetirementTaxRouting {
 
 export interface RetirementOpportunityResult {
   taxYear: number;
+  /** Taxpayer's (primary earner's) own §402(g) elective-deferral bucket. */
   employee402g: DeferralBucketResult;
+  /** Spouse's independent §402(g) bucket — present only when spouse plans exist. */
+  spouseEmployee402g?: DeferralBucketResult;
   governmental457b?: DeferralBucketResult;
   ira: IraResult;
   plans: PlanOpportunity[];
@@ -746,6 +754,7 @@ function computePlanOpportunity(
   return {
     planId: plan.planId ?? null,
     companyId: plan.companyId ?? null,
+    earner: plan.earner === "spouse" ? "spouse" : "primary",
     companyName: plan.companyName || "Plan",
     planKind: plan.planKind,
     entityKind: plan.entityKind,
@@ -785,20 +794,34 @@ export function computeRetirementOpportunity(
       .filter((p) => p.deferralBucket === bucket)
       .reduce((s, p) => s + p.employeeDeferralCounted, 0);
 
-  /* §402(g): ONE shared bucket across every employer and Solo 401(k). */
+  /* §402(g): each earner has their OWN bucket shared across that person's
+     employers and Solo 401(k). Taxpayer and spouse are never pooled. */
+  const sumBucketFor = (bucket: DeferralBucket, earner: RetirementEarner) =>
+    plans
+      .filter((p) => p.deferralBucket === bucket && p.earner === earner)
+      .reduce((s, p) => s + p.employeeDeferralCounted, 0);
   const catchUp402g = catchUpFor(rules, age);
-  const contributed402g = sumBucket("402g");
   const simpleExists = plans.some((p) => p.deferralBucket === "simple");
   const simpleContributed = sumBucket("simple");
   const simpleCatchUp = catchUpFor(rules.simple, age);
 
-  const employee402g: DeferralBucketResult = {
-    contributed: contributed402g,
-    limit: rules.employeeDeferral + catchUp402g,
-    remaining: Math.max(0, rules.employeeDeferral + catchUp402g - contributed402g - simpleContributed),
-    catchUp: catchUp402g,
-    reasons: ["employee_402g_limit"],
+  const bucket402gFor = (earner: RetirementEarner, catchUp: number): DeferralBucketResult => {
+    const contributed = sumBucketFor("402g", earner);
+    const simpleUsed = sumBucketFor("simple", earner);
+    return {
+      contributed,
+      limit: rules.employeeDeferral + catchUp,
+      remaining: Math.max(0, rules.employeeDeferral + catchUp - contributed - simpleUsed),
+      catchUp,
+      reasons: ["employee_402g_limit"],
+    };
   };
+  const employee402g = bucket402gFor("primary", catchUp402g);
+  const hasSpousePlans = plans.some(
+    (p) => p.earner === "spouse" && (p.deferralBucket === "402g" || p.deferralBucket === "simple"),
+  );
+  // Spouse age is not tracked, so no spouse catch-up is assumed.
+  const spouseEmployee402g = hasSpousePlans ? bucket402gFor("spouse", 0) : undefined;
 
   const has457 = plans.some((p) => p.deferralBucket === "governmental_457b");
   const contributed457 = sumBucket("governmental_457b");
@@ -850,6 +873,7 @@ export function computeRetirementOpportunity(
   return {
     taxYear,
     employee402g,
+    ...(spouseEmployee402g ? { spouseEmployee402g } : {}),
     ...(governmental457b ? { governmental457b } : {}),
     ...(simple ? { simple } : {}),
     ira,

@@ -1,3 +1,4 @@
+import { resolveIncomeEarner } from "@/lib/incomeEarner";
 /**
  * Canonical retirement normalization boundary.
  *
@@ -39,6 +40,8 @@ export interface CanonicalCompany {
   /** Raw company/filing type (e.g. w2, 1099_schedule_c, k1_partnership). */
   companyType?: string | null;
   payFrequency?: string | null;
+  /** companies.employee_role — the canonical income earner. */
+  employeeRole?: "primary" | "spouse" | null;
 }
 
 /** Retirement money recorded on a paycheck / income entry. */
@@ -294,6 +297,7 @@ export function buildRetirementOpportunityInput(
         planId: `${companyId}:${planKind}`,
         companyId: companyId === UNASSIGNED ? null : companyId,
         companyName: company?.name || (companyId === UNASSIGNED ? "Unassigned" : "Plan"),
+        earner: resolveIncomeEarner(company),
         planKind,
         entityKind,
         employeeContribution: primary ? a.employee : 0,
