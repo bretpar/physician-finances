@@ -57,3 +57,85 @@ export function getApplicableHsaLimit(
   const base = coverage === "family" ? t.family : t.individual;
   return base + (catchUpEligible ? t.catchUp : 0);
 }
+
+/* ───────────── Coverage periods (partial-year eligibility) ───────────── */
+
+/** User-facing health-insurance coverage tier. */
+export type HealthCoverageTier = "employee_only" | "employee_spouse" | "employee_children" | "family";
+
+export interface HsaCoveragePeriod {
+  /** Inclusive start date (YYYY-MM-DD). */
+  start: string;
+  /** Inclusive end date (YYYY-MM-DD). Null = open-ended. */
+  end: string | null;
+  tier: HealthCoverageTier;
+  /** True when the plan is an HSA-eligible HDHP. */
+  hsaEligible: boolean;
+}
+
+export const COVERAGE_TIER_LABELS: Record<HealthCoverageTier, string> = {
+  employee_only: "Employee only",
+  employee_spouse: "Employee + spouse",
+  employee_children: "Employee + child(ren)",
+  family: "Family",
+};
+
+/** Derived IRS HSA classification for a coverage tier. */
+export function irsHsaCoverageForTier(tier: HealthCoverageTier): HsaCoverageType {
+  return tier === "employee_only" ? "individual" : "family";
+}
+
+export interface MonthEligibility {
+  month: number; // 1-12
+  coverage: HsaCoverageType | null; // null = not HSA-eligible
+}
+
+/** Eligibility determined on the first day of each month. */
+export function monthlyHsaEligibility(year: number, periods: HsaCoveragePeriod[]): MonthEligibility[] {
+  const out: MonthEligibility[] = [];
+  for (let m = 1; m <= 12; m++) {
+    const first = `${year}-${String(m).padStart(2, "0")}-01`;
+    const p = periods.find((x) => x.start <= first && (x.end == null || x.end >= first));
+    out.push({ month: m, coverage: p && p.hsaEligible ? irsHsaCoverageForTier(p.tier) : null });
+  }
+  return out;
+}
+
+/**
+ * Applicable HSA limit. With coverage periods, prorates monthly:
+ * Σ eligible months (annual limit for that month's coverage / 12), with
+ * the age-55 catch-up prorated the same way. Without periods, falls back
+ * to the full-year legacy coverage type.
+ */
+export function resolveApplicableHsaLimit(
+  year: number,
+  legacyCoverage: HsaCoverageType,
+  catchUpEligible: boolean,
+  periods?: HsaCoveragePeriod[] | null,
+): number {
+  if (!periods || periods.length === 0) return getApplicableHsaLimit(year, legacyCoverage, catchUpEligible);
+  let total = 0;
+  for (const m of monthlyHsaEligibility(year, periods)) {
+    if (!m.coverage) continue;
+    total += getApplicableHsaLimit(year, m.coverage, catchUpEligible) / 12;
+  }
+  return Math.round(total * 100) / 100;
+}
+
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+/** Compact summary, e.g. "Family Jan–Aug · Not eligible Sep–Dec". */
+export function summarizeHsaEligibility(year: number, periods: HsaCoveragePeriod[]): string {
+  const months = monthlyHsaEligibility(year, periods);
+  const parts: string[] = [];
+  let i = 0;
+  while (i < 12) {
+    const c = months[i].coverage;
+    let j = i;
+    while (j + 1 < 12 && months[j + 1].coverage === c) j++;
+    const label = c === "family" ? "Family" : c === "individual" ? "Self-only" : "Not eligible";
+    parts.push(i === 0 && j === 11 ? `${label} all year` : `${label} ${MON[i]}${i === j ? "" : `–${MON[j]}`}`);
+    i = j + 1;
+  }
+  return parts.join(" · ");
+}
