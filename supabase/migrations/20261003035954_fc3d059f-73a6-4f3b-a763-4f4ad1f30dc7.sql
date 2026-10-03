@@ -1,0 +1,1 @@
+ALTER TABLE public.tax_settings ADD COLUMN IF NOT EXISTS hsa_coverage_periods jsonb NOT NULL DEFAULT '[]'::jsonb;

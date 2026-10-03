@@ -381,6 +381,7 @@ export default function Reports() {
       taxYear: Number(taxYear) || currentYear,
       coverage: (taxSettings?.hsaCoverageType as "individual" | "family") || "individual",
       catchUpEligible: !!taxSettings?.hsaAge55Catchup,
+      coveragePeriods: taxSettings?.hsaCoveragePeriods,
       contributions: hsaRowsForYear.map((r) => ({
         amount: Number(r.amount) || 0,
         source_type: r.source_type,

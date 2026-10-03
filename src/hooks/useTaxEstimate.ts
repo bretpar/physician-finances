@@ -35,7 +35,7 @@ import {
 } from "@/lib/savedW2CompanyProjection";
 import { defaultRemainingPaychecks } from "@/components/tax/W4PaycheckAdjustmentCard";
 import { registerTaxEstimateConsumer } from "@/lib/taxEngineDiagnostics";
-import { getApplicableHsaLimit } from "@/lib/hsaLimits";
+import { resolveApplicableHsaLimit } from "@/lib/hsaLimits";
 import { buildEngineItemizedInputs } from "@/lib/saltDeduction";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { excludeIncomeTransactionFromTaxContext, excludeIncomeEntriesLinkedToTransaction } from "@/lib/taxRecommendationContext";
@@ -954,10 +954,11 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       const rawPersonalAboveLine = personalNonW2HsaAboveLine + cu.other.hsa;
       const rawBusinessAboveLine = businessNonW2HsaAboveLine + cu.business.hsa;
       const totalAboveLineRaw = rawPersonalAboveLine + rawBusinessAboveLine;
-      const applicableHsaLimit = getApplicableHsaLimit(
+      const applicableHsaLimit = resolveApplicableHsaLimit(
         currentYear,
         (rates.hsaCoverageType as "individual" | "family") || "individual",
         !!rates.hsaAge55Catchup,
+        (rates as any).hsaCoveragePeriods,
       );
       const roomForAboveLine = Math.max(0, applicableHsaLimit - w2SectionHsa);
       const cappedAboveLineTotal = Math.min(totalAboveLineRaw, roomForAboveLine);

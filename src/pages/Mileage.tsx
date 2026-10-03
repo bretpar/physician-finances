@@ -1164,6 +1164,7 @@ export default function Mileage() {
     taxYear: currentYear,
     coverage: (taxSettings?.hsaCoverageType as "individual" | "family") || "individual",
     catchUpEligible: !!taxSettings?.hsaAge55Catchup,
+    coveragePeriods: taxSettings?.hsaCoveragePeriods,
     contributions: hsaContributions.map((c) => ({
       amount: Number(c.amount) || 0,
       source_type: c.source_type,

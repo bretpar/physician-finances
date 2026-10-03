@@ -20,7 +20,7 @@
  * Nothing is silently misclassified — the map is deterministic 1:1.
  */
 
-import { getApplicableHsaLimit, type HsaCoverageType } from "@/lib/hsaLimits";
+import { resolveApplicableHsaLimit, type HsaCoverageType, type HsaCoveragePeriod } from "@/lib/hsaLimits";
 
 export type HsaContributionType = "employee_payroll" | "employer" | "individual";
 export type LegacyHsaSourceType = "payroll" | "individual";
@@ -56,6 +56,8 @@ export interface HsaComputationInput {
    * employer rows via `contributions` with `contribution_type='employer'`.
    */
   employerContribution?: number;
+  /** Optional coverage periods — when present the limit is prorated monthly. */
+  coveragePeriods?: HsaCoveragePeriod[] | null;
 }
 
 export interface HsaContributionSummary {
@@ -91,8 +93,8 @@ function sumBy(rows: HsaContributionLike[], type: HsaContributionType): number {
 export function computeHsaContributionSummary(
   input: HsaComputationInput,
 ): HsaContributionSummary {
-  const { taxYear, coverage, catchUpEligible, contributions, employerContribution = 0 } = input;
-  const applicableLimit = getApplicableHsaLimit(taxYear, coverage, catchUpEligible);
+  const { taxYear, coverage, catchUpEligible, contributions, employerContribution = 0, coveragePeriods } = input;
+  const applicableLimit = resolveApplicableHsaLimit(taxYear, coverage, catchUpEligible, coveragePeriods);
 
   const payrollEmployee = sumBy(contributions, "employee_payroll");
   const individual = sumBy(contributions, "individual");

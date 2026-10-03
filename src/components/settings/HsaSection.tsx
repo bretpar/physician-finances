@@ -30,7 +30,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { cn } from "@/lib/utils";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { getApplicableHsaLimit } from "@/lib/hsaLimits";
+import { getApplicableHsaLimit, COVERAGE_TIER_LABELS, summarizeHsaEligibility, type HsaCoveragePeriod, type HealthCoverageTier } from "@/lib/hsaLimits";
 import { computeHsaContributionSummary, resolveHsaContributionType, type HsaContributionType } from "@/lib/hsaComputation";
 import { Progress } from "@/components/ui/progress";
 import { AlertTriangle } from "lucide-react";
@@ -42,6 +42,7 @@ interface HsaDraft {
   hsaEnabled: boolean;
   hsaSourceCompanyId: string | null;
   hsaCoverageType: "individual" | "family";
+  hsaCoveragePeriods: HsaCoveragePeriod[];
   hsaAge55Catchup: boolean;
 }
 
@@ -62,6 +63,7 @@ export function HsaSettingsSection({ bare = false }: { bare?: boolean } = {}) {
       hsaEnabled: !!data?.hsaEnabled,
       hsaSourceCompanyId: data?.hsaSourceCompanyId ?? null,
       hsaCoverageType: (data?.hsaCoverageType as "individual" | "family") || "individual",
+      hsaCoveragePeriods: data?.hsaCoveragePeriods ?? [],
       hsaAge55Catchup: !!data?.hsaAge55Catchup,
     }),
     [data],
@@ -166,6 +168,11 @@ export function HsaSettingsSection({ bare = false }: { bare?: boolean } = {}) {
               Determines your annual IRS contribution limit.
             </p>
           </div>
+
+          <CoveragePeriodsEditor
+            periods={d.hsaCoveragePeriods}
+            onChange={(hsaCoveragePeriods) => set({ hsaCoveragePeriods })}
+          />
 
           <div className="flex items-start justify-between gap-3 rounded-md border border-border p-3">
             <div className="min-w-0">
@@ -302,6 +309,7 @@ export function HsaLedgerSection() {
       taxYear: currentYear,
       coverage: (settings?.hsaCoverageType as "individual" | "family") || "individual",
       catchUpEligible: !!settings?.hsaAge55Catchup,
+      coveragePeriods: settings?.hsaCoveragePeriods,
       contributions: rows.map((r) => ({
         amount: Number(r.amount) || 0,
         source_type: r.source_type,
@@ -309,7 +317,7 @@ export function HsaLedgerSection() {
         contribution_date: r.contribution_date,
       })),
     });
-  }, [currentYear, settings?.hsaCoverageType, settings?.hsaAge55Catchup, rows]);
+  }, [currentYear, settings?.hsaCoverageType, settings?.hsaCoveragePeriods, settings?.hsaAge55Catchup, rows]);
   const pctUsed = hsaSummary.applicableLimit > 0
     ? Math.min(100, Math.round((hsaSummary.total / hsaSummary.applicableLimit) * 100))
     : 0;
@@ -346,9 +354,9 @@ export function HsaLedgerSection() {
             <div className="min-w-0">
               <h3 className="text-sm font-semibold text-foreground">HSA Contributions</h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {currentYear} contribution year
-                {" · "}
-                <span className="capitalize">{hsaSummary.coverage}</span> coverage
+                {settings?.hsaCoveragePeriods?.length
+                  ? <>{currentYear} HSA eligibility · {summarizeHsaEligibility(currentYear, settings.hsaCoveragePeriods)}</>
+                  : <>{currentYear} contribution year · <span className="capitalize">{hsaSummary.coverage}</span> coverage</>}
                 {hsaSummary.catchUpEligible ? " · with age 55+ catch-up" : ""}
               </p>
               <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -636,5 +644,73 @@ export function HsaLedgerSection() {
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+/** Coverage periods: tier + HSA eligibility by effective date. */
+function CoveragePeriodsEditor({
+  periods,
+  onChange,
+}: {
+  periods: HsaCoveragePeriod[];
+  onChange: (next: HsaCoveragePeriod[]) => void;
+}) {
+  const year = new Date().getFullYear();
+  const update = (i: number, patch: Partial<HsaCoveragePeriod>) =>
+    onChange(periods.map((p, idx) => (idx === i ? { ...p, ...patch } : p)));
+  return (
+    <div className="space-y-2">
+      <Label className="text-xs text-muted-foreground block">Health insurance coverage periods (optional)</Label>
+      <p className="text-[11px] text-muted-foreground">
+        Add periods if your plan or coverage changed during the year. Your HSA limit is prorated by the months you were HSA-eligible on the 1st.
+      </p>
+      {periods.map((p, i) => (
+        <div key={i} className="rounded-md border border-border p-3 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label className="text-[11px] text-muted-foreground">Start</Label>
+              <Input type="date" value={p.start} onChange={(e) => update(i, { start: e.target.value })} />
+            </div>
+            <div>
+              <Label className="text-[11px] text-muted-foreground">End</Label>
+              <Input type="date" value={p.end ?? ""} onChange={(e) => update(i, { end: e.target.value || null })} />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <Select value={p.tier} onValueChange={(v) => update(i, { tier: v as HealthCoverageTier })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(Object.keys(COVERAGE_TIER_LABELS) as HealthCoverageTier[]).map((t) => (
+                  <SelectItem key={t} value={t}>{COVERAGE_TIER_LABELS[t]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={p.hsaEligible ? "yes" : "no"} onValueChange={(v) => update(i, { hsaEligible: v === "yes" })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="yes">HSA-eligible (HDHP)</SelectItem>
+                <SelectItem value="no">Not HSA-eligible (e.g. PPO)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button type="button" variant="ghost" size="sm" onClick={() => onChange(periods.filter((_, idx) => idx !== i))}>
+            Remove
+          </Button>
+        </div>
+      ))}
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() =>
+          onChange([
+            ...periods,
+            { start: periods.length ? "" : `${year}-01-01`, end: null, tier: "family", hsaEligible: true },
+          ])
+        }
+      >
+        Add coverage period
+      </Button>
+    </div>
   );
 }

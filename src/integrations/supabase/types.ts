@@ -1688,6 +1688,7 @@ export type Database = {
           household_spouse_w2_income_enabled: boolean
           household_w2_income_enabled: boolean
           hsa_age55_catchup: boolean
+          hsa_coverage_periods: Json
           hsa_coverage_type: string
           hsa_enabled: boolean
           hsa_source_company_id: string | null
@@ -1771,6 +1772,7 @@ export type Database = {
           household_spouse_w2_income_enabled?: boolean
           household_w2_income_enabled?: boolean
           hsa_age55_catchup?: boolean
+          hsa_coverage_periods?: Json
           hsa_coverage_type?: string
           hsa_enabled?: boolean
           hsa_source_company_id?: string | null
@@ -1854,6 +1856,7 @@ export type Database = {
           household_spouse_w2_income_enabled?: boolean
           household_w2_income_enabled?: boolean
           hsa_age55_catchup?: boolean
+          hsa_coverage_periods?: Json
           hsa_coverage_type?: string
           hsa_enabled?: boolean
           hsa_source_company_id?: string | null

@@ -1,3 +1,4 @@
+import type { HsaCoveragePeriod } from "@/lib/hsaLimits";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -132,6 +133,8 @@ export interface TaxRates {
   hsaSourceCompanyId: string | null;
   /** HSA coverage type — drives the applicable annual contribution limit. */
   hsaCoverageType: "individual" | "family";
+  /** Optional coverage periods (tier + HSA eligibility by date). Empty = full-year hsaCoverageType. */
+  hsaCoveragePeriods: HsaCoveragePeriod[];
   /** Whether the user is eligible for the age-55+ catch-up contribution. */
   hsaAge55Catchup: boolean;
   // ─── Household Income Streams ───
@@ -212,6 +215,7 @@ const DEFAULT_RATES: TaxRates = {
   hsaEnabled: false,
   hsaSourceCompanyId: null,
   hsaCoverageType: "individual",
+  hsaCoveragePeriods: [],
   hsaAge55Catchup: false,
   householdIncomeStreams: {
     w2Income: true,
@@ -363,6 +367,7 @@ function mapTaxSettingsRow(data: any): TaxRates {
     hsaEnabled: !!d.hsa_enabled,
     hsaSourceCompanyId: (d.hsa_source_company_id as string | null) ?? null,
     hsaCoverageType: (d.hsa_coverage_type as "individual" | "family") || "individual",
+    hsaCoveragePeriods: Array.isArray(d.hsa_coverage_periods) ? (d.hsa_coverage_periods as HsaCoveragePeriod[]) : [],
     hsaAge55Catchup: !!d.hsa_age55_catchup,
     householdIncomeStreams: {
       w2Income: d.household_w2_income_enabled ?? true,
@@ -461,6 +466,7 @@ export function useUpdateTaxSettings() {
       if (rest.hsaEnabled !== undefined) payload.hsa_enabled = rest.hsaEnabled;
       if (rest.hsaSourceCompanyId !== undefined) payload.hsa_source_company_id = rest.hsaSourceCompanyId;
       if ((rest as any).hsaCoverageType !== undefined) payload.hsa_coverage_type = (rest as any).hsaCoverageType;
+      if ((rest as any).hsaCoveragePeriods !== undefined) payload.hsa_coverage_periods = (rest as any).hsaCoveragePeriods;
       if ((rest as any).hsaAge55Catchup !== undefined) payload.hsa_age55_catchup = (rest as any).hsaAge55Catchup;
       if (rest.householdIncomeStreams !== undefined) {
         payload.household_w2_income_enabled = rest.householdIncomeStreams.w2Income;
