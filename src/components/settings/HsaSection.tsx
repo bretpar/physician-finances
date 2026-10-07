@@ -113,6 +113,15 @@ export function HsaSettingsSection({ bare = false }: { bare?: boolean } = {}) {
         />
       </div>
 
+      <div className="flex flex-col gap-2 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs text-muted-foreground">
+          Add direct contributions made outside payroll, such as deposits made directly to Fidelity.
+        </p>
+        <Button asChild variant="outline" size="sm" className="shrink-0">
+          <Link to="/deductions#hsa-contributions" data-testid="manage-hsa-contributions">Manage HSA contributions</Link>
+        </Button>
+      </div>
+
       {d.hsaEnabled && (
         <>
           <div>
