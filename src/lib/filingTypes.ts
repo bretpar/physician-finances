@@ -431,10 +431,10 @@ export function withHsaTrackingVisibility(
   hsaTrackingEnabled: boolean,
 ): Record<ToggleKey, boolean> {
   if (!hsaTrackingEnabled || !isW2FilingType(filingType)) return fields;
-  const options = TOGGLE_OPTIONS_BY_TYPE[filingType] as readonly string[];
+  const options = (TOGGLE_OPTIONS_BY_TYPE[filingType] ?? []).map((o) => o.key as string);
   const out = { ...fields };
   for (const key of ["hsa_contribution", "employer_hsa_contribution"] as const) {
-    if (options.includes(key)) out[key] = true;
+    if (options.includes(key)) out[key as ToggleKey] = true;
   }
   return out;
 }
