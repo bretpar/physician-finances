@@ -96,14 +96,10 @@ export function DangerZoneSection() {
         payload = null;
       }
 
-      if (!response.ok || (payload && payload.ok === false)) {
-        const failedAt = payload?.failedStep
-          ? ` Failed at ${payload.failedStep}${payload.failedTable ? ` (${payload.failedTable})` : ""}.`
-          : "";
-        const detail =
-          payload?.detail || payload?.error || `Failed to delete account (status ${response.status})`;
+      if (!response.ok || !payload || payload.ok !== true) {
+        // Stay signed in on Settings so Delete Account can be retried.
         console.error("account-cleanup delete failed", { status: response.status, payload });
-        throw new Error(`${detail}${failedAt}`);
+        throw new Error("We couldn't finish deleting your account. Your account is still active. Please try again.");
       }
 
       try {

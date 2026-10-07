@@ -419,3 +419,22 @@ export function resolveEmployerPaycheckReduction(
       s[EMPLOYER_HSA_REDUCES_PAYCHECK_KEY] === true,
   };
 }
+
+/**
+ * When global HSA tracking is on, W-2 paycheck forms always show the existing
+ * employee/employer HSA payroll fields (display only — saved per-company
+ * visibility is not mutated). Off → per-company behavior is unchanged.
+ */
+export function withHsaTrackingVisibility(
+  filingType: FilingType,
+  fields: Record<ToggleKey, boolean>,
+  hsaTrackingEnabled: boolean,
+): Record<ToggleKey, boolean> {
+  if (!hsaTrackingEnabled || !isW2FilingType(filingType)) return fields;
+  const options = (TOGGLE_OPTIONS_BY_TYPE[filingType] ?? []).map((o) => o.key as string);
+  const out = { ...fields };
+  for (const key of ["hsa_contribution", "employer_hsa_contribution"] as const) {
+    if (options.includes(key)) out[key as ToggleKey] = true;
+  }
+  return out;
+}

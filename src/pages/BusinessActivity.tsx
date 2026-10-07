@@ -63,6 +63,7 @@ import {
   toCanonicalIncomeType,
   ADVANCED_FIELDS_BY_TYPE,
   resolveAdvancedVisibility,
+  withHsaTrackingVisibility,
   resolveEmployerPaycheckReduction,
   type FilingType,
   type IncomeFieldKey,
@@ -370,8 +371,8 @@ export default function Transactions() {
     const filingType = normalizeFilingType(
       incomeForm.income_type || company?.companyType || "1099_schedule_c"
     );
-    return resolveAdvancedVisibility(filingType, company?.advancedFieldVisibility);
-  }, [companies, incomeForm.company, incomeForm.income_type]);
+    return withHsaTrackingVisibility(filingType, resolveAdvancedVisibility(filingType, company?.advancedFieldVisibility), !!taxSettings?.hsaEnabled);
+  }, [companies, incomeForm.company, incomeForm.income_type, taxSettings?.hsaEnabled]);
 
   /** True when at least one advanced toggle is enabled for this company. */
   const hasAnyAdvancedField = useMemo(

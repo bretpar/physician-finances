@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { HeartPulse, Plus, Trash2, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -102,7 +103,7 @@ export function HsaSettingsSection({ bare = false }: { bare?: boolean } = {}) {
         <div className="min-w-0">
           <p className="text-sm font-medium text-foreground">Enable HSA tracking</p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Show HSA inputs on income forms and the HSA contributions ledger below.
+            Shows employee and employer HSA fields on W-2 paycheck forms.
             Existing HSA history is preserved when this is off.
           </p>
         </div>
@@ -110,6 +111,15 @@ export function HsaSettingsSection({ bare = false }: { bare?: boolean } = {}) {
           checked={d.hsaEnabled}
           onCheckedChange={(v) => set({ hsaEnabled: v })}
         />
+      </div>
+
+      <div className="flex flex-col gap-2 rounded-lg border border-border p-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-xs text-muted-foreground">
+          Add direct contributions made outside payroll, such as deposits made directly to Fidelity.
+        </p>
+        <Button asChild variant="outline" size="sm" className="shrink-0">
+          <Link to="/deductions#hsa" data-testid="manage-hsa-contributions">Manage HSA contributions</Link>
+        </Button>
       </div>
 
       {d.hsaEnabled && (
@@ -190,7 +200,7 @@ export function HsaSettingsSection({ bare = false }: { bare?: boolean } = {}) {
           <div className="rounded-md bg-muted/40 p-3 text-[11px] text-muted-foreground leading-relaxed">
             W-2 and payroll-style K-1 HSA contributions are entered on paycheck entries.
             1099 HSA contributions are usually entered as <strong>individual contributions</strong>
-            in the ledger below.
+            under Manage HSA contributions.
             {selectedCompany && selectedCompanyType === "1099_schedule_c" && (
               <span className="block mt-1.5 text-warning">
                 Heads up: <strong>{selectedCompany.name}</strong> is a 1099 company. Add HSA via

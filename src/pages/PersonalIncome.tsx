@@ -48,7 +48,8 @@ import { RecommendedSetAsideInfo } from "@/components/RecommendedSetAsideInfo";
 import { SourceEmployerCombobox, persistNewSourceIfRequested } from "@/components/SourceEmployerCombobox";
 import { useCreateIncomeSource, type SourceKind } from "@/hooks/useIncomeSources";
 import { useCompanies } from "@/contexts/CompanyContext";
-import { normalizeFilingType, resolveAdvancedVisibility, resolveEmployerPaycheckReduction, type ToggleKey } from "@/lib/filingTypes";
+import { normalizeFilingType, resolveAdvancedVisibility,
+  withHsaTrackingVisibility, resolveEmployerPaycheckReduction, type ToggleKey } from "@/lib/filingTypes";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { filterIncomeTypeOptions, isIncomeEntryTypeDisabled } from "@/lib/householdIncomeProfile";
 
@@ -361,8 +362,8 @@ export default function PersonalIncome() {
     const filingType = normalizeFilingType(
       isW2Type(form.income_type) ? "w2" : form.income_type,
     );
-    return resolveAdvancedVisibility(filingType, company?.advancedFieldVisibility);
-  }, [companies, form.source_id, form.income_type]);
+    return withHsaTrackingVisibility(filingType, resolveAdvancedVisibility(filingType, company?.advancedFieldVisibility), !!taxSettings?.hsaEnabled);
+  }, [companies, form.source_id, form.income_type, taxSettings?.hsaEnabled]);
 
   const showField = (key: ToggleKey) => !!visibleFields[key];
 
