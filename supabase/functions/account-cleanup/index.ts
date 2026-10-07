@@ -3,6 +3,7 @@
 // Scoped strictly to the authenticated caller's user_id.
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders, jsonResponse } from "../_shared/cors.ts";
+import { ACCOUNT_DELETE_FAILURE_MESSAGE, runAccountDeletion } from "./deletion.ts";
 
 const STEP_TIMEOUT_MS = 4_000;
 const AUTH_TIMEOUT_MS = 8_000;
@@ -39,9 +40,11 @@ export const USER_SCOPED_FINANCIAL_TABLES = [
   "plaid_accounts",
   "plaid_items",
   "companies",
-  "tax_settings",
-  "user_roles",
 ] as const;
+
+// Route-critical rows: removed only AFTER auth deletion succeeds so a failed
+// auth delete leaves the user signed in with Settings / Delete Account reachable.
+export const ROUTE_CRITICAL_TABLES = ["tax_settings", "user_roles", "organization_members", "profiles"] as const;
 
 type CleanupFailure = { step: string; table?: string; error: string; code?: string };
 type CleanupWarning = CleanupFailure;
@@ -178,32 +181,32 @@ export async function deleteUserData(admin: any, userId: string) {
     warnings.push({ step: "storage.bestEffort", error: errorMessage(err) });
   }
 
-  // Profile row will cascade with the auth user; delete proactively to keep
-  // org membership tidy if any FK is missing.
-  const { error: orgMemErr } = await withTimeout("table.organization_members", admin
-    .from("organization_members")
-    .delete()
-    .eq("user_id", userId));
-  if (orgMemErr) errors.push({ step: "table.organization_members", table: "organization_members", error: orgMemErr.message, code: orgMemErr.code });
-
-  const { error: profErr } = await withTimeout("table.profiles", admin
-    .from("profiles")
-    .delete()
-    .eq("user_id", userId));
-  if (profErr) errors.push({ step: "table.profiles", table: "profiles", error: profErr.message, code: profErr.code });
-
-  if (ownedOrgIds.length > 0) {
-    const { error: orgDeleteErr } = await withTimeout(
-      "table.organizations",
-      admin.from("organizations").delete().in("id", ownedOrgIds),
-    );
-    if (orgDeleteErr) warnings.push({ step: "table.organizations", table: "organizations", error: orgDeleteErr.message, code: orgDeleteErr.code });
-  }
-
   if (errors.length > 0) {
     throw new CleanupStepError(errors[0].step, `Account delete did not fully complete at ${errors[0].step}: ${errors[0].error}`, { table: errors[0].table, code: errors[0].code });
   }
 
+  return { warnings, ownedOrgIds };
+}
+
+/** Post-auth-deletion cleanup of route-critical rows. Idempotent; never throws. */
+export async function deleteRouteCriticalData(admin: any, userId: string, ownedOrgIds: string[]) {
+  const warnings: CleanupWarning[] = [];
+  for (const table of ROUTE_CRITICAL_TABLES) {
+    try {
+      const { error } = await withTimeout(`table.${table}`, admin.from(table).delete().eq("user_id", userId));
+      if (error) warnings.push({ step: `table.${table}`, table, error: error.message || String(error), code: error.code });
+    } catch (err) {
+      warnings.push({ step: `table.${table}`, table, error: errorMessage(err) });
+    }
+  }
+  if (ownedOrgIds.length > 0) {
+    try {
+      const { error } = await withTimeout("table.organizations", admin.from("organizations").delete().in("id", ownedOrgIds));
+      if (error) warnings.push({ step: "table.organizations", table: "organizations", error: error.message, code: error.code });
+    } catch (err) {
+      warnings.push({ step: "table.organizations", table: "organizations", error: errorMessage(err) });
+    }
+  }
   return { warnings, deletedOrganizations: ownedOrgIds.length };
 }
 
@@ -246,33 +249,21 @@ export async function handler(req: Request) {
       return jsonResponse(req, { error: "Invalid action" }, 400);
     }
 
-    let cleanupResult: Awaited<ReturnType<typeof deleteUserData>>;
-    try {
-      cleanupResult = await deleteUserData(admin, userId);
-    } catch (deleteError) {
-      console.error("account-cleanup data delete failed", deleteError);
-      return jsonResponse(req, {
-        ok: false,
-        error: "Account deletion incomplete. Please contact support.",
-      }, 500);
+    const result = await runAccountDeletion({
+      deleteNoncritical: async () => (await deleteUserData(admin, userId)).ownedOrgIds,
+      deleteAuthUser: async () => {
+        logStep("auth.deleteUser.start", { userId });
+        const { error } = await withTimeout("auth.deleteUser", admin.auth.admin.deleteUser(userId), AUTH_TIMEOUT_MS);
+        if (error) throw error;
+      },
+      deleteRouteCritical: async (orgIds) => { await deleteRouteCriticalData(admin, userId, orgIds); },
+    });
+    if (!result.ok) {
+      console.error("account-cleanup failed", result);
+      return jsonResponse(req, { ok: false, failedStep: result.failedStep, error: ACCOUNT_DELETE_FAILURE_MESSAGE }, 500);
     }
-
-    logStep("auth.deleteUser.start", { userId });
-    const { error: authDelErr } = await withTimeout(
-      "auth.deleteUser",
-      admin.auth.admin.deleteUser(userId),
-      AUTH_TIMEOUT_MS,
-    );
-    if (authDelErr) {
-      console.error("account-cleanup deleteUser failed", authDelErr);
-      return jsonResponse(req, {
-        ok: false,
-        error: "Account deletion incomplete. Please contact support.",
-      }, 500);
-    }
-
     logStep("complete", { userId });
-    return jsonResponse(req, { ok: true, action: "delete", cleanup: { deletedOrganizations: cleanupResult.deletedOrganizations } });
+    return jsonResponse(req, { ok: true, action: "delete", cleanup: { deletedOrganizations: result.deletedOrganizations } });
   } catch (error) {
     console.error("account-cleanup error", error);
     return jsonResponse(req, {
