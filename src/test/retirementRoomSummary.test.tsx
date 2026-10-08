@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, within } from "@testing-library/react";
 import { RetirementRoomSummary } from "@/components/retirement/RetirementRoomSummary";
 import { computeRetirementRoomView } from "@/lib/retirementRoomView";
 
@@ -33,6 +33,23 @@ const setup = (hasPlannerAccess: boolean) =>
   );
 
 describe("RetirementRoomSummary UI", () => {
+  it("counts only the spouse's available employee room when only the spouse has a plan", () => {
+    const spouseOnly = computeRetirementRoomView({
+      taxYear: 2026, dateOfBirth: "1981-01-01", filingStatus: "married_filing_jointly",
+      companies: [{ id: "spouse", name: "Spouse employer", companyType: "w2", employeeRole: "spouse" }],
+      paychecks: [{ incomeEntryId: "pay", companyId: "spouse", employee: 4500, employer: 0, wages: 100000 }],
+      standalone: [],
+    });
+    // The engine retains a statutory primary bucket; it is not an available plan.
+    expect(spouseOnly.engine.employee402g.remaining).toBe(24500);
+    expect(spouseOnly.engine.spouseEmployee402g?.remaining).toBe(20000);
+    render(<RetirementRoomSummary room={spouseOnly} hasPlannerAccess={false} />);
+    const overview = screen.getByText("Additional contribution opportunity").parentElement;
+    if (!overview) throw new Error("Missing retirement opportunity overview");
+    expect(within(overview).getByText("$20,000")).toBeInTheDocument();
+    expect(screen.queryByTestId("employee-room")).toBeNull();
+    expect(within(screen.getByTestId("spouse-employee-room")).getByText("$20,000")).toBeInTheDocument();
+  });
   it("shows the validated employee aggregate and remaining room", () => {
     setup(true);
     expect(screen.getByText(/\$12,500/)).toBeInTheDocument();
