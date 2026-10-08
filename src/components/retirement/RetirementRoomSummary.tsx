@@ -78,7 +78,7 @@ export function RetirementRoomSummary({
   const spouse402g = engine.spouseEmployee402g;
   const primary402gPlans = bucketPlans("402g").filter((p) => p.earner !== "spouse");
   const spouse402gPlans = bucketPlans("402g").filter((p) => p.earner === "spouse");
-  const sharedEmployeeOpportunity = (bucketPlans("402g").length > 0
+  const sharedEmployeeOpportunity = (primary402gPlans.length > 0
     ? engine.employee402g.remaining
     : (engine.simple?.remaining ?? 0)) + (spouse402g?.remaining ?? 0);
   const additionalOpportunity = sharedEmployeeOpportunity + (engine.governmental457b?.remaining ?? 0) +
@@ -96,9 +96,9 @@ export function RetirementRoomSummary({
         {unknownEmployerCount > 0 && <p className="mt-3 text-xs text-muted-foreground">Additional employer opportunity may be available for {unknownEmployerCount} {unknownEmployerCount === 1 ? "plan" : "plans"}.</p>}
       </section>
 
-      <BucketCard title={spouse402g ? "Your employee contributions" : "Employee retirement"} contributed={engine.employee402g.contributed} limit={engine.employee402g.limit} remaining={engine.employee402g.remaining} catchUp={engine.employee402g.catchUp} description="Shared across your eligible 401(k), 403(b), and Solo 401(k) employee contributions." testId="employee-room">
+      {primary402gPlans.length > 0 && <BucketCard title={spouse402g ? "Your employee contributions" : "Employee retirement"} contributed={engine.employee402g.contributed} limit={engine.employee402g.limit} remaining={engine.employee402g.remaining} catchUp={engine.employee402g.catchUp} description="Shared across your eligible 401(k), 403(b), and Solo 401(k) employee contributions." testId="employee-room">
         <div className="space-y-2">{primary402gPlans.map((plan) => <div key={plan.planId ?? plan.companyName} className="flex justify-between gap-3 text-sm"><span>{plan.companyName} {PLAN_LABELS[plan.planKind]}</span><span className="shrink-0 font-medium tabular-nums">{fmt(plan.employeeContribution)}</span></div>)}</div>
-      </BucketCard>
+      </BucketCard>}
 
       {spouse402g && <BucketCard title="Spouse employee contributions" contributed={spouse402g.contributed} limit={spouse402g.limit} remaining={spouse402g.remaining} catchUp={spouse402g.catchUp} description="Your spouse has their own employee contribution limit, separate from yours." testId="spouse-employee-room">
         <div className="space-y-2">{spouse402gPlans.map((plan) => <div key={plan.planId ?? plan.companyName} className="flex justify-between gap-3 text-sm"><span>{plan.companyName} {PLAN_LABELS[plan.planKind]}</span><span className="shrink-0 font-medium tabular-nums">{fmt(plan.employeeContribution)}</span></div>)}</div>

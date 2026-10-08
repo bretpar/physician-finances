@@ -105,7 +105,8 @@ export function monthlyHsaEligibility(year: number, periods: HsaCoveragePeriod[]
  * Applicable HSA limit. With coverage periods, prorates monthly:
  * Σ eligible months (annual limit for that month's coverage / 12), with
  * the age-55 catch-up prorated the same way. Without periods, falls back
- * to the full-year legacy coverage type.
+ * to the full-year legacy coverage type. Years before the first recorded
+ * period also retain that legacy limit; no historical coverage was recorded.
  */
 export function resolveApplicableHsaLimit(
   year: number,
@@ -114,6 +115,10 @@ export function resolveApplicableHsaLimit(
   periods?: HsaCoveragePeriod[] | null,
 ): number {
   if (!periods || periods.length === 0) return getApplicableHsaLimit(year, legacyCoverage, catchUpEligible);
+  const yearEnd = `${year}-12-31`;
+  if (periods.every((period) => period.start > yearEnd)) {
+    return getApplicableHsaLimit(year, legacyCoverage, catchUpEligible);
+  }
   let total = 0;
   for (const m of monthlyHsaEligibility(year, periods)) {
     if (!m.coverage) continue;
