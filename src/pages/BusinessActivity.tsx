@@ -43,7 +43,6 @@ import { syncIncomeEntryHsa } from "@/lib/incomeEntryHsaSync";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { computeBusinessSummary, BUSINESS_COMPANY_TYPES } from "@/lib/businessSummary";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { RecommendedSetAsideInfo } from "@/components/RecommendedSetAsideInfo";
 import { txTone } from "@/lib/transactionTones";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { TotalFederalTaxField } from "@/components/TotalFederalTaxField";
@@ -264,6 +263,7 @@ export default function Transactions() {
   const [editingIncomeEntryId, setEditingIncomeEntryId] = useState<string | null>(null);
   const [editingIncomeWasUnassigned, setEditingIncomeWasUnassigned] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [reserveInfoOpen, setReserveInfoOpen] = useState(false);
   const [pendingIncomeAttachments, setPendingIncomeAttachments] = useState<File[]>([]);
 
   // ─── Expense modal state ───
@@ -2222,29 +2222,39 @@ export default function Transactions() {
               </div>
             </div>
 
-            {/* Recommended to Set Aside */}
-            {grossIncome > 0 && recommendation && !isEventOverWithheld && displayRecommendedSavings > 0 && (
-              <div className="rounded-md border border-primary/30 bg-primary/5 p-3 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-foreground">Recommended to set aside</p>
-                  <p className="text-[11px] text-muted-foreground leading-snug">
-                    Based on your total tax rate ({recommendation.effectiveRate.toFixed(1)}%){" "}
-                    <RecommendedSetAsideInfo
-                      rate={recommendation.effectiveRate}
-                      breakdown={recommendation.rateBreakdown}
-                      taxableBase={{
-                        gross: grossIncome,
-                        retirement401k: num(incomeForm.retirement_401k),
-                        healthInsurance: num(incomeForm.healthcare_deduction),
-                        hsa: num(incomeForm.hsa_contribution),
-                        otherPreTax: num(incomeForm.pre_tax_deductions),
-                      }}
-                      k1Treatment={k1TreatmentForEntry}
-                      isK1={normalizeFilingType(effectiveIncomeType) === "k1_partnership"}
-                    />
+            {/* One transaction-specific reserve summary; calculations stay in the engine. */}
+            {grossIncome > 0 && recommendation && !isEventOverWithheld && !recommendation.fundedByAnnualW4 && (
+              <div className="rounded-md border border-primary/30 bg-primary/5 p-3 space-y-2" data-testid="ba-income-recommended-savings">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-medium text-foreground">Recommended tax reserve</p>
+                  <Tooltip open={reserveInfoOpen} onOpenChange={setReserveInfoOpen}>
+                    <TooltipTrigger asChild>
+                      <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0 text-muted-foreground" aria-label="How the recommended tax reserve is calculated" onClick={() => setReserveInfoOpen((open) => !open)}>
+                        <Info className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs space-y-1">
+                      <p className="text-xs font-medium">{recommendation.methodLabel}</p>
+                      <p className="text-xs">This income's tax target is {fmt(recommendation.eventTaxTarget)}, including applicable federal, self-employment and enabled state taxes, after eligible deductions.</p>
+                      <p className="text-xs">Credited withholding: {fmt(recommendation.creditedWithholding)}. {recommendation.catchUpApplied > 0 ? `Includes ${fmt(recommendation.catchUpApplied)} of quarterly catch-up.` : "No quarterly catch-up included."}</p>
+                      <p className="text-xs">The reserve percentage is the recommended reserve as a share of this entry's gross income, not your total effective tax rate. Money set aside is not a tax payment.</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+                <div>
+                  <p className="text-3xl font-bold text-primary tabular-nums">{new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0, minimumFractionDigits: 0 }).format(displayRecommendedSavings)}</p>
+                  <p className="text-xs text-muted-foreground">{((displayRecommendedSavings / grossIncome) * 100).toFixed(1)}% of gross income to reserve</p>
+                </div>
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 text-xs">
+                  <p className="text-muted-foreground">Currently setting aside <span className="font-medium text-foreground">{fmt(num(incomeForm.actual_withholding) + num(incomeForm.additional_tax_reserve))}</span></p>
+                  <p className={num(incomeForm.actual_withholding) + num(incomeForm.additional_tax_reserve) >= displayRecommendedSavings ? "text-success" : "text-muted-foreground"} data-testid="ba-income-recommended-savings-delta">
+                    {Math.abs(num(incomeForm.actual_withholding) + num(incomeForm.additional_tax_reserve) - displayRecommendedSavings) < 0.005
+                      ? "On target"
+                      : num(incomeForm.actual_withholding) + num(incomeForm.additional_tax_reserve) < displayRecommendedSavings
+                        ? `${fmt(displayRecommendedSavings - num(incomeForm.actual_withholding) - num(incomeForm.additional_tax_reserve))} below recommendation`
+                        : `+${fmt(num(incomeForm.actual_withholding) + num(incomeForm.additional_tax_reserve) - displayRecommendedSavings)} above recommendation`}
                   </p>
                 </div>
-                <span className="text-lg font-bold text-primary whitespace-nowrap">{fmt(displayRecommendedSavings)}</span>
               </div>
             )}
             {grossIncome > 0 && recommendation && isEventOverWithheld && (
@@ -2314,7 +2324,19 @@ export default function Transactions() {
                   )}
                   {showField("net_received") && grossIncome > 0 && (
                     <p className="text-[11px] text-muted-foreground bg-muted/40 rounded px-2 py-1">
-                      Estimated Net: <strong>{fmt(calculatedNet)}</strong> based on your inputs
+                      Estimated Net: <strong>{fmt(calculatedNet)}</strong>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button type="button" variant="ghost" size="icon" className="h-6 w-6 align-middle text-muted-foreground" aria-label="How estimated net treats retirement contributions and deposits">
+                            <Info className="h-3.5 w-3.5" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="max-w-xs space-y-1">
+                          <p className="text-xs">Estimated cash after entered withholding, employee retirement, health insurance, employee HSA and other pre-tax deductions.</p>
+                          <p className="text-xs">Employer retirement and HSA contributions reduce this estimate only when the company's “reduces my paycheck” setting is on. Employee and employer Solo 401(k) contributions remain separate retirement contributions, not tax withholding.</p>
+                          <p className="text-xs">Use Net Received for the actual bank deposit. Tax reserves are separate and do not reduce this estimate or count as taxes paid.</p>
+                        </TooltipContent>
+                      </Tooltip>
                     </p>
                   )}
 
@@ -2334,47 +2356,6 @@ export default function Transactions() {
                       {showField("pre_tax_deductions") && (<div><Label className="text-xs text-muted-foreground mb-1.5 block">Other Pre-Tax<LegacyNote field="pre_tax_deductions" /></Label><Input type="number" min="0" step="0.01" value={incomeForm.pre_tax_deductions} onChange={(e) => setIncomeForm((f) => ({ ...f, pre_tax_deductions: e.target.value }))} placeholder="0.00" /></div>)}
                     </div>
                   )}
-
-
-                  {/* Read-only calculated recommendation, immediately above the
-                      editable reserve field. Uses the SAME centralized
-                      recommendation engine result shown elsewhere — no new math. */}
-                  {showField("actual_withholding") &&
-                    grossIncome > 0 &&
-                    recommendation &&
-                    !isEventOverWithheld &&
-                    displayRecommendedSavings > 0 && (
-                      <div
-                        className="rounded-md border border-primary/30 bg-primary/5 p-3"
-                        data-testid="ba-income-recommended-savings"
-                      >
-                        <p className="text-xs font-medium text-foreground">
-                          Recommended to save for taxes
-                        </p>
-                        <p className="text-lg font-bold text-primary tabular-nums">
-                          {fmt(displayRecommendedSavings)}
-                          <span className="text-sm font-semibold text-primary/80">
-                            {" · "}
-                            {((displayRecommendedSavings / grossIncome) * 100).toFixed(1)}%
-                          </span>
-                        </p>
-                        <p className="text-[10px] text-muted-foreground leading-snug">
-                          Based on your current withholding method and tax estimate.
-                        </p>
-                        {num(incomeForm.actual_withholding) > 0 && (
-                          <p
-                            className="text-[10px] text-muted-foreground mt-1"
-                            data-testid="ba-income-recommended-savings-delta"
-                          >
-                            {Math.abs(num(incomeForm.actual_withholding) - displayRecommendedSavings) < 1
-                              ? "On target"
-                              : num(incomeForm.actual_withholding) < displayRecommendedSavings
-                                ? `${fmt(displayRecommendedSavings - num(incomeForm.actual_withholding))} below recommendation`
-                                : `${fmt(num(incomeForm.actual_withholding) - displayRecommendedSavings)} above recommendation`}
-                          </p>
-                        )}
-                      </div>
-                    )}
 
 
                   {showField("actual_withholding") && (
