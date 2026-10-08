@@ -263,6 +263,9 @@ export function computeCanonicalEventRecommendation(
     0,
     gross - pos(input.retirement401k) - pos(input.preTaxDeductions),
   );
+  // Self-employment tax base: Solo 401(k) contributions (employee OR employer)
+  // never reduce Schedule C profit / the SE base — matches the annual engine.
+  const seBaseForEntry = Math.max(0, gross - pos(input.preTaxDeductions));
   // Employer Solo 401(k) money reduces federal taxable income but NOT the SE
   // tax base, so it is applied only to the federal / ordinary base below.
   const federalTaxableForEntry = Math.max(
@@ -343,7 +346,7 @@ export function computeCanonicalEventRecommendation(
           filingStatus: input.filingStatus ?? undefined,
           currentW2Wages: pos(input.estimate?.w2Income),
           currentNetSEIncome: pos(input.estimate?.seIncome),
-          entryGrossAmount: netTaxableForEntry,
+          entryGrossAmount: seBaseForEntry,
         })
       : 0;
     const businessStateRate =
@@ -362,7 +365,7 @@ export function computeCanonicalEventRecommendation(
       // Personal state tax never attaches to business profit — the annual
       // engine excludes it from the personal state base.
       personalStateTaxBase: isW2 || sourceType === "investment" ? ordinaryTaxBase : 0,
-      selfEmploymentBase: seApplies ? netTaxableForEntry : 0,
+      selfEmploymentBase: seApplies ? seBaseForEntry : 0,
       selfEmploymentRate: seRate,
       businessStateTaxRate: businessStateRate,
       businessStateTaxBase: netTaxableForEntry,

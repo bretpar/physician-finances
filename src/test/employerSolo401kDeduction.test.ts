@@ -91,3 +91,43 @@ describe("annual estimate input", () => {
     expect(businessRetirement).toBe(1_700);
   });
 });
+
+describe("$9,900 1099 event — employee + employer Solo 401(k) vs SE tax", () => {
+  const run = (employee: number, employer: number) =>
+    computeCanonicalEventRecommendation({
+      estimate,
+      taxSettings: settings,
+      incomeType: "1099_schedule_c",
+      incomeBucket: "business",
+      grossIncome: 9_900,
+      retirement401k: employee,
+      employerRetirement401k: employer,
+      preTaxDeductions: 0,
+      creditedWithholding: 0,
+      catchUpAmount: 0,
+      isFutureOpportunity: true,
+    })!;
+
+  it("employee contribution does not reduce SE tax", () => {
+    expect(run(500, 0).target.selfEmploymentTax).toBeCloseTo(run(0, 0).target.selfEmploymentTax, 2);
+  });
+  it("employer contribution does not reduce SE tax", () => {
+    expect(run(0, 500).target.selfEmploymentTax).toBeCloseTo(run(0, 0).target.selfEmploymentTax, 2);
+  });
+  it("both reduce federal income tax, each counted once", () => {
+    const none = run(0, 0).target.federalIncomeTax;
+    const one = run(500, 0).target.federalIncomeTax;
+    const both = run(500, 500).target.federalIncomeTax;
+    expect(one).toBeLessThan(none);
+    expect(both).toBeLessThan(one);
+    expect(none - both).toBeCloseTo(2 * (none - one), 1);
+  });
+  it("reserve reflects only the federal reduction", () => {
+    const none = run(0, 0);
+    const both = run(500, 500);
+    expect(none.eventTaxTarget - both.eventTaxTarget).toBeCloseTo(
+      none.target.federalIncomeTax - both.target.federalIncomeTax,
+      1,
+    );
+  });
+});
