@@ -38,7 +38,7 @@ describe("RetirementRoomSummary UI", () => {
       taxYear: 2026, dateOfBirth: "1981-01-01", filingStatus: "married_filing_jointly",
       companies: [{ id: "spouse", name: "Spouse employer", companyType: "w2", employeeRole: "spouse" }],
       paychecks: [{ incomeEntryId: "pay", companyId: "spouse", employee: 4500, employer: 0, wages: 100000 }],
-      standalone: [],
+      standalone: [], ira: { traditionalContributed: 0, rothContributed: 0 },
     });
     // The engine retains a statutory primary bucket; it is not an available plan.
     expect(spouseOnly.engine.employee402g.remaining).toBe(24500);
