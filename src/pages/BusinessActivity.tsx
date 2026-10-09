@@ -603,14 +603,16 @@ export default function Transactions() {
       taxesAlreadyWithheld: num(incomeForm.taxes_withheld),
       retirement401k: num(incomeForm.retirement_401k),
       employerRetirement401k: num(incomeForm.employer_retirement_contribution),
-      preTaxDeductions: num(incomeForm.pre_tax_deductions) + num(incomeForm.healthcare_deduction) + num(incomeForm.hsa_contribution),
+      preTaxDeductions: num(incomeForm.pre_tax_deductions),
+      federalOnlyDeductions: num(incomeForm.healthcare_deduction) + num(incomeForm.hsa_contribution),
+      stateWithholding: taxSettings?.businessStateTaxEnabled ? num(incomeForm.state_withholding) : 0,
       companyId: selectedIncomeCompany?.id ?? null,
       applyBusinessStateTax: selectedIncomeCompany?.applyBusinessStateTax ?? true,
       includeSETaxInRecommendation: selectedIncomeCompany?.includeSETaxInRecommendation ?? true,
       k1TaxTreatment: selectedIncomeCompany?.k1TaxTreatment ?? null,
       isSelfEmploymentTaxable: isSelfEmploymentTaxableOverride,
     });
-  }, [grossIncome, effectiveIncomeType, incomeForm.taxes_withheld, incomeForm.retirement_401k, incomeForm.employer_retirement_contribution, incomeForm.pre_tax_deductions, incomeForm.healthcare_deduction, incomeForm.hsa_contribution, getRecommendation, selectedIncomeCompany, isSelfEmploymentTaxableOverride, incomeEntryIsFutureOpportunity]);
+  }, [grossIncome, effectiveIncomeType, incomeForm.taxes_withheld, incomeForm.retirement_401k, incomeForm.employer_retirement_contribution, incomeForm.pre_tax_deductions, incomeForm.healthcare_deduction, incomeForm.hsa_contribution, incomeForm.state_withholding, taxSettings?.businessStateTaxEnabled, getRecommendation, selectedIncomeCompany, isSelfEmploymentTaxableOverride, incomeEntryIsFutureOpportunity]);
 
   const recommendedWithholding = recommendation?.recommendedWithholding ?? 0;
   /**

@@ -373,7 +373,7 @@ export function computeCanonicalEventRecommendation(
       const d = seDollars.wageBaseDetail;
       const limitReached = seDollars.socialSecurity <= 0 && d.entrySeBase > 0;
       // Projected only when the limit would NOT be reached without planned wages.
-      const actualOnlyRemaining = d.ssRemainingBefore + planned;
+      const actualOnlyRemaining = d.ssWageBase - Math.max(0, d.w2WagesCounted - planned) - d.priorSeBaseCounted;
       seWageBase = { limitReached, projected: limitReached && planned > 0 && actualOnlyRemaining > 0 };
     }
     const businessStateRate =
