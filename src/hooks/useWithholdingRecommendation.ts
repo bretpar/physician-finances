@@ -38,6 +38,10 @@ export interface WithholdingInput {
   /** Employer Solo 401(k) — federal deduction only, never reduces SE tax base. */
   employerRetirement401k?: number;
   preTaxDeductions: number;
+  /** HSA / SE health insurance — federal deduction only, never the SE base. */
+  federalOnlyDeductions?: number;
+  /** State withholding on this entry — credited only against its state tax. */
+  stateWithholding?: number;
   alreadyIncludedInEstimate?: boolean;
   companyId?: string | null;
   applyBusinessStateTax?: boolean | null;
@@ -108,6 +112,10 @@ export interface WithholdingRecommendation {
   ficaExcludedFromCredits: number;
   /** Withholding actually credited against this entry's target. */
   creditedWithholding: number;
+  /** State portion of creditedWithholding. */
+  creditedStateWithholding?: number;
+  /** SE Social Security wage-base status for this entry. */
+  seWageBase?: { limitReached: boolean; projected: boolean } | null;
   /** Prospective catch-up dollars folded into this recommendation. */
   catchUpApplied: number;
   /** Quarter-level shortfall context driving the catch-up. */
@@ -254,6 +262,8 @@ export function useWithholdingRecommendation(options: WithholdingRecommendationO
         retirement401k,
         employerRetirement401k: input.employerRetirement401k,
         preTaxDeductions,
+        federalOnlyDeductions: input.federalOnlyDeductions,
+        stateWithholding: input.stateWithholding,
         companyId,
         applyBusinessStateTax,
         includeSETaxInRecommendation,
@@ -271,7 +281,9 @@ export function useWithholdingRecommendation(options: WithholdingRecommendationO
 
       const catchUpFields = {
         ficaExcludedFromCredits,
-        creditedWithholding,
+        creditedWithholding: canonical.creditedWithholding,
+        creditedStateWithholding: canonical.creditedStateWithholding,
+        seWageBase: canonical.seWageBase,
         catchUpApplied: canonical.catchUpApplied,
         catchUp: catchUpContext,
         eventShortfall: Math.max(
