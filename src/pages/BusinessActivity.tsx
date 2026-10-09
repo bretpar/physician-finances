@@ -2233,10 +2233,10 @@ export default function Transactions() {
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-xs max-h-[70vh] overflow-y-auto space-y-2">
                       {(() => {
-                        const t = recommendation.target;
-                        const c = recommendation.rateBreakdown.components;
+                        const t = recommendation.target ?? { federalIncomeTax: 0, personalStateTax: 0, selfEmploymentTax: 0, businessStateTax: 0, investmentTax: 0, total: recommendation.eventTaxTarget, effectiveRatePct: 0 };
+                        const c = recommendation.rateBreakdown?.components ?? ({} as Partial<NonNullable<typeof recommendation.rateBreakdown>["components"]>);
                         const cents = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
-                        const isFlat = recommendation.basis === "flat_rate";
+                        const isFlat = recommendation.basis === "flat_rate" || !recommendation.target;
                         const state = (t.personalStateTax ?? 0) + (t.businessStateTax ?? 0);
                         const credit = recommendation.creditedWithholding;
                         const catchUp = recommendation.catchUpApplied;
