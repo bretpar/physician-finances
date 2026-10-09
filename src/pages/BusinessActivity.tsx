@@ -62,7 +62,6 @@ import {
   toCanonicalIncomeType,
   ADVANCED_FIELDS_BY_TYPE,
   resolveAdvancedVisibility,
-  withHsaTrackingVisibility,
   resolveEmployerPaycheckReduction,
   type FilingType,
   type IncomeFieldKey,
@@ -371,8 +370,8 @@ export default function Transactions() {
     const filingType = normalizeFilingType(
       incomeForm.income_type || company?.companyType || "1099_schedule_c"
     );
-    return withHsaTrackingVisibility(filingType, resolveAdvancedVisibility(filingType, company?.advancedFieldVisibility), !!taxSettings?.hsaEnabled);
-  }, [companies, incomeForm.company, incomeForm.income_type, taxSettings?.hsaEnabled]);
+    return resolveAdvancedVisibility(filingType, company?.advancedFieldVisibility);
+  }, [companies, incomeForm.company, incomeForm.income_type]);
 
   /** True when at least one advanced toggle is enabled for this company. */
   const hasAnyAdvancedField = useMemo(
@@ -414,13 +413,12 @@ export default function Transactions() {
   }, [isEditingIncome, editingIncomeTxId, transactions, linkedEntry, visibleFields]);
 
   /** Should a given field render in the form? Toggle on OR has a legacy saved value. */
-  const showField = (key: ToggleKey) => visibleFields[key] || !!legacyFields[key];
+  // Saved employer visibility is authoritative; hidden saved values are preserved on save.
+  const showField = (key: ToggleKey) => !!visibleFields[key];
 
   /** Subtle inline note rendered next to a field that's only shown due to legacy saved data. */
   const LegacyNote = ({ field }: { field: ToggleKey }) =>
-    legacyFields[field] ? (
-      <span className="ml-1 text-[10px] font-normal italic text-muted-foreground">(Previously saved value)</span>
-    ) : null;
+    null;
 
   const incomeByLinkedTx = useMemo(() => {
     const map = new Map<string, IncomeEntry>();
@@ -2309,11 +2307,6 @@ export default function Transactions() {
                     </p>
                   )}
 
-                  {Object.keys(legacyFields).length > 0 && (
-                    <p className="text-[10px] text-muted-foreground italic border-l-2 border-muted-foreground/40 pl-2">
-                      Some fields below are <strong>hidden in new entries</strong>, but shown here because this transaction has a saved value. Clear a value to remove it; toggle changes won't erase historical data.
-                    </p>
-                  )}
 
                   {showField("net_received") && (
                     <div>
