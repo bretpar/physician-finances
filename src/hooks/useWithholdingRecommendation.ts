@@ -89,6 +89,9 @@ export interface WithholdingRecommendation {
   /** Label describing which method is used */
   methodLabel: string;
   rateBreakdown?: SavingsRateResult;
+  /** Canonical per-component event tax target (dollars). */
+  target?: import("@/lib/taxAllocation").EventTaxTarget;
+  basis?: "flat_rate" | "canonical_allocation";
   // ── Transparency fields (see spec §6) ──
   annualTaxLiability: number;
   countedCreditsTotal: number;
@@ -295,6 +298,8 @@ export function useWithholdingRecommendation(options: WithholdingRecommendationO
         isOverWithheld: canonical.signedRecommendation <= 0,
         methodLabel: canonical.methodLabel,
         rateBreakdown: canonical.rateBreakdown,
+        target: canonical.target,
+        basis: canonical.basis,
         annualTaxLiability,
         countedCreditsTotal,
         annualRemainingTax,
