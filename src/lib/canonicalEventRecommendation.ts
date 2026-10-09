@@ -32,7 +32,7 @@ import type { FilingStatus } from "@/lib/taxBrackets";
  *   - Historical events never receive catch-up (`isFutureOpportunity: false`).
  */
 
-import type { TaxEstimate } from "@/lib/taxEngine";
+import { SE_INCOME_FACTOR, type TaxEstimate } from "@/lib/taxEngine";
 import { isSETaxableEntity, type K1TaxTreatment } from "@/lib/k1TaxTreatment";
 import { isW2FilingType, normalizeFilingType } from "@/lib/filingTypes";
 import {
@@ -129,6 +129,11 @@ export type EventFundingMethod = "annual_w4" | "paycheck_target";
 export interface CanonicalEventRecommendationInput {
   /** The annual estimate selected by the user's withholding method. */
   estimate: TaxEstimate | null | undefined;
+  /**
+   * Actual-only (YTD received) estimate. Used ONLY to label the Social
+   * Security wage-limit badge as actual vs projected — never for tax dollars.
+   */
+  actualEstimate?: TaxEstimate | null;
   /** Pre-built allocation (optional — derived from `estimate` when omitted). */
   allocation?: AnnualTaxAllocation | null;
   taxSettings: SavingsRateSettingsLike | null | undefined;
@@ -369,12 +374,22 @@ export function computeCanonicalEventRecommendation(
         })
       : null;
     if (seDollars) {
-      const planned = pos(input.estimate?.seTax?.plannedW2SsWagesUsed);
       const d = seDollars.wageBaseDetail;
       const limitReached = seDollars.socialSecurity <= 0 && d.entrySeBase > 0;
-      // Projected only when the limit would NOT be reached without planned wages.
-      const actualOnlyRemaining = d.ssWageBase - Math.max(0, d.w2WagesCounted - planned) - d.priorSeBaseCounted;
-      seWageBase = { limitReached, projected: limitReached && planned > 0 && actualOnlyRemaining > 0 };
+      // Badge status only (never the tax): actual earnings = actual SS-taxable
+      // W-2 wages + actual net SE × 92.35%. Planned W-2 and projected SE only
+      // decide whether the limit is "projected".
+      let actualW2: number;
+      let actualSeBase: number;
+      if (input.actualEstimate) {
+        actualW2 = pos(input.actualEstimate.seTax?.w2SsWagesUsed ?? input.actualEstimate.w2Income);
+        actualSeBase = pos(input.actualEstimate.seTax?.netSEIncome ?? input.actualEstimate.seIncome) * SE_INCOME_FACTOR;
+      } else {
+        actualW2 = Math.max(0, d.w2WagesCounted - pos(input.estimate?.seTax?.plannedW2SsWagesUsed));
+        actualSeBase = d.priorSeBaseCounted;
+      }
+      const actualRemaining = d.ssWageBase - actualW2 - actualSeBase;
+      seWageBase = { limitReached, projected: limitReached && actualRemaining > 0 };
     }
     const businessStateRate =
       isW2 || sourceType === "investment"
