@@ -255,6 +255,7 @@ export function useWithholdingRecommendation(options: WithholdingRecommendationO
 
       const canonical = computeCanonicalEventRecommendation({
         estimate,
+        actualEstimate,
         taxSettings: settings,
         incomeType,
         incomeBucket: resolvedBucket,

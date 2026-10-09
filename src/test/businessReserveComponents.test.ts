@@ -115,3 +115,25 @@ describe("business reserve — state withholding credit", () => {
     expect(r.creditedWithholding).toBe(350);
   });
 });
+
+describe("business reserve — actual vs projected wage-limit badge", () => {
+  it("actual earnings already reach the limit → not projected", () => {
+    const e = estimate({ w2Gross: 190_000, w2Fica: 190_000 });
+    expect(rec(e, { actualEstimate: e }).seWageBase).toEqual({ limitReached: true, projected: false });
+  });
+  it("only projected W-2 reaches the limit → projected", () => {
+    const r = rec(estimate({ w2Gross: 190_000, w2Fica: 190_000 }), { actualEstimate: estimate({ w2Gross: 50_000, w2Fica: 50_000 }) });
+    expect(r.seWageBase).toEqual({ limitReached: true, projected: true });
+  });
+  it("only projected SE ($220k net, $0 actual) reaches the limit → projected, same dollars", () => {
+    const fc = estimate({ seGross: 220_000, seNet: 220_000 });
+    const withActual = rec(fc, { actualEstimate: estimate() });
+    expect(withActual.seWageBase).toEqual({ limitReached: true, projected: true });
+    expect(withActual.recommendedWithholding).toBe(rec(fc).recommendedWithholding);
+    expect(withActual.target).toEqual(rec(fc).target);
+  });
+  it("neither reaches the limit → no badge", () => {
+    const e = estimate({ w2Gross: 50_000, w2Fica: 50_000 });
+    expect(rec(e, { actualEstimate: e }).seWageBase?.limitReached).toBe(false);
+  });
+});
