@@ -371,7 +371,7 @@ export default function Transactions() {
     const filingType = normalizeFilingType(
       incomeForm.income_type || company?.companyType || "1099_schedule_c"
     );
-    return withHsaTrackingVisibility(filingType, resolveAdvancedVisibility(filingType, company?.advancedFieldVisibility), !!taxSettings?.hsaEnabled);
+    return resolveAdvancedVisibility(filingType, company?.advancedFieldVisibility);
   }, [companies, incomeForm.company, incomeForm.income_type, taxSettings?.hsaEnabled]);
 
   /** True when at least one advanced toggle is enabled for this company. */
@@ -414,7 +414,8 @@ export default function Transactions() {
   }, [isEditingIncome, editingIncomeTxId, transactions, linkedEntry, visibleFields]);
 
   /** Should a given field render in the form? Toggle on OR has a legacy saved value. */
-  const showField = (key: ToggleKey) => visibleFields[key] || !!legacyFields[key];
+  // Saved employer visibility is authoritative; hidden saved values are preserved on save.
+  const showField = (key: ToggleKey) => !!visibleFields[key];
 
   /** Subtle inline note rendered next to a field that's only shown due to legacy saved data. */
   const LegacyNote = ({ field }: { field: ToggleKey }) =>

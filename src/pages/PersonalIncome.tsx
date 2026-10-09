@@ -362,8 +362,8 @@ export default function PersonalIncome() {
     const filingType = normalizeFilingType(
       isW2Type(form.income_type) ? "w2" : form.income_type,
     );
-    return withHsaTrackingVisibility(filingType, resolveAdvancedVisibility(filingType, company?.advancedFieldVisibility), !!taxSettings?.hsaEnabled);
-  }, [companies, form.source_id, form.income_type, taxSettings?.hsaEnabled]);
+    return resolveAdvancedVisibility(filingType, company?.advancedFieldVisibility);
+  }, [companies, form.source_id, form.income_type]);
 
   const showField = (key: ToggleKey) => !!visibleFields[key];
 
@@ -371,10 +371,9 @@ export default function PersonalIncome() {
   // if an existing entry already carries an employer amount, keep the field
   // visible so historical data is never hidden or orphaned.
   const showEmployerRetirement =
-    showField("employer_retirement_contribution") ||
-    num(form.employer_retirement_contribution) > 0;
+    showField("employer_retirement_contribution");
   const showEmployerHsa =
-    showField("employer_hsa_contribution") || num(form.employer_hsa_contribution) > 0;
+    showField("employer_hsa_contribution");
 
   // Per-company cash-flow treatment of employer contributions (default OFF).
   // Classification stays employer-side; this only affects Estimated Net.
