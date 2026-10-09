@@ -45,7 +45,7 @@ import {
 } from "@/lib/taxAllocation";
 import {
   getBusinessStateRateForEntry,
-  getMarginalSelfEmploymentRateFraction,
+  getSelfEmploymentDollarBreakdown,
   getSavingsRateForIncomeBucket,
   getSelectedWithholdingProfileRate,
   type SavingsRateResult,
@@ -146,6 +146,17 @@ export interface CanonicalEventRecommendationInput {
    */
   employerRetirement401k?: number;
   preTaxDeductions?: number;
+  /**
+   * Deductions that reduce FEDERAL taxable income only (HSA contributions,
+   * self-employed health insurance). Never reduce the SE-tax base.
+   */
+  federalOnlyDeductions?: number;
+  /**
+   * State withholding on this event. Credited only against this event's state
+   * tax (personal state + business state), capped at that amount, so it can
+   * never cancel federal or SE tax.
+   */
+  stateWithholding?: number;
 
   companyId?: string | null;
   applyBusinessStateTax?: boolean | null;
@@ -198,6 +209,17 @@ export interface CanonicalEventRecommendation {
   totalSuggestedReserve: number;
   /** Coverage credited to this event (FICA excluded by the caller). */
   creditedWithholding: number;
+  /** Federal portion of `creditedWithholding`. */
+  creditedFederalWithholding: number;
+  /** State portion of `creditedWithholding` (capped at the event's state tax). */
+  creditedStateWithholding: number;
+  /** SE wage-base context for this event (null when no SE tax applies). */
+  seWageBase: {
+    /** True when no SE Social Security applies to this event. */
+    limitReached: boolean;
+    /** True when the limit depends on planned/projected W-2 wages. */
+    projected: boolean;
+  } | null;
   /** What we still ask the user to set aside for this event. Floored at 0. */
   recommendedWithholding: number;
   /** Signed version (negative = over-covered). */
@@ -261,7 +283,7 @@ export function computeCanonicalEventRecommendation(
 
   const netTaxableForEntry = Math.max(
     0,
-    gross - pos(input.retirement401k) - pos(input.preTaxDeductions),
+    gross - pos(input.retirement401k) - pos(input.preTaxDeductions) - pos(input.federalOnlyDeductions),
   );
   // Self-employment tax base: Solo 401(k) contributions (employee OR employer)
   // never reduce Schedule C profit / the SE base — matches the annual engine.
@@ -298,9 +320,7 @@ export function computeCanonicalEventRecommendation(
     k1TaxTreatment: input.k1TaxTreatment,
     isSelfEmploymentTaxable: input.isSelfEmploymentTaxable,
     filingStatus: input.filingStatus ?? undefined,
-    currentW2Wages: pos(input.estimate?.w2Income),
-    currentNetSEIncome: pos(input.estimate?.seIncome),
-    entryGrossAmount: netTaxableForEntry,
+    entryGrossAmount: seBaseForEntry,
   });
 
   const flatRatePct =
@@ -311,6 +331,7 @@ export function computeCanonicalEventRecommendation(
         : null;
 
   let target: EventTaxTarget;
+  let seWageBase: CanonicalEventRecommendation["seWageBase"] = null;
   let basis: CanonicalEventRecommendation["basis"];
 
   if (flatRatePct != null) {
@@ -330,8 +351,8 @@ export function computeCanonicalEventRecommendation(
     basis = "flat_rate";
   } else {
     const seApplies = !isW2 && sourceType !== "investment" && isSETaxable(input);
-    const seRate = seApplies
-      ? getMarginalSelfEmploymentRateFraction({
+    const seDollars = seApplies
+      ? getSelfEmploymentDollarBreakdown({
           incomeBucket: "business",
           incomeType: input.incomeType,
           taxSettings: settings,
@@ -344,11 +365,17 @@ export function computeCanonicalEventRecommendation(
     k1TaxTreatment: input.k1TaxTreatment,
           isSelfEmploymentTaxable: input.isSelfEmploymentTaxable,
           filingStatus: input.filingStatus ?? undefined,
-          currentW2Wages: pos(input.estimate?.w2Income),
-          currentNetSEIncome: pos(input.estimate?.seIncome),
           entryGrossAmount: seBaseForEntry,
         })
-      : 0;
+      : null;
+    if (seDollars) {
+      const planned = pos(input.estimate?.seTax?.plannedW2SsWagesUsed);
+      const d = seDollars.wageBaseDetail;
+      const limitReached = seDollars.socialSecurity <= 0 && d.entrySeBase > 0;
+      // Projected only when the limit would NOT be reached without planned wages.
+      const actualOnlyRemaining = d.ssRemainingBefore + planned;
+      seWageBase = { limitReached, projected: limitReached && planned > 0 && actualOnlyRemaining > 0 };
+    }
     const businessStateRate =
       isW2 || sourceType === "investment"
         ? 0
@@ -366,7 +393,7 @@ export function computeCanonicalEventRecommendation(
       // engine excludes it from the personal state base.
       personalStateTaxBase: isW2 || sourceType === "investment" ? ordinaryTaxBase : 0,
       selfEmploymentBase: seApplies ? seBaseForEntry : 0,
-      selfEmploymentRate: seRate,
+      selfEmploymentComponents: seDollars,
       businessStateTaxRate: businessStateRate,
       businessStateTaxBase: netTaxableForEntry,
     });
@@ -384,7 +411,11 @@ export function computeCanonicalEventRecommendation(
   }
   catchUpApplied = round2(catchUpApplied);
 
-  const creditedWithholding = round2(pos(input.creditedWithholding));
+  const creditedFederalWithholding = round2(pos(input.creditedWithholding));
+  const eventStateTax = round2(num(target.personalStateTax) + num(target.businessStateTax));
+  const creditedStateWithholding =
+    basis === "flat_rate" ? 0 : round2(Math.min(pos(input.stateWithholding), eventStateTax));
+  const creditedWithholding = round2(creditedFederalWithholding + creditedStateWithholding);
   const totalSuggestedReserve = round2(eventTaxTarget + catchUpApplied);
   // Annual-W-4 method: the W-4 card funds this source's deficit through Step
   // 4(c) withholding, so the paycheck surface must NOT also ask for savings.
@@ -407,6 +438,9 @@ export function computeCanonicalEventRecommendation(
     catchUpApplied,
     totalSuggestedReserve,
     creditedWithholding,
+    creditedFederalWithholding,
+    creditedStateWithholding,
+    seWageBase,
     recommendedWithholding: recommendedFutureFunding,
     signedRecommendation,
     fundedByAnnualW4,
