@@ -63,12 +63,6 @@ export interface AllocationSourceInput {
   /** Base subject to BUSINESS state tax (B&O etc). Ignored when the tax is $0. */
   businessStateTaxBase?: number;
   /**
-   * Pre-computed SE tax DOLLARS for this event. When supplied, these are the
-   * SE tax (sum of components) instead of base × rate, so the displayed split
-   * reconciles to the cent.
-   */
-  selfEmploymentComponents?: { socialSecurity: number; medicare: number; additionalMedicare: number } | null;
-  /**
    * Taxes ACTUALLY paid/withheld YTD that count against the income-tax target
    * for this source (federal income tax withheld, state withholding when state
    * tax is in the target, estimated payments attributed to this source).
@@ -336,6 +330,12 @@ export interface EventTaxTargetInput {
   /** Business state tax rate as a FRACTION, applied to `businessStateTaxBase`. */
   businessStateTaxRate?: number;
   businessStateTaxBase?: number;
+  /**
+   * Pre-computed SE tax DOLLARS for this event. When supplied, these are the
+   * SE tax (sum of components) instead of base × rate, so the displayed split
+   * reconciles to the cent.
+   */
+  selfEmploymentComponents?: { socialSecurity: number; medicare: number; additionalMedicare: number } | null;
 }
 
 export interface EventTaxTarget {
