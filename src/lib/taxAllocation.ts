@@ -63,6 +63,12 @@ export interface AllocationSourceInput {
   /** Base subject to BUSINESS state tax (B&O etc). Ignored when the tax is $0. */
   businessStateTaxBase?: number;
   /**
+   * Pre-computed SE tax DOLLARS for this event. When supplied, these are the
+   * SE tax (sum of components) instead of base × rate, so the displayed split
+   * reconciles to the cent.
+   */
+  selfEmploymentComponents?: { socialSecurity: number; medicare: number; additionalMedicare: number } | null;
+  /**
    * Taxes ACTUALLY paid/withheld YTD that count against the income-tax target
    * for this source (federal income tax withheld, state withholding when state
    * tax is in the target, estimated payments attributed to this source).
@@ -338,6 +344,10 @@ export interface EventTaxTarget {
   selfEmploymentTax: number;
   businessStateTax: number;
   investmentTax: number;
+  /** SE tax split in dollars (present only when computed from components). */
+  seSocialSecurityTax?: number;
+  seMedicareTax?: number;
+  seAdditionalMedicareTax?: number;
   /** Total tax this event is responsible for funding. */
   total: number;
   /** Blended rate as a PERCENT of the event's ordinary base (display only). */
@@ -367,10 +377,16 @@ export function computeEventTaxTarget(input: EventTaxTargetInput): EventTaxTarge
   const personalStateTax = round2(personalStateBase * allocation.personalStateAllocationRate);
   const investmentTax = round2(preferentialBase * allocation.preferentialAllocationRate);
 
+  const seParts = !isW2 && !isInvestment ? input.selfEmploymentComponents ?? null : null;
+  const seSS = seParts ? round2(pos(seParts.socialSecurity)) : 0;
+  const seMed = seParts ? round2(pos(seParts.medicare)) : 0;
+  const seAddl = seParts ? round2(pos(seParts.additionalMedicare)) : 0;
   const selfEmploymentTax =
     isW2 || isInvestment
       ? 0
-      : round2(pos(input.selfEmploymentBase) * Math.max(0, num(input.selfEmploymentRate)));
+      : seParts
+        ? round2(seSS + seMed + seAddl)
+        : round2(pos(input.selfEmploymentBase) * Math.max(0, num(input.selfEmploymentRate)));
   const businessStateTax =
     isW2 || isInvestment
       ? 0
@@ -390,6 +406,7 @@ export function computeEventTaxTarget(input: EventTaxTargetInput): EventTaxTarge
     selfEmploymentTax,
     businessStateTax,
     investmentTax,
+    ...(seParts ? { seSocialSecurityTax: seSS, seMedicareTax: seMed, seAdditionalMedicareTax: seAddl } : {}),
     total,
     effectiveRatePct: rateBase > 0 ? round2((total / rateBase) * 100) : 0,
   };

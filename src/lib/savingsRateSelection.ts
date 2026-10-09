@@ -319,6 +319,35 @@ export function getMarginalSelfEmploymentRateFraction(input: SavingsRateInput): 
   return Math.max(0, (b.socialSecurity + b.medicare + b.additionalMedicare) / 100);
 }
 
+export interface SelfEmploymentDollarBreakdown {
+  socialSecurity: number;
+  medicare: number;
+  additionalMedicare: number;
+  total: number;
+  wageBaseDetail: SeWageBaseDetail;
+}
+
+/**
+ * Entry-level SE tax in DOLLARS (cent-rounded per component, total = sum).
+ * Same wage-base / threshold logic as the rate helpers — no second formula.
+ * Returns null when the entry is not SE-taxable.
+ */
+export function getSelfEmploymentDollarBreakdown(input: SavingsRateInput): SelfEmploymentDollarBreakdown | null {
+  if (!isSETaxableIncome(input)) return null;
+  const b = computeMarginalSelfEmploymentBreakdown(input);
+  const r = (n: number) => Math.round(Math.max(0, n) * 100) / 100;
+  const socialSecurity = r(b.socialSecurityDollars);
+  const medicare = r(b.medicareDollars);
+  const additionalMedicare = r(b.additionalMedicareDollars);
+  return {
+    socialSecurity,
+    medicare,
+    additionalMedicare,
+    total: r(socialSecurity + medicare + additionalMedicare),
+    wageBaseDetail: b.wageBaseDetail,
+  };
+}
+
 /** Legacy "flat" SE effective rate (≈14.13%). Kept for back-compat; the
  *  recommendation layer now uses computeMarginalSelfEmploymentRate so that
  *  Social Security drops off after the annual wage base is reached. */
@@ -351,6 +380,10 @@ interface SelfEmploymentBreakdown {
   additionalMedicare: number;
   socialSecurityCapped: boolean;
   wageBaseDetail: SeWageBaseDetail;
+  /** Entry-level SE tax DOLLARS (0 on the marginal per-dollar path). */
+  socialSecurityDollars: number;
+  medicareDollars: number;
+  additionalMedicareDollars: number;
 }
 
 function computeMarginalSelfEmploymentBreakdown(input: SavingsRateInput): SelfEmploymentBreakdown {
@@ -360,8 +393,11 @@ function computeMarginalSelfEmploymentBreakdown(input: SavingsRateInput): SelfEm
   const ssWageBase = yearConfig.ssWageBase;
   const addlThreshold = yearConfig.additionalMedicareThreshold[filing];
 
-  const w2Wages = Math.max(0, Number(input.currentW2Wages ?? estimate?.w2Income ?? 0));
-  const currentNetSE = Math.max(0, Number(input.currentNetSEIncome ?? estimate?.seIncome ?? 0));
+  // Social Security / Additional Medicare are measured against FICA wages
+  // (gross W-2 minus Section 125) and NET SE earnings — the same inputs the
+  // annual engine's calculateSETax() consumed.
+  const w2Wages = Math.max(0, Number(input.currentW2Wages ?? estimate?.seTax?.w2SsWagesUsed ?? estimate?.w2Income ?? 0));
+  const currentNetSE = Math.max(0, Number(input.currentNetSEIncome ?? estimate?.seTax?.netSEIncome ?? estimate?.seIncome ?? 0));
   const currentSEBase = currentNetSE * SE_INCOME_FACTOR;
 
   const entryGross = Math.max(0, Number(input.entryGrossAmount ?? 0));
@@ -380,6 +416,9 @@ function computeMarginalSelfEmploymentBreakdown(input: SavingsRateInput): SelfEm
         medicare: 0,
         additionalMedicare: 0,
         socialSecurityCapped,
+        socialSecurityDollars: 0,
+        medicareDollars: 0,
+        additionalMedicareDollars: 0,
         wageBaseDetail: {
           taxYear: ACTIVE_TAX_YEAR,
           ssWageBase,
@@ -409,6 +448,9 @@ function computeMarginalSelfEmploymentBreakdown(input: SavingsRateInput): SelfEm
       medicare: (medicareTax / baseForRate) * 100,
       additionalMedicare: (addlMedicareTax / baseForRate) * 100,
       socialSecurityCapped,
+      socialSecurityDollars: ssTax,
+      medicareDollars: medicareTax,
+      additionalMedicareDollars: addlMedicareTax,
       wageBaseDetail: {
         taxYear: ACTIVE_TAX_YEAR,
         ssWageBase,
@@ -434,6 +476,9 @@ function computeMarginalSelfEmploymentBreakdown(input: SavingsRateInput): SelfEm
     medicare: medicareMarginal * 100,
     additionalMedicare: addlMarginal * 100,
     socialSecurityCapped,
+    socialSecurityDollars: 0,
+    medicareDollars: 0,
+    additionalMedicareDollars: 0,
     wageBaseDetail: {
       taxYear: ACTIVE_TAX_YEAR,
       ssWageBase,
