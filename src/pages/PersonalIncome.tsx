@@ -49,7 +49,7 @@ import { SourceEmployerCombobox, persistNewSourceIfRequested } from "@/component
 import { useCreateIncomeSource, type SourceKind } from "@/hooks/useIncomeSources";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { normalizeFilingType, resolveAdvancedVisibility,
-  withHsaTrackingVisibility, resolveEmployerPaycheckReduction, type ToggleKey } from "@/lib/filingTypes";
+  resolveEmployerPaycheckReduction, type ToggleKey } from "@/lib/filingTypes";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { filterIncomeTypeOptions, isIncomeEntryTypeDisabled } from "@/lib/householdIncomeProfile";
 

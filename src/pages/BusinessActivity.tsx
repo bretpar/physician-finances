@@ -62,7 +62,6 @@ import {
   toCanonicalIncomeType,
   ADVANCED_FIELDS_BY_TYPE,
   resolveAdvancedVisibility,
-  withHsaTrackingVisibility,
   resolveEmployerPaycheckReduction,
   type FilingType,
   type IncomeFieldKey,
@@ -372,7 +371,7 @@ export default function Transactions() {
       incomeForm.income_type || company?.companyType || "1099_schedule_c"
     );
     return resolveAdvancedVisibility(filingType, company?.advancedFieldVisibility);
-  }, [companies, incomeForm.company, incomeForm.income_type, taxSettings?.hsaEnabled]);
+  }, [companies, incomeForm.company, incomeForm.income_type]);
 
   /** True when at least one advanced toggle is enabled for this company. */
   const hasAnyAdvancedField = useMemo(
@@ -419,9 +418,7 @@ export default function Transactions() {
 
   /** Subtle inline note rendered next to a field that's only shown due to legacy saved data. */
   const LegacyNote = ({ field }: { field: ToggleKey }) =>
-    legacyFields[field] ? (
-      <span className="ml-1 text-[10px] font-normal italic text-muted-foreground">(Previously saved value)</span>
-    ) : null;
+    null;
 
   const incomeByLinkedTx = useMemo(() => {
     const map = new Map<string, IncomeEntry>();
@@ -2310,11 +2307,6 @@ export default function Transactions() {
                     </p>
                   )}
 
-                  {Object.keys(legacyFields).length > 0 && (
-                    <p className="text-[10px] text-muted-foreground italic border-l-2 border-muted-foreground/40 pl-2">
-                      Some fields below are <strong>hidden in new entries</strong>, but shown here because this transaction has a saved value. Clear a value to remove it; toggle changes won't erase historical data.
-                    </p>
-                  )}
 
                   {showField("net_received") && (
                     <div>
