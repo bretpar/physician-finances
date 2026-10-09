@@ -2235,42 +2235,48 @@ export default function Transactions() {
                     </TooltipTrigger>
                     <TooltipContent side="top" className="max-w-xs max-h-[70vh] overflow-y-auto space-y-2">
                       {(() => {
-                        const t = recommendation.target ?? { federalIncomeTax: 0, personalStateTax: 0, selfEmploymentTax: 0, businessStateTax: 0, investmentTax: 0, total: recommendation.eventTaxTarget, effectiveRatePct: 0 };
-                        const c = recommendation.rateBreakdown?.components ?? ({} as Partial<NonNullable<typeof recommendation.rateBreakdown>["components"]>);
+                        const t = recommendation.target;
                         const cents = (n: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
-                        const isFlat = recommendation.basis === "flat_rate" || !recommendation.target;
-                        const state = (t.personalStateTax ?? 0) + (t.businessStateTax ?? 0);
+                        const isFlat = recommendation.basis === "flat_rate" || !t;
+                        const state = t ? (t.personalStateTax ?? 0) + (t.businessStateTax ?? 0) : 0;
                         const credit = recommendation.creditedWithholding;
                         const catchUp = recommendation.catchUpApplied;
-                        const ssCapped = !!c.seSocialSecurityCapped || !!c.seWageBaseDetail?.fullyCapped;
-                        const Row = ({ label, value, muted }: { label: string; value: string; muted?: boolean }) => (
-                          <div className={`flex justify-between gap-3 text-xs tabular-nums ${muted ? "text-muted-foreground" : ""}`}>
-                            <span>{label}</span><span>{value}</span>
+                        const hasSE = !!t && t.seSocialSecurityTax != null;
+                        const wb = recommendation.seWageBase;
+                        const Row = ({ label, value, extra }: { label: string; value: string; extra?: React.ReactNode }) => (
+                          <div className="flex justify-between gap-3 text-xs tabular-nums">
+                            <span>{label}{extra}</span><span>{value}</span>
                           </div>
                         );
                         return (
                           <>
-                            <p className="text-xs font-medium">{recommendation.methodLabel}</p>
+                            <p className="text-xs font-medium">Your tax reserve breakdown</p>
                             <div className="space-y-0.5">
-                              {isFlat ? (
-                                <Row label="Flat-rate estimate" value={cents(t.total)} />
+                              {isFlat || !t ? (
+                                <Row label="Flat-rate estimate" value={cents(recommendation.eventTaxTarget)} />
                               ) : (
                                 <>
                                   <Row label="Federal income tax" value={cents((t.federalIncomeTax ?? 0) + (t.investmentTax ?? 0))} />
-                                  {t.selfEmploymentTax > 0 || ssCapped ? (
-                                    <Row label="Self-employment tax (Social Security + Medicare)" value={cents(t.selfEmploymentTax)} />
-                                  ) : null}
-                                  {ssCapped && <Row label="Social Security (SE)" value={cents(0)} muted />}
-                                  {state > 0 && <Row label="State tax" value={cents(state)} />}
+                                  {hasSE && (
+                                    <>
+                                      <Row
+                                        label="Social Security"
+                                        value={cents(t.seSocialSecurityTax ?? 0)}
+                                        extra={wb?.limitReached ? (
+                                          <span className="ml-1.5 inline-block rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">{wb.projected ? "Projected wage limit reached" : "Wage limit reached"}</span>
+                                        ) : null}
+                                      />
+                                      <Row label="Medicare" value={cents(t.seMedicareTax ?? 0)} />
+                                      {(t.seAdditionalMedicareTax ?? 0) > 0 && <Row label="Additional Medicare" value={cents(t.seAdditionalMedicareTax ?? 0)} />}
+                                    </>
+                                  )}
+                                  {state > 0 && <Row label="State income tax" value={cents(state)} />}
                                 </>
                               )}
-                              {ssCapped && (
-                                <span className="inline-block rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">Social Security wage limit reached</span>
-                              )}
                               <div className="border-t border-border pt-0.5"><Row label="Tax for this income" value={cents(recommendation.eventTaxTarget)} /></div>
-                              {credit > 0 && <Row label="Less withholding credited" value={`−${cents(credit)}`} />}
-                              {catchUp > 0 && <Row label="Plus quarterly catch-up" value={`+${cents(catchUp)}`} />}
-                              <div className="border-t border-border pt-0.5 font-semibold"><Row label="Recommended reserve" value={cents(displayRecommendedSavings)} /></div>
+                              {credit > 0 && <Row label="Credited withholding" value={`−${cents(credit)}`} />}
+                              {catchUp > 0 && <Row label="Quarterly catch-up" value={`+${cents(catchUp)}`} />}
+                              <div className="border-t border-border pt-0.5 font-semibold"><Row label="Recommended tax reserve" value={cents(displayRecommendedSavings)} /></div>
                             </div>
                             <p className="text-[11px] text-muted-foreground">The percentage is this reserve ÷ gross income, not your overall effective tax rate.</p>
                           </>
