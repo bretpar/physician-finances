@@ -65,6 +65,7 @@ import { getTotalFederalPaid, getCanonicalTotalFederalPayrollTaxes, getFederalIn
 import { computeEstimatedNet } from "@/lib/estimatedNet";
 import { calculatePaycheckProfileSavings } from "@/lib/paycheckProfileSavings";
 import { buildReminderComparison } from "@/lib/incomeRecommendationSurface";
+import { buildPersonalPreviewInput, buildPersonalSaveInput } from "@/lib/personalIncomeRecommendationAdapters";
 import { getSelectedWithholdingProfileRate, type SavingsRateResult } from "@/lib/savingsRateSelection";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useCanonicalWithholding } from "@/hooks/useCanonicalWithholding";
@@ -263,8 +264,6 @@ export default function PersonalIncome() {
   const updateMutation = useUpdatePersonalIncome();
   const deleteMutation = useDeletePersonalIncome();
   const createSource = useCreateIncomeSource();
-  const { getRecommendation: getWithholdingRec } = useWithholdingRecommendation();
-  const { getRecommendation: getIncomeRec } = useIncomeRecommendation();
   const { data: attachmentCounts } = useAttachmentCounts();
   const { data: taxSettings } = useTaxSettings();
   // Advanced dynamic reserve/withholding recommendations are Premium; basic
@@ -281,6 +280,9 @@ export default function PersonalIncome() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
+  // Reopened edit prices the paycheck WITHOUT its saved copy (same context as save).
+  const { getRecommendation: getWithholdingRec } = useWithholdingRecommendation({ excludeTransactionId: editingId });
+  const { getRecommendation: getIncomeRec } = useIncomeRecommendation({ excludeTransactionId: editingId });
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [showSourceError, setShowSourceError] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -465,28 +467,18 @@ export default function PersonalIncome() {
   const baseRecommendation = useMemo(() => {
     if (grossAmount <= 0) return null;
     return getWithholdingRec({
-      grossIncome: grossAmount,
-      incomeType: isW2Type(form.income_type) ? "w2" : form.income_type,
-      incomeBucket: "personal",
-      taxesAlreadyWithheld:
-        getCanonicalTotalFederalPayrollTaxes({
+      ...buildPersonalPreviewInput(form, {
+        totalFederalPayrollTaxes: getCanonicalTotalFederalPayrollTaxes({
           total_federal_payroll_taxes: form.total_federal_payroll_taxes,
           federal_withholding: num(form.federal_withholding),
           ss_withholding: num(form.ss_withholding),
           medicare_withholding: num(form.medicare_withholding),
         }),
-      // State withholding is credited only against this entry's state tax
-      // (capped), never against federal tax.
-      stateWithholding: stateIncomeTaxEnabled ? num(form.state_withholding) : 0,
-      // Employee SS + Medicare are payroll taxes, NOT income-tax credits. They
-      // are passed separately so the engine removes them from the credit while
-      // the canonical total above stays intact for display.
-      ficaWithheldNotCredited: num(form.ss_withholding) + num(form.medicare_withholding),
-      retirement401k: num(form.retirement_pretax),
-      preTaxDeductions: num(form.deductions_pre_tax) + num(form.healthcare_deduction) + num(form.hsa_contribution),
-      alreadyIncludedInEstimate: isEditing,
-      // Historical paychecks never receive future catch-up dollars.
-      isFutureOpportunity: entryIsFutureOpportunity,
+        stateIncomeTaxEnabled,
+        isFutureOpportunity: entryIsFutureOpportunity,
+      }),
+      // The edited row is excluded from the estimate, so it is not "already included".
+      alreadyIncludedInEstimate: false,
     });
   }, [grossAmount, form.income_type, form.total_federal_payroll_taxes, form.federal_withholding, form.ss_withholding, form.medicare_withholding, form.state_withholding, form.retirement_pretax, form.deductions_pre_tax, form.healthcare_deduction, form.hsa_contribution, stateIncomeTaxEnabled, getWithholdingRec, isEditing, entryIsFutureOpportunity]);
 
@@ -568,6 +560,9 @@ export default function PersonalIncome() {
       catchUpAmount: entryIsFutureOpportunity
         ? (baseRecommendation?.catchUpApplied ?? 0)
         : 0,
+      // Dynamic mode: use the canonical event target (cent-exact, no rounded-rate re-derivation).
+      canonicalPaycheckTaxTarget:
+        method === "flat_estimate" ? undefined : baseRecommendation?.eventTaxTarget,
       isW2PaycheckTarget: isW2Type(form.income_type),
       // Live form value — the paycheck guide updates immediately when the
       // user types in the Additional Tax Reserve field for this entry.
@@ -714,19 +709,13 @@ export default function PersonalIncome() {
     const netReceived = num(form.net_received) > 0 ? num(form.net_received) : Math.max(0, computedNet);
 
     // Compute the base tax estimate for the record using the canonical total.
-    const rec = getIncomeRec({
-      grossIncome: grossAmt,
-      incomeType: form.income_type,
-      incomeBucket: "personal",
-      federalWithheld: totalFederal,
-      ficaWithheldNotCredited: ssOnly + medicareOnly,
-      stateWithheld: stateW,
-      stateTaxIncludedInTarget: stateIncomeTaxEnabled,
-      retirement401k: num(form.retirement_pretax),
-      preTaxDeductions: num(form.deductions_pre_tax) + num(form.healthcare_deduction) + num(form.hsa_contribution),
-      // Same historical/future eligibility as the preview.
-      isFutureOpportunity: entryIsFutureOpportunity,
-    });
+    const rec = getIncomeRec(
+      buildPersonalSaveInput(form, {
+        totalFederalPayrollTaxes: totalFederal,
+        stateIncomeTaxEnabled,
+        isFutureOpportunity: entryIsFutureOpportunity,
+      }),
+    );
 
     return {
       payload: {
