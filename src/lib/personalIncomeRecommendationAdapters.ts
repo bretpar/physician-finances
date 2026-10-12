@@ -9,6 +9,8 @@
  */
 import { isW2FilingType } from "@/lib/filingTypes";
 
+const isW2 = (t: string) => t === "w2_user" || t === "w2_partner" || isW2FilingType(t);
+
 const num = (v: unknown) => {
   const n = typeof v === "number" ? v : parseFloat(String(v ?? ""));
   return Number.isFinite(n) ? n : 0;
@@ -44,7 +46,7 @@ export function resolvePersonalPaycheckCatchUp(
   isFutureOpportunity: boolean,
 ): number | undefined {
   if (!isFutureOpportunity) return 0;
-  if (isW2FilingType(incomeType) || incomeType?.toLowerCase?.() === "w2") return 0;
+  if (isW2(incomeType)) return 0;
   return undefined;
 }
 
@@ -67,7 +69,7 @@ function shared(form: PersonalPaycheckForm, ctx: PersonalPaycheckContext) {
 export function buildPersonalPreviewInput(form: PersonalPaycheckForm, ctx: PersonalPaycheckContext) {
   return {
     ...shared(form, ctx),
-    incomeType: isW2FilingType(form.income_type) ? "w2" : form.income_type,
+    incomeType: isW2(form.income_type) ? "w2" : form.income_type,
     taxesAlreadyWithheld: ctx.totalFederalPayrollTaxes,
     stateWithholding: ctx.stateIncomeTaxEnabled ? num(form.state_withholding) : 0,
   };
