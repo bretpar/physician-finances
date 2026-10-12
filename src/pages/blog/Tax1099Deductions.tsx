@@ -209,6 +209,14 @@ export default function Tax1099Deductions() {
             <li>Skipping retirement contributions — they're often the largest legal deduction available.</li>
           </ul>
 
+          <h2 className="mt-10 text-2xl font-semibold">Frequently asked questions</h2>
+          {FAQS.map((f) => (
+            <div key={f.q}>
+              <h3 className="mt-6 text-xl font-semibold">{f.q}</h3>
+              <p>{f.a}</p>
+            </div>
+          ))}
+
           <h2 className="mt-10 text-2xl font-semibold">Estimate your 1099 tax bill</h2>
           <p>
             Paycheck MD's free estimator shows what you'll owe based on your 1099 income, expenses,

@@ -221,6 +221,14 @@ export default function PhysicianScorpVsSoleProprietorship() {
             a physician.
           </p>
 
+          <h2 className="mt-10 text-2xl font-semibold">Frequently asked questions</h2>
+          {FAQS.map((f) => (
+            <div key={f.q}>
+              <h3 className="mt-6 text-xl font-semibold">{f.q}</h3>
+              <p>{f.a}</p>
+            </div>
+          ))}
+
           <h2 className="mt-10 text-2xl font-semibold">Track your income and estimate your tax bill</h2>
           <p>
             Whether you are a sole proprietor or an S-Corp, Paycheck MD helps physicians track
