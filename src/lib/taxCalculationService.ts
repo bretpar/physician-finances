@@ -371,7 +371,10 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     personalStateTaxRate,
     personalStateTaxAnnualEstimate,
     personalStateTaxableIncome,
-    personalStateWithheld: actualStateWithheld + projStateWH,
+    // Personal state income tax is offset only by personal state withholding
+    // (actual + projected). Business state withholding offsets ONLY the
+    // business state tax below — never both.
+    personalStateWithheld: personalStateWithheld + projStateWH,
     businessStateTaxEnabled,
     businessStateTaxRate,
     businessStateTaxBase,

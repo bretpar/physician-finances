@@ -460,8 +460,10 @@ export function calculateBusinessStateTax(args: {
         0,
         gross
           - (inputs.eligibleBusinessExpenses || 0)
-          - (inputs.eligibleBusinessMileage || 0)
-          - (inputs.eligibleBusinessOwnerAdjustments || 0),
+          - (inputs.eligibleBusinessMileage || 0),
+        // Generic net_profit base = gross receipts − operating expenses −
+        // mileage, BEFORE owner-level HSA / health / retirement deductions.
+        // `eligibleBusinessOwnerAdjustments` is intentionally not subtracted.
       );
   const due = Math.max(0, base * rate - withheld);
   return { tax: due, withheld };
