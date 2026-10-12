@@ -65,7 +65,7 @@ import { getTotalFederalPaid, getCanonicalTotalFederalPayrollTaxes, getFederalIn
 import { computeEstimatedNet } from "@/lib/estimatedNet";
 import { calculatePaycheckProfileSavings } from "@/lib/paycheckProfileSavings";
 import { buildReminderComparison } from "@/lib/incomeRecommendationSurface";
-import { buildPersonalPreviewInput, buildPersonalSaveInput } from "@/lib/personalIncomeRecommendationAdapters";
+import { buildPersonalPreviewInput, buildPersonalSaveInput, recommendationDisplayCents } from "@/lib/personalIncomeRecommendationAdapters";
 import { getSelectedWithholdingProfileRate, type SavingsRateResult } from "@/lib/savingsRateSelection";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useCanonicalWithholding } from "@/hooks/useCanonicalWithholding";
@@ -1684,7 +1684,7 @@ export default function PersonalIncome() {
                       {w2RecDisplay.amount != null && (
                         <div className="flex flex-col items-baseline sm:items-end gap-0.5 shrink-0">
                           <p className="text-2xl sm:text-3xl font-bold tabular-nums whitespace-nowrap text-orange-600 dark:text-orange-400">
-                            {fmt(Math.round(w2RecDisplay.amount * 100) / 100)}
+                            {fmt(recommendationDisplayCents(w2RecDisplay.amount))}
                           </p>
                           <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide">
                             {w2RecDisplay.rightLabel}
@@ -1721,7 +1721,7 @@ export default function PersonalIncome() {
                     </div>
                   );
                 }
-                const additional = Math.max(0, Math.round(paycheckSavings.remainingSavingsNeeded * 100) / 100);
+                const additional = recommendationDisplayCents(paycheckSavings.remainingSavingsNeeded);
                 const hasAdditional = additional > 0;
                 return (
                   <div
