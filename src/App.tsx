@@ -27,6 +27,9 @@ import Estimate from "@/pages/Estimate";
 import Tax1099Deductions from "@/pages/blog/Tax1099Deductions";
 import PhysicianScorpVsSoleProprietorship from "@/pages/blog/PhysicianScorpVsSoleProprietorship";
 import LocumTenensTaxGuide from "@/pages/blog/LocumTenensTaxGuide";
+import LocumTenensSetAside from "@/pages/blog/LocumTenensSetAside";
+import LlcForLocumTenens from "@/pages/blog/LlcForLocumTenens";
+import TaxPlanningForDoctors from "@/pages/blog/TaxPlanningForDoctors";
 import ProjectedIncome from "@/pages/ProjectedIncome";
 import StudentLoans from "@/pages/StudentLoans";
 import DebugTransactions from "@/pages/DebugTransactions";
@@ -174,6 +177,9 @@ function AppRoutes() {
       <Route path="/blog/1099-tax-deductions" element={<Tax1099Deductions />} />
       <Route path="/blog/physician-scorp-vs-sole-proprietorship" element={<PhysicianScorpVsSoleProprietorship />} />
       <Route path="/blog/locum-tenens-tax-guide" element={<LocumTenensTaxGuide />} />
+      <Route path="/blog/how-much-to-set-aside-for-taxes-locum-tenens" element={<LocumTenensSetAside />} />
+      <Route path="/blog/llc-for-locum-tenens" element={<LlcForLocumTenens />} />
+      <Route path="/blog/tax-planning-for-doctors" element={<TaxPlanningForDoctors />} />
       <Route path="/diagnostics/build" element={<DiagnosticsBuild />} />
       <Route path="/trust" element={<Trust />} />
       <Route path="/" element={user ? <ProtectedRoutes /> : <Landing />} />

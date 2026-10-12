@@ -171,6 +171,15 @@ export default function Landing() {
               </p>
             </div>
             <div className="mt-8 flex flex-wrap gap-4 text-sm">
+              <Link to="/blog/tax-planning-for-doctors" className="text-primary underline underline-offset-4">
+                Tax planning for doctors
+              </Link>
+              <Link to="/blog/how-much-to-set-aside-for-taxes-locum-tenens" className="text-primary underline underline-offset-4">
+                How much to set aside for locums taxes
+              </Link>
+              <Link to="/blog/llc-for-locum-tenens" className="text-primary underline underline-offset-4">
+                LLC for locum tenens
+              </Link>
               <Link to="/blog/locum-tenens-tax-guide" className="text-primary underline underline-offset-4">
                 Locum tenens tax guide
               </Link>
