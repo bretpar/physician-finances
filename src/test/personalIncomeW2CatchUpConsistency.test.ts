@@ -72,6 +72,7 @@ describe("Personal Income W-2 catch-up consistency", () => {
 
     expect(card.remainingSavingsNeeded).toBe(reminder.additionalNeeded);
     expect(card.remainingSavingsNeeded).toBe(pc.recommendedWithholding);
+    console.log("FIX", pc.eventTaxTarget, card.remainingSavingsNeeded, reminder.additionalNeeded, canonicalFor(undefined, 500, 5000).totalSuggestedReserve);
     expect(reminder.additionalNeeded).toBeGreaterThan(0);
   });
 });
