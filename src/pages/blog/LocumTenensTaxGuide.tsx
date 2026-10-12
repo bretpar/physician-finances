@@ -299,6 +299,9 @@ export default function LocumTenensTaxGuide() {
               physician S-Corp vs. sole proprietorship guide
             </Link>
             , and our{" "}
+            <Link to="/blog/how-much-to-set-aside-for-taxes-locum-tenens" className="underline">
+              how much to set aside for locums taxes
+            </Link>, our{" "}
             <Link to="/blog/1099-tax-deductions" className="underline">
               1099 tax deductions guide
             </Link>{" "}

@@ -162,6 +162,33 @@ const ROUTE_META: Array<{ pattern: string; meta: Meta }> = [
     },
   },
   {
+    pattern: "/blog/how-much-to-set-aside-for-taxes-locum-tenens",
+    meta: {
+      title: "How Much to Set Aside for Locum Tenens Taxes | Paycheck MD",
+      description:
+        "How much of each locum tenens payment to save for taxes: a 30–40% starting rule, what changes it, and how to pay quarterly estimates.",
+      type: "article",
+    },
+  },
+  {
+    pattern: "/blog/llc-for-locum-tenens",
+    meta: {
+      title: "LLC for Locum Tenens Physicians | Paycheck MD",
+      description:
+        "Should a locum tenens physician form an LLC? Tax impact, liability limits, PLLC rules, costs, and when an S-Corp election makes sense.",
+      type: "article",
+    },
+  },
+  {
+    pattern: "/blog/tax-planning-for-doctors",
+    meta: {
+      title: "Tax Planning for Doctors: Year-Round Checklist | Paycheck MD",
+      description:
+        "Tax planning for doctors with W-2 and 1099 income: retirement accounts, HSAs, withholding, quarterly estimates, and a month-by-month checklist.",
+      type: "article",
+    },
+  },
+  {
     pattern: "/diagnostics/build",
     meta: {
       title: "Build Diagnostics | Paycheck MD",
