@@ -47,6 +47,23 @@ export interface TaxEstimateOptions {
   excludeTransactionId?: string | null;
 }
 
+/**
+ * Self-employed health insurance deduction collected from saved business
+ * entries: 1099 (Schedule C) AND K-1 partnership owners. Federal income tax
+ * only — the annual engine never subtracts it from the SE-tax base. W-2 /
+ * S-Corp payroll health is pre-tax payroll, not this deduction.
+ */
+export function sumOwnerHealthcareDeduction(
+  entries: Array<{ income_type?: string | null; healthcare_deduction?: number | string | null }>,
+): number {
+  return entries
+    .filter((e) => {
+      const f = normalizeFilingType(e.income_type as any);
+      return f !== "w2" && f !== "scorp_w2";
+    })
+    .reduce((s, e) => s + Number(e.healthcare_deduction || 0), 0);
+}
+
 export function useTaxEstimate(options: TaxEstimateOptions = {}): {
   estimate: TaxEstimate | null;
   isLoading: boolean;
@@ -430,9 +447,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         : Number((e as any).employer_retirement_contribution || 0);
       return s + Number(e.retirement_401k || 0) + employerRetirement;
     }, 0);
-    const ownerHealthcare = linkedEntries
-      .filter((e) => normalizeFilingType(e.income_type) === "k1_partnership")
-      .reduce((s, e) => s + Number((e as any).healthcare_deduction || 0), 0);
+    const ownerHealthcare = sumOwnerHealthcareDeduction(linkedEntries as any);
 
     const businessStateEligibleGross = Array.from(businessStateEligibleByTx.values()).reduce((s, v) => s + v, 0);
     const seEligibleGross = Array.from(seEligibleByTx.values()).reduce((s, v) => s + v, 0);
