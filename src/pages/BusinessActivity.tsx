@@ -69,7 +69,7 @@ import {
 } from "@/lib/filingTypes";
 import { toast } from "sonner";
 import { resolveNetReceived } from "@/lib/netReceivedPrecedence";
-import { resolveCanonicalRecommendation, resolveAmountSavedForTransaction } from "@/lib/incomeRecommendationSurface";
+import { buildReminderComparison } from "@/lib/incomeRecommendationSurface";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
 
