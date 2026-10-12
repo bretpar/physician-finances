@@ -59,7 +59,7 @@ export function sumOwnerHealthcareDeduction(
   return entries
     .filter((e) => {
       const f = normalizeFilingType(e.income_type as any);
-      return f !== "w2" && f !== "scorp_w2";
+      return f === "1099_schedule_c" || f === "k1_partnership";
     })
     .reduce((s, e) => s + Number(e.healthcare_deduction || 0), 0);
 }
