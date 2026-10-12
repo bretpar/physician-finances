@@ -296,7 +296,7 @@ export function buildAnnualTaxAllocation(input: {
     otherTax,
     sources: allocated,
     totalAllocatedTax,
-    reconciliationDifference: round2(allocatableTotal - totalAllocatedTax),
+    reconciliationDifference: round2(allocatableTotal - netStateTax + personalStateTax + businessStateTax - totalAllocatedTax),
     federalOrdinaryAllocationRate:
       combinedOrdinaryTaxBase > 0 ? federalOrdinaryIncomeTax / combinedOrdinaryTaxBase : 0,
     personalStateAllocationRate:
