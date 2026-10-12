@@ -333,6 +333,11 @@ export interface TaxEstimate {
   businessStateTax: number;
   /** Backwards-compat alias = personalStateTax + businessStateTax. */
   stateTax: number;
+  /** Gross state liabilities BEFORE withholding, and the credit applied to each (capped). */
+  personalStateTaxGross?: number;
+  businessStateTaxGross?: number;
+  personalStateWithheldCredited?: number;
+  businessStateWithheldCredited?: number;
   /** Signed net SE income (gross SE − SE-eligible expenses − mileage); may be negative. */
   seNetIncomeSigned?: number;
   /** Eligible business gross used by the business state tax (display/allocation only). */
@@ -427,7 +432,7 @@ export function calculatePersonalStateTax(args: {
   taxableIncome: number;
   agi: number;
   inputs: StateTaxInputs;
-}): { tax: number; withheld: number } {
+}): { tax: number; withheld: number; gross?: number } {
   const { taxableIncome, agi, inputs } = args;
   const withheld = Math.max(0, inputs.personalStateWithheld || 0);
 
@@ -441,7 +446,7 @@ export function calculatePersonalStateTax(args: {
     }
     // mode='none' → 0
     const due = Math.max(0, gross - withheld);
-    return { tax: due, withheld };
+    return { tax: due, withheld, gross };
   }
 
   return { tax: 0, withheld };
@@ -449,7 +454,7 @@ export function calculatePersonalStateTax(args: {
 
 export function calculateBusinessStateTax(args: {
   inputs: StateTaxInputs;
-}): { tax: number; withheld: number } {
+}): { tax: number; withheld: number; gross?: number } {
   const { inputs } = args;
   const withheld = Math.max(0, inputs.businessStateWithheld || 0);
   if (!inputs.businessStateTaxEnabled) return { tax: 0, withheld };
@@ -468,7 +473,7 @@ export function calculateBusinessStateTax(args: {
         // `eligibleBusinessOwnerAdjustments` is intentionally not subtracted.
       );
   const due = Math.max(0, base * rate - withheld);
-  return { tax: due, withheld };
+  return { tax: due, withheld, gross: base * rate };
 }
 
 export function calculateFullEstimate(params: {
@@ -766,6 +771,12 @@ export function calculateFullEstimate(params: {
     federalTax, seTax,
     personalStateTax, businessStateTax, stateTax,
     seNetIncomeSigned: netSEIncome,
+    // Explicit annual state boundary: gross liability, credit applied once to
+    // its own category (capped), remaining due = personalStateTax/businessStateTax.
+    personalStateTaxGross: personal.gross ?? personalStateTax,
+    businessStateTaxGross: business.gross ?? businessStateTax,
+    personalStateWithheldCredited: Math.min(personal.withheld, personal.gross ?? 0),
+    businessStateWithheldCredited: Math.min(business.withheld, business.gross ?? 0),
     businessStateEligibleGross: Math.max(0, stateTaxInputs.eligibleBusinessGross || 0),
     businessStateEligibleExpenses:
       Math.max(0, stateTaxInputs.eligibleBusinessExpenses || 0) +
