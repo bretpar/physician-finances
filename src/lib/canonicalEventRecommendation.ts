@@ -410,7 +410,11 @@ export function computeCanonicalEventRecommendation(
       selfEmploymentBase: seApplies ? seBaseForEntry : 0,
       selfEmploymentComponents: seDollars,
       businessStateTaxRate: businessStateRate,
-      businessStateTaxBase: netTaxableForEntry,
+      // Business state tax follows its OWN configured base (same as the annual
+      // engine): gross receipts, or gross less business deductions. Retirement,
+      // HSA and other federal-only deductions never reduce it.
+      businessStateTaxBase:
+        (settings as SavingsRateSettingsLike).businessStateTaxBase === "gross" ? gross : seBaseForEntry,
     });
     basis = "canonical_allocation";
   }

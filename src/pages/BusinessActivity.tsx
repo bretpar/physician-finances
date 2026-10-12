@@ -880,7 +880,8 @@ export default function Transactions() {
             stateWithheld: applicableStateWH,
             retirement401k: retirement,
             employerRetirement401k: employerRetirement,
-            preTaxDeductions: preTaxDed + healthcare + hsa,
+            preTaxDeductions: preTaxDed,
+            federalOnlyDeductions: healthcare + hsa,
             companyId: selectedIncomeCompany?.id ?? null,
             applyBusinessStateTax: selectedIncomeCompany?.applyBusinessStateTax ?? true,
             includeSETaxInRecommendation: selectedIncomeCompany?.includeSETaxInRecommendation ?? true,
@@ -999,7 +1000,8 @@ export default function Transactions() {
         stateWithheld: applicableStateWH,
         retirement401k: retirement,
         employerRetirement401k: employerRetirement,
-        preTaxDeductions: preTaxDed + healthcare + hsa,
+        preTaxDeductions: preTaxDed,
+        federalOnlyDeductions: healthcare + hsa,
         companyId: selectedIncomeCompany?.id ?? null,
         applyBusinessStateTax: selectedIncomeCompany?.applyBusinessStateTax ?? true,
         includeSETaxInRecommendation: selectedIncomeCompany?.includeSETaxInRecommendation ?? true,
@@ -2270,7 +2272,7 @@ export default function Transactions() {
                                       {(t.seAdditionalMedicareTax ?? 0) > 0 && <Row label="Additional Medicare" value={cents(t.seAdditionalMedicareTax ?? 0)} />}
                                     </>
                                   )}
-                                  {state > 0 && <Row label="State income tax" value={cents(state)} />}
+                                  {state > 0 && <Row label="State taxes" value={cents(state)} />}
                                 </>
                               )}
                               <div className="border-t border-border pt-0.5"><Row label="Tax for this income" value={cents(recommendation.eventTaxTarget)} /></div>

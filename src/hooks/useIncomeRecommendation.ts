@@ -87,6 +87,8 @@ interface RecommendationInput {
   /** Employer Solo 401(k) — federal deduction only, never reduces SE tax base. */
   employerRetirement401k?: number;
   preTaxDeductions: number;
+  /** HSA / SE health insurance — federal deduction only, never the SE base. */
+  federalOnlyDeductions?: number;
   /** Employee SS+Medicare included in `federalWithheld`; excluded from credit. */
   ficaWithheldNotCredited?: number;
   /** Whether state income tax is part of the target (gates the state credit). */
@@ -209,7 +211,6 @@ export function useIncomeRecommendation() {
       const ficaExcludedFromCredits = Math.max(0, Number(input.ficaWithheldNotCredited) || 0);
       const creditedFederal = Math.max(0, federalWithheld - ficaExcludedFromCredits);
       const creditedState = input.stateTaxIncludedInTarget === false ? 0 : stateWithheld;
-      const actualWithheld = creditedFederal + creditedState;
 
       const requestedCatchUp =
         input.catchUpAmount != null
@@ -226,12 +227,15 @@ export function useIncomeRecommendation() {
         retirement401k,
         employerRetirement401k: input.employerRetirement401k,
         preTaxDeductions,
+        federalOnlyDeductions: input.federalOnlyDeductions,
+        // State withholding credits only this event's state tax (capped).
+        stateWithholding: creditedState,
         companyId,
         applyBusinessStateTax,
         includeSETaxInRecommendation,
         k1TaxTreatment,
         filingStatus: (settings as any)?.filingStatus ?? undefined,
-        creditedWithholding: actualWithheld,
+        creditedWithholding: creditedFederal,
         catchUpAmount: requestedCatchUp,
         isFutureOpportunity: input.isFutureOpportunity,
         w2FundingMethod: (settings as any)?.w2PaycheckRecMethod ?? "annual_w4",

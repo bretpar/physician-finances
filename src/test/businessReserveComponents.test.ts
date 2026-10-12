@@ -137,3 +137,29 @@ describe("business reserve — actual vs projected wage-limit badge", () => {
     expect(rec(e, { actualEstimate: e }).seWageBase?.limitReached).toBe(false);
   });
 });
+
+describe("business reserve — configured business state tax base", () => {
+  const base = estimate({ w2Gross: 100_000, w2Fica: 100_000 });
+  const gross: any = { ...settings, businessStateTaxEnabled: true, businessStateTaxRate: 1.5, businessStateTaxBase: "gross" };
+  const net: any = { ...gross, businessStateTaxBase: "net_profit" };
+  it("gross base: $10,000 × 1.5% = $150, unchanged by $600 retirement or federal-only deductions", () => {
+    expect(rec(base, {}, gross).target.businessStateTax).toBe(150);
+    expect(rec(base, { retirement401k: 600 }, gross).target.businessStateTax).toBe(150);
+    expect(rec(base, { federalOnlyDeductions: 600 }, gross).target.businessStateTax).toBe(150);
+    expect(rec(base, { employerRetirement401k: 600 }, gross).target.businessStateTax).toBe(150);
+  });
+  it("gross base ignores business deductions; net base subtracts them only", () => {
+    expect(rec(base, { preTaxDeductions: 1_000 }, gross).target.businessStateTax).toBe(150);
+    expect(rec(base, { preTaxDeductions: 1_000 }, net).target.businessStateTax).toBe(135);
+    expect(rec(base, { retirement401k: 600, federalOnlyDeductions: 600 }, net).target.businessStateTax).toBe(150);
+  });
+  it("matches the annual engine for equivalent inputs", async () => {
+    const { calculateBusinessStateTax } = await import("@/lib/taxEngine");
+    const annual = (mode: "gross" | "net_profit") => calculateBusinessStateTax({ inputs: {
+      businessStateTaxEnabled: true, businessStateTaxRate: 1.5, businessStateTaxBase: mode,
+      eligibleBusinessGross: 10_000, eligibleBusinessExpenses: 1_000,
+    } as any }).tax;
+    expect(rec(base, { preTaxDeductions: 1_000, retirement401k: 600 }, gross).target.businessStateTax).toBeCloseTo(annual("gross"), 2);
+    expect(rec(base, { preTaxDeductions: 1_000, retirement401k: 600 }, net).target.businessStateTax).toBeCloseTo(annual("net_profit"), 2);
+  });
+});
