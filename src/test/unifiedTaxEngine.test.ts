@@ -62,8 +62,10 @@ describe("Unified tax engine — credits, double-counting, mode parity", () => {
     const r = computeUnifiedTaxEstimate(baseInput);
     expect(r.debug.taxSavingsSetAside).toBe(7500);
     expect(r.debug.taxReserves).toBe(5000);
-    // counted = federal W/H (12k) + state W/H (3k) + estimated payments (4k) = 19k
-    expect(r.debug.countedCreditsTotal).toBe(12000 + 3000 + 4000);
+    // counted = federal W/H (12k) + estimated payments (4k) = 16k. State W/H
+    // (3k) is already netted inside the engine's state tax, so it is not
+    // counted again here.
+    expect(r.debug.countedCreditsTotal).toBe(12000 + 4000);
     expect(r.debug.nonCountedSavingsTotal).toBe(7500 + 5000);
   });
 
