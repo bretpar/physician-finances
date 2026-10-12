@@ -211,7 +211,6 @@ export function useIncomeRecommendation() {
       const ficaExcludedFromCredits = Math.max(0, Number(input.ficaWithheldNotCredited) || 0);
       const creditedFederal = Math.max(0, federalWithheld - ficaExcludedFromCredits);
       const creditedState = input.stateTaxIncludedInTarget === false ? 0 : stateWithheld;
-      const actualWithheld = creditedFederal + creditedState;
 
       const requestedCatchUp =
         input.catchUpAmount != null
