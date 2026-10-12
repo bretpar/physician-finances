@@ -85,3 +85,8 @@ export function buildPersonalSaveInput(form: PersonalPaycheckForm, ctx: Personal
     stateTaxIncludedInTarget: ctx.stateIncomeTaxEnabled,
   };
 }
+
+/** Display value for a recommendation: exact canonical amount to the cent (never whole dollars). */
+export function recommendationDisplayCents(amount: number): number {
+  return Math.max(0, Math.round(amount * 100) / 100);
+}

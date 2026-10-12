@@ -65,7 +65,7 @@ import { getTotalFederalPaid, getCanonicalTotalFederalPayrollTaxes, getFederalIn
 import { computeEstimatedNet } from "@/lib/estimatedNet";
 import { calculatePaycheckProfileSavings } from "@/lib/paycheckProfileSavings";
 import { buildReminderComparison } from "@/lib/incomeRecommendationSurface";
-import { buildPersonalPreviewInput, buildPersonalSaveInput } from "@/lib/personalIncomeRecommendationAdapters";
+import { buildPersonalPreviewInput, buildPersonalSaveInput, recommendationDisplayCents } from "@/lib/personalIncomeRecommendationAdapters";
 import { getSelectedWithholdingProfileRate, type SavingsRateResult } from "@/lib/savingsRateSelection";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useCanonicalWithholding } from "@/hooks/useCanonicalWithholding";
@@ -281,8 +281,15 @@ export default function PersonalIncome() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   // Reopened edit prices the paycheck WITHOUT its saved copy (same context as save).
-  const { getRecommendation: getWithholdingRec } = useWithholdingRecommendation({ excludeTransactionId: editingId });
-  const { getRecommendation: getIncomeRec } = useIncomeRecommendation({ excludeTransactionId: editingId });
+  // Canonical identity of the edited record: a linked bank/Planner paycheck is
+  // identified by its linked transaction; a direct entry by its own ID.
+  const editingExcludeId = useMemo(() => {
+    if (!editingId) return null;
+    const row = rawEntries.find((e: any) => e.id === editingId) as any;
+    return (row?.linked_transaction_id as string | null | undefined) || editingId;
+  }, [editingId, rawEntries]);
+  const { getRecommendation: getWithholdingRec } = useWithholdingRecommendation({ excludeTransactionId: editingExcludeId });
+  const { getRecommendation: getIncomeRec } = useIncomeRecommendation({ excludeTransactionId: editingExcludeId });
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [showSourceError, setShowSourceError] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -1677,7 +1684,7 @@ export default function PersonalIncome() {
                       {w2RecDisplay.amount != null && (
                         <div className="flex flex-col items-baseline sm:items-end gap-0.5 shrink-0">
                           <p className="text-2xl sm:text-3xl font-bold tabular-nums whitespace-nowrap text-orange-600 dark:text-orange-400">
-                            {fmt(Math.round(w2RecDisplay.amount))}
+                            {fmt(recommendationDisplayCents(w2RecDisplay.amount))}
                           </p>
                           <p className="text-[10px] sm:text-xs font-medium text-muted-foreground uppercase tracking-wide">
                             {w2RecDisplay.rightLabel}
@@ -1714,7 +1721,7 @@ export default function PersonalIncome() {
                     </div>
                   );
                 }
-                const additional = Math.max(0, Math.round(paycheckSavings.remainingSavingsNeeded));
+                const additional = recommendationDisplayCents(paycheckSavings.remainingSavingsNeeded);
                 const hasAdditional = additional > 0;
                 return (
                   <div
