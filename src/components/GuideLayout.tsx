@@ -90,6 +90,18 @@ export function GuideLayout({ path, title, description, updated, datePublished, 
           <p className="text-sm text-muted-foreground">Tax guide · Updated {updated}</p>
           {children}
 
+          {faqs && faqs.length > 0 && (
+            <>
+              <h2>Frequently asked questions</h2>
+              {faqs.map((f) => (
+                <div key={f.q}>
+                  <h3>{f.q}</h3>
+                  <p>{f.a}</p>
+                </div>
+              ))}
+            </>
+          )}
+
           <h2>Get your own number</h2>
           <p>
             Paycheck MD is built for physicians with W-2 and 1099 income. Log each paycheck or locums
