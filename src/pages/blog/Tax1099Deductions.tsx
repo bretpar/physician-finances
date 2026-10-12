@@ -8,6 +8,25 @@ const TITLE = "1099 Tax Deductions Guide for Freelancers | Paycheck MD";
 const DESCRIPTION =
   "Complete guide to 1099 tax deductions: home office, mileage, health insurance, retirement, QBI, and more.";
 
+const FAQS = [
+  {
+    q: "What can a 1099 physician deduct?",
+    a: "Ordinary and necessary business expenses: licenses and board fees, CME, malpractice premiums you pay yourself, travel and lodging for temporary assignments, business mileage, home office, health insurance premiums, and retirement contributions.",
+  },
+  {
+    q: "Do 1099 deductions reduce self-employment tax?",
+    a: "Yes. Business expenses come off your net Schedule C profit before both income tax and the 15.3% self-employment tax are calculated, so every deductible dollar saves more than just your income-tax rate.",
+  },
+  {
+    q: "Can I deduct expenses that were reimbursed?",
+    a: "No. Costs covered by an agency stipend or reimbursement cannot be deducted again — that would be double-dipping. Deduct only what you actually paid out of pocket.",
+  },
+  {
+    q: "What is the QBI deduction for 1099 physicians?",
+    a: "The qualified business income deduction can shave up to 20% off qualified 1099 income, but physicians are a specified service trade, so the deduction phases out at higher incomes. Retirement contributions that lower taxable income can help you stay under the phase-out.",
+  },
+];
+
 export default function Tax1099Deductions() {
   // Article JSON-LD only — title/description/canonical/og are managed by RouteHead.
   useEffect(() => {

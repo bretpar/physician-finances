@@ -8,6 +8,25 @@ const TITLE = "Physician S-Corp vs. Sole Proprietorship: Tax Savings Guide | Pay
 const DESCRIPTION =
   "Compare S-Corp and sole proprietorship tax benefits for physicians. Learn how the 'reasonable salary' rule and FICA savings can reduce your tax bill.";
 
+const FAQS = [
+  {
+    q: "When does an S-Corp save a physician money?",
+    a: "An S-Corp usually starts to pay off once net 1099 or practice income is consistently above roughly $80,000–$100,000. Below that, payroll costs and extra filings tend to eat the self-employment tax savings.",
+  },
+  {
+    q: "What is the 'reasonable salary' rule for physician S-Corps?",
+    a: "An S-Corp owner who works in the business must pay themselves a reasonable salary subject to payroll tax before taking distributions. Setting the salary too low to dodge FICA is the most common S-Corp audit trigger.",
+  },
+  {
+    q: "How much self-employment tax can an S-Corp save?",
+    a: "Only the distributions skip the 15.3%/2.9% FICA taxes — the salary portion is still fully taxed. Savings depend on the split between reasonable salary and distributions, minus the cost of payroll and the extra corporate return.",
+  },
+  {
+    q: "When should a physician stay a sole proprietor?",
+    a: "When 1099 income is modest, unpredictable, or short-lived — a few locums shifts on top of a W-2 job, for example. A sole proprietorship has no payroll, no separate corporate return, and no entity fees.",
+  },
+];
+
 export default function PhysicianScorpVsSoleProprietorship() {
   useEffect(() => {
     const ld = document.createElement("script");
