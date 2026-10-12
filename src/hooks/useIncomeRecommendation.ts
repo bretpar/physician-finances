@@ -118,7 +118,7 @@ export interface IncomeRecommendationOptions {
 // getNextQuarterDeadline now lives in src/lib/quarters.ts (shared helper).
 
 export function useIncomeRecommendation(options: IncomeRecommendationOptions = {}) {
-  const { actualEstimate, currentPaceEstimate, forecastEstimate, isLoading: estLoading } = useTaxEstimate({
+  const { actualEstimate, currentPaceEstimate, forecastEstimate, actualDebug, currentPaceDebug, forecastDebug, isLoading: estLoading } = useTaxEstimate({
     excludeTransactionId: options.excludeTransactionId,
   });
   const { data: settings, isLoading: settingsLoading } = useTaxSettings();
@@ -215,11 +215,20 @@ export function useIncomeRecommendation(options: IncomeRecommendationOptions = {
       const isW2 = isW2FilingType(incomeType);
       const resolvedBucket = incomeBucket ?? (isW2 ? "personal" : "business");
       const withholdingMethod = settings.withholdingMethod || "dynamic_planner";
-      const estimate =
-        withholdingMethod === "dynamic_planner"
+      // Same estimate/debug selection as useWithholdingRecommendation (the
+      // preview), so preview and save price the event in one context.
+      const isFlat = withholdingMethod === "flat_estimate";
+      const estimate = isFlat
+        ? (forecastEstimate ?? currentPaceEstimate ?? actualEstimate)
+        : withholdingMethod === "dynamic_planner"
           ? forecastEstimate
           : (currentPaceEstimate ?? actualEstimate);
-      if (withholdingMethod !== "flat_estimate" && !estimate) return null;
+      const debug = isFlat
+        ? (forecastDebug ?? currentPaceDebug ?? actualDebug)
+        : withholdingMethod === "dynamic_planner"
+          ? forecastDebug
+          : (currentPaceDebug ?? actualDebug);
+      if (!isFlat && !estimate) return null;
 
       // FICA is never an income-tax credit; state counts only when it is part
       // of the target.
@@ -256,6 +265,8 @@ export function useIncomeRecommendation(options: IncomeRecommendationOptions = {
         catchUpAmount: requestedCatchUp,
         isFutureOpportunity: input.isFutureOpportunity,
         w2FundingMethod: (settings as any)?.w2PaycheckRecMethod ?? "annual_w4",
+        annualRemainingTax: isFlat ? undefined : Number(debug?.remainingTaxDue ?? 0),
+        forceFlatRatePct: isFlat ? undefined : null,
       });
       if (!canonical) return null;
 
@@ -295,7 +306,7 @@ export function useIncomeRecommendation(options: IncomeRecommendationOptions = {
         nextDeadlineLabel: "this paycheck",
       };
     };
-  }, [actualEstimate, currentPaceEstimate, forecastEstimate, settings, catchUpContext]);
+  }, [actualEstimate, currentPaceEstimate, forecastEstimate, actualDebug, currentPaceDebug, forecastDebug, settings, catchUpContext]);
 
   return { getRecommendation, getCatchUpExcludingEntry, isLoading };
 }
