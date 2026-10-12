@@ -13,17 +13,28 @@ export default function Tax1099Deductions() {
   useEffect(() => {
     const ld = document.createElement("script");
     ld.type = "application/ld+json";
-    ld.text = JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "Article",
-      headline: TITLE,
-      description: DESCRIPTION,
-      mainEntityOfPage: CANONICAL,
-      author: { "@type": "Organization", name: "Paycheck MD" },
-      publisher: { "@type": "Organization", name: "Paycheck MD" },
-      datePublished: "2026-06-14",
-      dateModified: "2026-06-14",
-    });
+    ld.text = JSON.stringify([
+      {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        headline: TITLE,
+        description: DESCRIPTION,
+        mainEntityOfPage: CANONICAL,
+        author: { "@type": "Organization", name: "Paycheck MD" },
+        publisher: { "@type": "Organization", name: "Paycheck MD" },
+        datePublished: "2026-06-14",
+        dateModified: "2026-06-14",
+      },
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        mainEntity: FAQS.map((f) => ({
+          "@type": "Question",
+          name: f.q,
+          acceptedAnswer: { "@type": "Answer", text: f.a },
+        })),
+      },
+    ]);
     document.head.appendChild(ld);
     return () => {
       document.head.removeChild(ld);
