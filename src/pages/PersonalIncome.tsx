@@ -870,7 +870,9 @@ export default function PersonalIncome() {
             // SS/Medicare are payroll taxes and never count here.
             const actualSaved =
               num(form.federal_withholding) +
-              (stateIncomeTaxEnabled ? num(form.state_withholding) : 0) +
+              // Capped state credit from the same canonical recommendation —
+              // excess state withholding never counts as federal savings.
+              (stateIncomeTaxEnabled ? (recommendation.creditedStateWithholding ?? 0) : 0) +
               num(form.additional_tax_reserve);
             // Only nudge when meaningfully behind (< 90% of recommended).
             if (canAdvancedSavings && recommended > 0 && actualSaved < recommended * 0.9) {

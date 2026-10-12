@@ -1074,7 +1074,8 @@ export default function Transactions() {
             });
             const actualSaved = resolveAmountSavedForTransaction({
               taxesWithheld: taxWithheld,
-              stateWithheld: applicableStateWH,
+              // Capped state credit from the canonical recommendation.
+              stateWithheld: recommendation?.creditedStateWithholding ?? applicableStateWH,
               ssWithheld: num(incomeForm.ss_withholding),
               medicareWithheld: num(incomeForm.medicare_withholding),
               additionalTaxReserve: num(incomeForm.additional_tax_reserve),

@@ -75,6 +75,8 @@ export interface IncomeRecommendation {
   allocatedEventTax: EventTaxTarget;
   /** True when a W-2 deficit is delivered via the annual W-4 instead of savings. */
   fundedByAnnualW4: boolean;
+  /** State withholding actually credited (capped at this event's state tax). */
+  creditedStateWithholding: number;
 }
 
 interface RecommendationInput {
@@ -267,6 +269,7 @@ export function useIncomeRecommendation() {
         eventTaxTarget: canonical.eventTaxTarget,
         allocatedEventTax: canonical.target,
         fundedByAnnualW4: canonical.fundedByAnnualW4,
+        creditedStateWithholding: canonical.creditedStateWithholding,
         projectedEventsBeforeDeadline: catchUpContext.remainingOpportunities,
         confidence: "high",
         spreadExplanation,
