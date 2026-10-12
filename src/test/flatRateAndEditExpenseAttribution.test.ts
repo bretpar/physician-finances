@@ -5,7 +5,7 @@
 import { describe, it, expect } from "vitest";
 import { calculatePaycheckProfileSavings } from "@/lib/paycheckProfileSavings";
 import { computeCanonicalEventRecommendation } from "@/lib/canonicalEventRecommendation";
-import { calculateBusinessStateTax, calculateFullEstimate } from "@/lib/taxEngine";
+import { calculateBusinessStateTax, calculateSETax } from "@/lib/taxEngine";
 
 describe("flat-rate Personal Income: $10,000 × 20%, $500 federal, $5,000 state", () => {
   const preview = () => calculatePaycheckProfileSavings({
@@ -58,10 +58,8 @@ describe("edit/replacement: $10,000 1099 with a separately recorded $1,000 expen
       estimate: e, taxSettings: settings(base), incomeType: "1099_schedule_c", incomeBucket: "business",
       grossIncome: 10_000, creditedWithholding: 0, catchUpAmount: 0, ...extra,
     } as any)!;
-  const annual = calculateFullEstimate({
-    totalIncome: 10_000, w2Income: 0, seIncome: 10_000, grossBusinessIncome: 10_000,
-    businessDeductions: 1_000, seBusinessDeductions: 1_000, filingStatus: "single",
-  } as any);
+  // Annual SE tax on $9,000 net SE income (no W-2 wages).
+  const annual = { seTax: (calculateSETax as any)(9_000, "single", 184_500, 0, 0, 0) };
 
   it("net-profit business tax $135 (base $9,000); gross stays $150", () => {
     expect(rec(est(), "net_profit").target.businessStateTax).toBe(135);
