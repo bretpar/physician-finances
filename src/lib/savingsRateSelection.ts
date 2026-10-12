@@ -34,6 +34,8 @@ export interface SavingsRateSettingsLike {
   personalStateTaxMode?: "none" | "flat_rate" | "annual_estimate" | string | null;
   personalStateTaxRate?: number | null;
   businessStateTaxEnabled?: boolean | null;
+  /** Configured business state tax base ("gross" receipts or "net_profit"). */
+  businessStateTaxBase?: "gross" | "net_profit" | string | null;
   businessStateTaxRate?: number | null;
   businessStateTaxApplicationMode?: "all_business" | "selected" | string | null;
   businessStateTaxCompanyIds?: string[] | null;
