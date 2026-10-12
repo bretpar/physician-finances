@@ -21,7 +21,7 @@ const settings: any = {
 const estimate: any = {
   seIncome: 0, grossBusinessIncome: 0, netBusinessProfit: 0,
   w2Income: 120_000, w2TaxableIncomeBase: 120_000, taxableIncome: 105_000,
-  federalIncomeTax: 18_000, personalStateTax: 6_000, personalStateTaxGross: 6_000,
+  federalTax: 18_000, federalTaxBeforeCredits: 18_000, ordinaryFederalTaxBeforeCredits: 18_000, personalStateTax: 6_000, personalStateTaxGross: 6_000,
   totalTaxLiability: 24_000,
   seTax: { netSEIncome: 0, w2SsWagesUsed: 120_000, plannedW2SsWagesUsed: 0 },
 };
@@ -72,7 +72,10 @@ describe("Personal Income W-2 catch-up consistency", () => {
 
     expect(card.remainingSavingsNeeded).toBe(reminder.additionalNeeded);
     expect(card.remainingSavingsNeeded).toBe(pc.recommendedWithholding);
-    console.log("FIX", pc.eventTaxTarget, card.remainingSavingsNeeded, reminder.additionalNeeded, canonicalFor(undefined, 500, 5000).totalSuggestedReserve);
+
     expect(reminder.additionalNeeded).toBeGreaterThan(0);
+    // Before the fix the save path used the live catch-up: target + 3,391.67.
+    expect(canonicalFor(undefined, 500, 5000).totalSuggestedReserve).toBeCloseTo(sc.totalSuggestedReserve + LIVE_CATCH_UP, 2);
+    console.log("FIX", card.remainingSavingsNeeded, reminder.additionalNeeded);
   });
 });
