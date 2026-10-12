@@ -12,37 +12,57 @@ export const GUIDE_LINKS = [
   { to: "/blog/1099-tax-deductions", label: "1099 tax deductions" },
 ];
 
+export interface GuideFaq {
+  q: string;
+  a: string;
+}
+
 interface GuideLayoutProps {
   path: string;
   title: string;
   description: string;
   updated: string;
   datePublished: string;
+  faqs?: GuideFaq[];
   children: ReactNode;
 }
 
-export function GuideLayout({ path, title, description, updated, datePublished, children }: GuideLayoutProps) {
+export function GuideLayout({ path, title, description, updated, datePublished, faqs, children }: GuideLayoutProps) {
   const canonical = `https://app.paycheckmd.com${path}`;
 
   useEffect(() => {
     const ld = document.createElement("script");
     ld.type = "application/ld+json";
-    ld.text = JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "Article",
-      headline: title,
-      description,
-      mainEntityOfPage: canonical,
-      author: { "@type": "Organization", name: "Paycheck MD" },
-      publisher: { "@type": "Organization", name: "Paycheck MD" },
-      datePublished,
-      dateModified: datePublished,
-    });
+    const schemas: object[] = [
+      {
+        "@context": "https://schema.org",
+        "@type": "Article",
+        headline: title,
+        description,
+        mainEntityOfPage: canonical,
+        author: { "@type": "Organization", name: "Paycheck MD" },
+        publisher: { "@type": "Organization", name: "Paycheck MD" },
+        datePublished,
+        dateModified: datePublished,
+      },
+    ];
+    if (faqs && faqs.length > 0) {
+      schemas.push({
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        mainEntity: faqs.map((f) => ({
+          "@type": "Question",
+          name: f.q,
+          acceptedAnswer: { "@type": "Answer", text: f.a },
+        })),
+      });
+    }
+    ld.text = JSON.stringify(schemas.length === 1 ? schemas[0] : schemas);
     document.head.appendChild(ld);
     return () => {
       document.head.removeChild(ld);
     };
-  }, [title, description, canonical, datePublished]);
+  }, [title, description, canonical, datePublished, faqs]);
 
   const related = GUIDE_LINKS.filter((g) => g.to !== path);
 
