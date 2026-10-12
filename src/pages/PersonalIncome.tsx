@@ -556,9 +556,11 @@ export default function PersonalIncome() {
       // withholding never reduces the federal savings need. Flat mode has no
       // state split, so its legacy behavior is kept.
       stateTaxTargetForPaycheck:
-        method !== "flat_estimate" && baseRecommendation?.target
-          ? baseRecommendation.target.personalStateTax + baseRecommendation.target.businessStateTax
-          : undefined,
+        method === "flat_estimate"
+          ? 0 // flat rate is federal-only: no state component to credit
+          : baseRecommendation?.target
+            ? baseRecommendation.target.personalStateTax + baseRecommendation.target.businessStateTax
+            : undefined,
       // Prospective catch-up so a user who is behind can actually recover.
       // Prospective ONLY: historical paychecks never carry catch-up.
       // W-2 paycheck targets NEVER receive catch-up (see isW2PaycheckTarget).

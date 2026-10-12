@@ -311,7 +311,13 @@ export function computeCanonicalEventRecommendation(
   );
   // Self-employment tax base: Solo 401(k) contributions (employee OR employer)
   // never reduce Schedule C profit / the SE base — matches the annual engine.
-  const seBaseForEntry = Math.max(0, gross - pos(input.preTaxDeductions));
+  const entrySeOwnBase = Math.max(0, gross - pos(input.preTaxDeductions));
+  // Separately recorded SE-eligible operating expenses not yet absorbed by
+  // other SE income (annual signed net SE < 0) reduce THIS event's marginal
+  // SE base once — same marginal attribution as the business state tax.
+  const priorSeNet = num(input.estimate?.seNetIncomeSigned);
+  const seBaseForEntry =
+    priorSeNet < 0 ? Math.max(0, priorSeNet + entrySeOwnBase) : entrySeOwnBase;
   // Employer Solo 401(k) money reduces federal taxable income but NOT the SE
   // tax base, so it is applied only to the federal / ordinary base below.
   const federalTaxableForEntry = Math.max(
@@ -435,7 +441,7 @@ export function computeCanonicalEventRecommendation(
       businessStateTaxBase:
         (settings as SavingsRateSettingsLike).businessStateTaxBase === "gross"
           ? gross
-          : netProfitBusinessStateBaseForEntry(input.estimate, seBaseForEntry),
+          : netProfitBusinessStateBaseForEntry(input.estimate, entrySeOwnBase),
     });
     basis = "canonical_allocation";
   }

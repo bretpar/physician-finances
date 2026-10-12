@@ -333,6 +333,8 @@ export interface TaxEstimate {
   businessStateTax: number;
   /** Backwards-compat alias = personalStateTax + businessStateTax. */
   stateTax: number;
+  /** Signed net SE income (gross SE − SE-eligible expenses − mileage); may be negative. */
+  seNetIncomeSigned?: number;
   /** Eligible business gross used by the business state tax (display/allocation only). */
   businessStateEligibleGross?: number;
   /** Eligible business expenses + mileage subtracted when base = net_profit. */
@@ -763,6 +765,7 @@ export function calculateFullEstimate(params: {
     preferentialTaxableIncome: ltcgSlice,
     federalTax, seTax,
     personalStateTax, businessStateTax, stateTax,
+    seNetIncomeSigned: netSEIncome,
     businessStateEligibleGross: Math.max(0, stateTaxInputs.eligibleBusinessGross || 0),
     businessStateEligibleExpenses:
       Math.max(0, stateTaxInputs.eligibleBusinessExpenses || 0) +
