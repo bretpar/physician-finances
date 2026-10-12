@@ -60,6 +60,12 @@ export interface PaycheckProfileSavingsInput {
    */
   stateTaxIncludedInTarget?: boolean;
   /**
+   * State tax portion of this paycheck's target ($). When supplied, the state
+   * withholding credit is capped at it so excess state withholding can never
+   * offset federal tax.
+   */
+  stateTaxTargetForPaycheck?: number;
+  /**
    * Additional tax reserve the user manually set aside for THIS specific
    * income entry. This is NOT actual payroll withholding — it is extra money
    * earmarked for taxes for this paycheck. It reduces the per-paycheck
@@ -157,7 +163,11 @@ export function calculatePaycheckProfileSavings(
   // tax target — it is tracked and shown separately.
   const payrollTaxesInformational = pos(input.socialSecurityAndMedicareWithheld);
   const federalIncomeTaxCredited = resolveFederalIncomeTaxCredit(input);
-  const stateWithholdingCredited = stateIncluded ? pos(input.stateWithholdingIfEnabled) : 0;
+  const rawStateCredit = stateIncluded ? pos(input.stateWithholdingIfEnabled) : 0;
+  const stateWithholdingCredited =
+    input.stateTaxTargetForPaycheck != null
+      ? Math.min(rawStateCredit, pos(input.stateTaxTargetForPaycheck))
+      : rawStateCredit;
 
   const taxablePaycheckAmount = round2(Math.max(0, gross - deductions));
   const paycheckTaxTarget = round2(taxablePaycheckAmount * (ratePct / 100));

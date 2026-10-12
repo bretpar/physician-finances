@@ -333,6 +333,10 @@ export interface TaxEstimate {
   businessStateTax: number;
   /** Backwards-compat alias = personalStateTax + businessStateTax. */
   stateTax: number;
+  /** Eligible business gross used by the business state tax (display/allocation only). */
+  businessStateEligibleGross?: number;
+  /** Eligible business expenses + mileage subtracted when base = net_profit. */
+  businessStateEligibleExpenses?: number;
   totalTaxLiability: number;
   taxesAlreadyWithheld: number;
   /** Federal-only withholding included in taxesAlreadyWithheld. */
@@ -757,6 +761,10 @@ export function calculateFullEstimate(params: {
     preferentialTaxableIncome: ltcgSlice,
     federalTax, seTax,
     personalStateTax, businessStateTax, stateTax,
+    businessStateEligibleGross: Math.max(0, stateTaxInputs.eligibleBusinessGross || 0),
+    businessStateEligibleExpenses:
+      Math.max(0, stateTaxInputs.eligibleBusinessExpenses || 0) +
+      Math.max(0, stateTaxInputs.eligibleBusinessMileage || 0),
     totalTaxLiability,
     taxesAlreadyWithheld: federalWithheld,
     federalWithheld, stateWithheld,
