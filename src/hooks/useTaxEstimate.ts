@@ -317,6 +317,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
     let grossOtherBusiness = 0; // scorp_distribution, other
     const seEligibleByTx = new Map<string, number>();
     let seEligibleExpenses = 0;
+    let businessStateEligibleTxExpenses = 0;
 
     const seEligibleTxIds = new Set<string>();
     const businessStateEligibleByTx = new Map<string, number>();
@@ -394,6 +395,16 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       if (isSETaxableEntity({ filingType: filing, k1TaxTreatment: company.k1TaxTreatment, includeSETaxInRecommendation: company.includeSETaxInRecommendation })) {
         seEligibleExpenses += Math.abs(Number(t.amount) || 0);
       }
+      // Business-state-eligible operating expenses, attributed by the
+      // expense's OWN company (same eligibility as receipts). Independent of
+      // whether that company currently has income in scope, so excluding an
+      // edited income row never drops its business's expenses.
+      if (
+        (filing === "1099_schedule_c" || filing === "k1_partnership" || filing === "scorp_distribution") &&
+        eligibleCompanyIds.has(company.id)
+      ) {
+        businessStateEligibleTxExpenses += Math.abs(Number(t.amount) || 0);
+      }
     }
 
     // Enrichment from income_entries — but ONLY for entries linked to a live
@@ -468,6 +479,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       businessStateEligibleGross,
       seEligibleGross,
       seEligibleExpenses,
+      businessStateEligibleTxExpenses,
     };
     };
 
@@ -1004,7 +1016,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
           standaloneRetirementRouting[incomeScope].selfEmployedEmployerDeduction,
         ownerHealthcare,
         businessStateEligibleGross: businessStateEligibleGross + cuBizGross,
-        businessStateEligibleExpenses: (businessExpenses * eligibleRatio) + businessStateEligibleHomeOfficeDeduction + (forecastBusinessExpenses * eligibleRatio) + (cu.business.expenses * eligibleRatio),
+        businessStateEligibleExpenses: canonicalBusiness.businessStateEligibleTxExpenses + businessStateEligibleHomeOfficeDeduction + (forecastBusinessExpenses * eligibleRatio) + (cu.business.expenses * eligibleRatio),
         businessStateEligibleMileage: mileageDeduction * eligibleRatio,
         businessStateEligibleOwnerAdjustments: (ownerHealthcare + businessRetirement) * eligibleRatio,
 
