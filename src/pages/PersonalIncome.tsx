@@ -64,6 +64,7 @@ import { isW2FilingType } from "@/lib/filingTypes";
 import { getTotalFederalPaid, getCanonicalTotalFederalPayrollTaxes, getFederalIncomeTaxWithheld } from "@/lib/federalWithholding";
 import { computeEstimatedNet } from "@/lib/estimatedNet";
 import { calculatePaycheckProfileSavings } from "@/lib/paycheckProfileSavings";
+import { buildReminderComparison } from "@/lib/incomeRecommendationSurface";
 import { getSelectedWithholdingProfileRate, type SavingsRateResult } from "@/lib/savingsRateSelection";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useCanonicalWithholding } from "@/hooks/useCanonicalWithholding";
@@ -723,6 +724,8 @@ export default function PersonalIncome() {
       stateTaxIncludedInTarget: stateIncomeTaxEnabled,
       retirement401k: num(form.retirement_pretax),
       preTaxDeductions: num(form.deductions_pre_tax) + num(form.healthcare_deduction) + num(form.hsa_contribution),
+      // Same historical/future eligibility as the preview.
+      isFutureOpportunity: entryIsFutureOpportunity,
     });
 
     return {
@@ -866,16 +869,11 @@ export default function PersonalIncome() {
           if (showModal2 && recommendation) {
             // Per-transaction reminder: compare amount saved on THIS entry
             // against the per-transaction recommended savings (baseTaxEstimate).
-            const recommended = Math.max(0, recommendation.baseTaxEstimate || 0);
-            // Credits must mirror the target: federal INCOME TAX + state (only
-            // when state tax is enabled) + this entry's reserve. Employee
-            // SS/Medicare are payroll taxes and never count here.
-            const actualSaved =
-              num(form.federal_withholding) +
-              // Capped state credit from the same canonical recommendation —
-              // excess state withholding never counts as federal savings.
-              (stateIncomeTaxEnabled ? (recommendation.creditedStateWithholding ?? 0) : 0) +
-              num(form.additional_tax_reserve);
+            // Canonical event outputs only — no page-level tax arithmetic.
+            const { recommended, saved: actualSaved } = buildReminderComparison(
+              { ...recommendation, isFutureOpportunity: entryIsFutureOpportunity },
+              { additionalTaxReserve: num(form.additional_tax_reserve) },
+            );
             // Only nudge when meaningfully behind (< 90% of recommended).
             if (canAdvancedSavings && recommended > 0 && actualSaved < recommended * 0.9) {
               setReminderRecommended(recommended);
