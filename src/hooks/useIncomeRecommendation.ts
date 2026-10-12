@@ -77,6 +77,8 @@ export interface IncomeRecommendation {
   fundedByAnnualW4: boolean;
   /** State withholding actually credited (capped at this event's state tax). */
   creditedStateWithholding: number;
+  /** Federal income-tax withholding credited (FICA excluded). */
+  creditedFederalWithholding: number;
 }
 
 interface RecommendationInput {
@@ -104,14 +106,25 @@ interface RecommendationInput {
   k1TaxTreatment?: K1TaxTreatment | null;
   /** False for historical events — they never receive future catch-up dollars. */
   isFutureOpportunity?: boolean;
+  /** Explicit SE-tax override (K-1 active/passive), same as the preview hook. */
+  isSelfEmploymentTaxable?: boolean | null;
+}
+
+export interface IncomeRecommendationOptions {
+  /** Existing transaction replaced by the edit — same context as the preview. */
+  excludeTransactionId?: string | null;
 }
 
 // getNextQuarterDeadline now lives in src/lib/quarters.ts (shared helper).
 
-export function useIncomeRecommendation() {
-  const { actualEstimate, currentPaceEstimate, forecastEstimate, isLoading: estLoading } = useTaxEstimate();
+export function useIncomeRecommendation(options: IncomeRecommendationOptions = {}) {
+  const { actualEstimate, currentPaceEstimate, forecastEstimate, isLoading: estLoading } = useTaxEstimate({
+    excludeTransactionId: options.excludeTransactionId,
+  });
   const { data: settings, isLoading: settingsLoading } = useTaxSettings();
-  const quarterInput = useQuarterRecommendationInput();
+  const quarterInput = useQuarterRecommendationInput({
+    excludeTransactionId: options.excludeTransactionId,
+  });
   const isLoading = estLoading || settingsLoading;
 
   /**
@@ -236,6 +249,8 @@ export function useIncomeRecommendation() {
         applyBusinessStateTax,
         includeSETaxInRecommendation,
         k1TaxTreatment,
+        isSelfEmploymentTaxable: input.isSelfEmploymentTaxable,
+        actualEstimate,
         filingStatus: (settings as any)?.filingStatus ?? undefined,
         creditedWithholding: creditedFederal,
         catchUpAmount: requestedCatchUp,
@@ -270,6 +285,7 @@ export function useIncomeRecommendation() {
         allocatedEventTax: canonical.target,
         fundedByAnnualW4: canonical.fundedByAnnualW4,
         creditedStateWithholding: canonical.creditedStateWithholding,
+        creditedFederalWithholding: canonical.creditedFederalWithholding,
         projectedEventsBeforeDeadline: catchUpContext.remainingOpportunities,
         confidence: "high",
         spreadExplanation,
