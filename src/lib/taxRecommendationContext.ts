@@ -37,8 +37,13 @@ export function excludeIncomeEntriesLinkedToTransaction<E extends object>(
   transactionId?: string | null,
 ): E[] {
   if (!transactionId) return [...entries];
-  return entries.filter(
-    (entry) => (entry as { linked_transaction_id?: string | null }).linked_transaction_id !== transactionId,
-  );
+  // Match either the linked bank/Planner transaction ID or the entry's own
+  // ID: directly entered Personal Income paychecks have no linked transaction,
+  // so their identity is the income entry ID itself. UUIDs never collide across
+  // tables, so this excludes only the exact record being edited.
+  return entries.filter((entry) => {
+    const e = entry as { id?: string | null; linked_transaction_id?: string | null };
+    return e.linked_transaction_id !== transactionId && e.id !== transactionId;
+  });
 }
 

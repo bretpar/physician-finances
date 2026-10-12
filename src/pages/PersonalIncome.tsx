@@ -281,8 +281,15 @@ export default function PersonalIncome() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   // Reopened edit prices the paycheck WITHOUT its saved copy (same context as save).
-  const { getRecommendation: getWithholdingRec } = useWithholdingRecommendation({ excludeTransactionId: editingId });
-  const { getRecommendation: getIncomeRec } = useIncomeRecommendation({ excludeTransactionId: editingId });
+  // Canonical identity of the edited record: a linked bank/Planner paycheck is
+  // identified by its linked transaction; a direct entry by its own ID.
+  const editingExcludeId = useMemo(() => {
+    if (!editingId) return null;
+    const row = rawEntries.find((e: any) => e.id === editingId) as any;
+    return (row?.linked_transaction_id as string | null | undefined) || editingId;
+  }, [editingId, rawEntries]);
+  const { getRecommendation: getWithholdingRec } = useWithholdingRecommendation({ excludeTransactionId: editingExcludeId });
+  const { getRecommendation: getIncomeRec } = useIncomeRecommendation({ excludeTransactionId: editingExcludeId });
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [showSourceError, setShowSourceError] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
