@@ -77,6 +77,8 @@ export interface IncomeRecommendation {
   fundedByAnnualW4: boolean;
   /** State withholding actually credited (capped at this event's state tax). */
   creditedStateWithholding: number;
+  /** Federal income-tax withholding credited (FICA excluded). */
+  creditedFederalWithholding: number;
 }
 
 interface RecommendationInput {
@@ -104,14 +106,25 @@ interface RecommendationInput {
   k1TaxTreatment?: K1TaxTreatment | null;
   /** False for historical events — they never receive future catch-up dollars. */
   isFutureOpportunity?: boolean;
+  /** Explicit SE-tax override (K-1 active/passive), same as the preview hook. */
+  isSelfEmploymentTaxable?: boolean | null;
+}
+
+export interface IncomeRecommendationOptions {
+  /** Existing transaction replaced by the edit — same context as the preview. */
+  excludeTransactionId?: string | null;
 }
 
 // getNextQuarterDeadline now lives in src/lib/quarters.ts (shared helper).
 
-export function useIncomeRecommendation() {
-  const { actualEstimate, currentPaceEstimate, forecastEstimate, isLoading: estLoading } = useTaxEstimate();
+export function useIncomeRecommendation(options: IncomeRecommendationOptions = {}) {
+  const { actualEstimate, currentPaceEstimate, forecastEstimate, actualDebug, currentPaceDebug, forecastDebug, isLoading: estLoading } = useTaxEstimate({
+    excludeTransactionId: options.excludeTransactionId,
+  });
   const { data: settings, isLoading: settingsLoading } = useTaxSettings();
-  const quarterInput = useQuarterRecommendationInput();
+  const quarterInput = useQuarterRecommendationInput({
+    excludeTransactionId: options.excludeTransactionId,
+  });
   const isLoading = estLoading || settingsLoading;
 
   /**
@@ -202,11 +215,20 @@ export function useIncomeRecommendation() {
       const isW2 = isW2FilingType(incomeType);
       const resolvedBucket = incomeBucket ?? (isW2 ? "personal" : "business");
       const withholdingMethod = settings.withholdingMethod || "dynamic_planner";
-      const estimate =
-        withholdingMethod === "dynamic_planner"
+      // Same estimate/debug selection as useWithholdingRecommendation (the
+      // preview), so preview and save price the event in one context.
+      const isFlat = withholdingMethod === "flat_estimate";
+      const estimate = isFlat
+        ? (forecastEstimate ?? currentPaceEstimate ?? actualEstimate)
+        : withholdingMethod === "dynamic_planner"
           ? forecastEstimate
           : (currentPaceEstimate ?? actualEstimate);
-      if (withholdingMethod !== "flat_estimate" && !estimate) return null;
+      const debug = isFlat
+        ? (forecastDebug ?? currentPaceDebug ?? actualDebug)
+        : withholdingMethod === "dynamic_planner"
+          ? forecastDebug
+          : (currentPaceDebug ?? actualDebug);
+      if (!isFlat && !estimate) return null;
 
       // FICA is never an income-tax credit; state counts only when it is part
       // of the target.
@@ -236,11 +258,15 @@ export function useIncomeRecommendation() {
         applyBusinessStateTax,
         includeSETaxInRecommendation,
         k1TaxTreatment,
+        isSelfEmploymentTaxable: input.isSelfEmploymentTaxable,
+        actualEstimate,
         filingStatus: (settings as any)?.filingStatus ?? undefined,
         creditedWithholding: creditedFederal,
         catchUpAmount: requestedCatchUp,
         isFutureOpportunity: input.isFutureOpportunity,
         w2FundingMethod: (settings as any)?.w2PaycheckRecMethod ?? "annual_w4",
+        annualRemainingTax: isFlat ? undefined : Number(debug?.remainingTaxDue ?? 0),
+        forceFlatRatePct: isFlat ? undefined : null,
       });
       if (!canonical) return null;
 
@@ -270,6 +296,7 @@ export function useIncomeRecommendation() {
         allocatedEventTax: canonical.target,
         fundedByAnnualW4: canonical.fundedByAnnualW4,
         creditedStateWithholding: canonical.creditedStateWithholding,
+        creditedFederalWithholding: canonical.creditedFederalWithholding,
         projectedEventsBeforeDeadline: catchUpContext.remainingOpportunities,
         confidence: "high",
         spreadExplanation,
@@ -279,7 +306,7 @@ export function useIncomeRecommendation() {
         nextDeadlineLabel: "this paycheck",
       };
     };
-  }, [actualEstimate, currentPaceEstimate, forecastEstimate, settings, catchUpContext]);
+  }, [actualEstimate, currentPaceEstimate, forecastEstimate, actualDebug, currentPaceDebug, forecastDebug, settings, catchUpContext]);
 
   return { getRecommendation, getCatchUpExcludingEntry, isLoading };
 }

@@ -1985,6 +1985,7 @@ export function getProjectedTotals(
     otherIncome: 0,
     /** Forecast business expenses summed across active SE paychecks (1099 / K-1 only). */
     forecastBusinessExpenses: 0,
+    forecastBusinessExpensesByCompany: {} as Record<string, number>,
   };
 
   for (const p of paychecks) {
@@ -2039,7 +2040,11 @@ export function getProjectedTotals(
       // Bonuses don't have an associated stream forecast expense in the model,
       // so when stream is missing we contribute 0.
       if (stream && p.type === "paycheck") {
-        acc.forecastBusinessExpenses += Math.max(0, Number(stream.forecast_expense_per_period) || 0);
+        const fx = Math.max(0, Number(stream.forecast_expense_per_period) || 0);
+        acc.forecastBusinessExpenses += fx;
+        // Company provenance for business-state eligibility (source_id, else name).
+        const key = (stream as any).source_id || `name::${String(stream.company || "").trim().toLowerCase()}`;
+        acc.forecastBusinessExpensesByCompany[key] = (acc.forecastBusinessExpensesByCompany[key] || 0) + fx;
       }
     }
     else acc.otherIncome += p.grossAmount;

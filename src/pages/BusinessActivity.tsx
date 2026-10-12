@@ -69,7 +69,7 @@ import {
 } from "@/lib/filingTypes";
 import { toast } from "sonner";
 import { resolveNetReceived } from "@/lib/netReceivedPrecedence";
-import { resolveCanonicalRecommendation, resolveAmountSavedForTransaction } from "@/lib/incomeRecommendationSurface";
+import { buildReminderComparison } from "@/lib/incomeRecommendationSurface";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 
 
@@ -306,7 +306,10 @@ export default function Transactions() {
    */
   const [savedEntryId, setSavedEntryId] = useState<string | null>(null);
 
-  const { getRecommendation: getIncomeRec, getCatchUpExcludingEntry } = useIncomeRecommendation();
+  const { getRecommendation: getIncomeRec, getCatchUpExcludingEntry } = useIncomeRecommendation({
+    // Same replacement context as the preview hook below.
+    excludeTransactionId: editingIncomeTxId,
+  });
   // Advanced dynamic reserve recommendations are Premium; the income entry
   // itself, its stored withholding and the basic estimate stay Free.
   const { can: canFeatureAccess } = useFeatureAccess();
@@ -886,6 +889,7 @@ export default function Transactions() {
             applyBusinessStateTax: selectedIncomeCompany?.applyBusinessStateTax ?? true,
             includeSETaxInRecommendation: selectedIncomeCompany?.includeSETaxInRecommendation ?? true,
       k1TaxTreatment: selectedIncomeCompany?.k1TaxTreatment ?? null,
+            isSelfEmploymentTaxable: isSelfEmploymentTaxableOverride,
           });
           if (editingIncomeEntryId) {
             updateIncomeMutation.mutate({
@@ -1006,6 +1010,7 @@ export default function Transactions() {
         applyBusinessStateTax: selectedIncomeCompany?.applyBusinessStateTax ?? true,
         includeSETaxInRecommendation: selectedIncomeCompany?.includeSETaxInRecommendation ?? true,
       k1TaxTreatment: selectedIncomeCompany?.k1TaxTreatment ?? null,
+        isSelfEmploymentTaxable: isSelfEmploymentTaxableOverride,
       });
 
       const payload: Partial<IncomeEntry> = {
@@ -1063,24 +1068,17 @@ export default function Transactions() {
             // Per-transaction reminder: nudge only if saved < 90% of rec.
             // Uses the SAME canonical recommendation the modal displayed so the
             // prompt can never disagree with the form for the same transaction.
-            const recommended = resolveCanonicalRecommendation({
-              recommendedWithholding,
-              taxesAlreadyWithheld: num(incomeForm.taxes_withheld),
-              // Historical events never get an actionable funding ask, so the
-              // gross fallback must stay 0 for them too.
-              fallbackGrossRecommendation: incomeEntryIsFutureOpportunity
-                ? rec?.baseTaxEstimate || 0
-                : 0,
-            });
-            const actualSaved = resolveAmountSavedForTransaction({
-              taxesWithheld: taxWithheld,
-              // Capped state credit from the canonical recommendation.
-              stateWithheld: recommendation?.creditedStateWithholding ?? applicableStateWH,
-              ssWithheld: num(incomeForm.ss_withholding),
-              medicareWithheld: num(incomeForm.medicare_withholding),
-              additionalTaxReserve: num(incomeForm.additional_tax_reserve),
-              actualWithholding: num(incomeForm.actual_withholding),
-            });
+            // Canonical event outputs only (same result that was persisted).
+            // SS/Medicare are never savings; state credit is the capped one.
+            const { recommended, saved: actualSaved } = rec
+              ? buildReminderComparison(
+                  { ...rec, isFutureOpportunity: incomeEntryIsFutureOpportunity },
+                  {
+                    additionalTaxReserve: num(incomeForm.additional_tax_reserve),
+                    actualWithholding: num(incomeForm.actual_withholding),
+                  },
+                )
+              : { recommended: 0, saved: 0 };
             if (canAdvancedSavings && recommended > 0 && actualSaved < recommended * 0.9) {
               setSavedEntryTitle(incomeForm.name);
               setReminderRecommended(recommended);

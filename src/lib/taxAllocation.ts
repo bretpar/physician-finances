@@ -199,8 +199,12 @@ export function buildAnnualTaxAllocation(input: {
   }
 
   const selfEmploymentTax = pos(est?.seTax?.total);
-  const personalStateTax = pos(est?.personalStateTax);
-  const businessStateTax = pos(est?.businessStateTax);
+  // Allocate GROSS state liabilities: each event credits its own state
+  // withholding against its share, so allocating the annual amount that is
+  // already net of withholding would deduct the same withholding twice.
+  const personalStateTax = pos(est?.personalStateTaxGross ?? est?.personalStateTax);
+  const businessStateTax = pos(est?.businessStateTaxGross ?? est?.businessStateTax);
+  const netStateTax = pos(est?.personalStateTax) + pos(est?.businessStateTax);
   const projectedTaxLiability = round2(pos(est?.totalTaxLiability));
 
   const ordinaryWeights = sources.map((s) => pos(s.allocableOrdinaryTaxBase));
@@ -274,8 +278,7 @@ export function buildAnnualTaxAllocation(input: {
     federalOrdinaryIncomeTax +
       investmentTax +
       selfEmploymentTax +
-      personalStateTax +
-      businessStateTax,
+      netStateTax,
   );
   const otherTax = round2(projectedTaxLiability - allocatableTotal);
 
@@ -293,7 +296,7 @@ export function buildAnnualTaxAllocation(input: {
     otherTax,
     sources: allocated,
     totalAllocatedTax,
-    reconciliationDifference: round2(allocatableTotal - totalAllocatedTax),
+    reconciliationDifference: round2(allocatableTotal - netStateTax + personalStateTax + businessStateTax - totalAllocatedTax),
     federalOrdinaryAllocationRate:
       combinedOrdinaryTaxBase > 0 ? federalOrdinaryIncomeTax / combinedOrdinaryTaxBase : 0,
     personalStateAllocationRate:

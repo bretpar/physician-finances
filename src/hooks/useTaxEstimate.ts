@@ -48,6 +48,38 @@ export interface TaxEstimateOptions {
 }
 
 /**
+ * Company-level business-state-tax eligibility (same rule used for income
+ * receipts). Expenses are attributed by THEIR company, never by income share.
+ */
+export function isBusinessStateEligibleCompany(
+  c: { id: string; companyType?: string | null; applyBusinessStateTax?: boolean | null } | null | undefined,
+  rates: { businessStateTaxApplicationMode?: string | null; businessStateTaxCompanyIds?: string[] } | null | undefined,
+): boolean {
+  if (!c) return false;
+  const f = normalizeFilingType(c.companyType as any);
+  if (f !== "1099_schedule_c" && f !== "k1_partnership" && f !== "scorp_distribution") return false;
+  if (c.applyBusinessStateTax === false) return false;
+  if (rates?.businessStateTaxApplicationMode === "selected" && !(rates.businessStateTaxCompanyIds ?? []).includes(c.id)) return false;
+  return true;
+}
+
+/** Sum planned expenses keyed by source_id / `name::<company>` for eligible companies. */
+export function sumEligiblePlannedBusinessExpenses(
+  byCompany: Record<string, number> | null | undefined,
+  companies: Array<{ id: string; name: string; companyType?: string | null; applyBusinessStateTax?: boolean | null }>,
+  rates: Parameters<typeof isBusinessStateEligibleCompany>[1],
+): number {
+  let total = 0;
+  for (const [key, amt] of Object.entries(byCompany ?? {})) {
+    const company = key.startsWith("name::")
+      ? companies.find((c) => c.name.trim().toLowerCase() === key.slice(6))
+      : companies.find((c) => c.id === key);
+    if (isBusinessStateEligibleCompany(company as any, rates)) total += Math.max(0, Number(amt) || 0);
+  }
+  return total;
+}
+
+/**
  * Self-employed health insurance deduction collected from saved business
  * entries: 1099 (Schedule C) AND K-1 partnership owners. Federal income tax
  * only — the annual engine never subtracts it from the SE-tax base. W-2 /
@@ -668,13 +700,16 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
               bucket.seEligibleGross += cGross;
               bucket.seEligibleExpenses += catchupExpenses;
             }
+            if (isBusinessStateEligibleCompany(linkedCompany as any, rates as any)) {
+              bucket.businessStateEligibleExpenses += catchupExpenses;
+            }
           }
           return acc;
         },
         {
-          w2: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0, expenses: 0, seEligibleGross: 0, seEligibleExpenses: 0 },
-          business: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0, expenses: 0, seEligibleGross: 0, seEligibleExpenses: 0 },
-          other: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0, expenses: 0, seEligibleGross: 0, seEligibleExpenses: 0 },
+          w2: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0, expenses: 0, seEligibleGross: 0, seEligibleExpenses: 0, businessStateEligibleExpenses: 0 },
+          business: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0, expenses: 0, seEligibleGross: 0, seEligibleExpenses: 0, businessStateEligibleExpenses: 0 },
+          other: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0, expenses: 0, seEligibleGross: 0, seEligibleExpenses: 0, businessStateEligibleExpenses: 0 },
         },
       );
 
@@ -1016,7 +1051,12 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
           standaloneRetirementRouting[incomeScope].selfEmployedEmployerDeduction,
         ownerHealthcare,
         businessStateEligibleGross: businessStateEligibleGross + cuBizGross,
-        businessStateEligibleExpenses: canonicalBusiness.businessStateEligibleTxExpenses + businessStateEligibleHomeOfficeDeduction + (forecastBusinessExpenses * eligibleRatio) + (cu.business.expenses * eligibleRatio),
+        businessStateEligibleExpenses: canonicalBusiness.businessStateEligibleTxExpenses + businessStateEligibleHomeOfficeDeduction + // Planned + catch-up expenses attributed by their OWN company's
+          // eligibility, so a replacement baseline with $0 income keeps them.
+          (incomeScope === "actualPlusPlanned"
+            ? sumEligiblePlannedBusinessExpenses((projTotals as any).forecastBusinessExpensesByCompany, companies as any, rates as any)
+            : 0) +
+          cu.business.businessStateEligibleExpenses,
         businessStateEligibleMileage: mileageDeduction * eligibleRatio,
         businessStateEligibleOwnerAdjustments: (ownerHealthcare + businessRetirement) * eligibleRatio,
 
