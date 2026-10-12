@@ -90,6 +90,8 @@ export interface PaycheckProfileSavingsInput {
    * planning and non-W-2/business workflows, so it is only suppressed here.
    */
   isW2PaycheckTarget?: boolean;
+  /** Canonical event tax target ($). When supplied it replaces rate × taxable. */
+  canonicalPaycheckTaxTarget?: number;
 }
 
 export interface PaycheckProfileSavingsResult {
@@ -170,7 +172,10 @@ export function calculatePaycheckProfileSavings(
       : rawStateCredit;
 
   const taxablePaycheckAmount = round2(Math.max(0, gross - deductions));
-  const paycheckTaxTarget = round2(taxablePaycheckAmount * (ratePct / 100));
+  const paycheckTaxTarget =
+    input.canonicalPaycheckTaxTarget != null
+      ? round2(pos(input.canonicalPaycheckTaxTarget))
+      : round2(taxablePaycheckAmount * (ratePct / 100));
   const totalTargetWithCatchUp = round2(paycheckTaxTarget + catchUpApplied);
   const totalPayrollTaxesWithheld = round2(
     federalIncomeTaxCredited + stateWithholdingCredited,
