@@ -66,3 +66,54 @@ export function resolveAmountSavedForTransaction(input: AmountSavedInput): numbe
 export function resolveAdditionalNeeded(recommended: number, saved: number): number {
   return round2(Math.max(0, (Number(recommended) || 0) - (Number(saved) || 0)));
 }
+
+/**
+ * Canonical event fields the after-save reminder needs. Both recommendation
+ * hooks expose these straight from `computeCanonicalEventRecommendation`.
+ */
+export interface ReminderCanonicalSource {
+  /** Event target + catch-up (what the event should have covered in total). */
+  totalSuggestedReserve: number;
+  /** Federal income-tax withholding credited (FICA already excluded). */
+  creditedFederalWithholding: number;
+  /** State withholding credited (already capped at this event's state tax). */
+  creditedStateWithholding: number;
+  /** False for already-received events — no actionable reminder. */
+  isFutureOpportunity?: boolean;
+}
+
+export interface ReminderComparison {
+  recommended: number;
+  creditedWithholding: number;
+  separatelyReserved: number;
+  saved: number;
+  additionalNeeded: number;
+}
+
+/**
+ * The ONE after-save reminder comparison. Consumes canonical event outputs
+ * only — pages must not rebuild targets or coverage. Social Security /
+ * Medicare are never counted as savings, and state withholding is the
+ * already-capped canonical credit (applied once).
+ */
+export function buildReminderComparison(
+  src: ReminderCanonicalSource,
+  reserves: { additionalTaxReserve?: number; actualWithholding?: number } = {},
+): ReminderComparison {
+  const recommended = src.isFutureOpportunity === false ? 0 : round2(Math.max(0, src.totalSuggestedReserve));
+  const creditedWithholding = round2(
+    Math.max(0, src.creditedFederalWithholding) + Math.max(0, src.creditedStateWithholding),
+  );
+  const separatelyReserved = round2(
+    Math.max(0, Number(reserves.additionalTaxReserve) || 0) +
+      Math.max(0, Number(reserves.actualWithholding) || 0),
+  );
+  const saved = round2(creditedWithholding + separatelyReserved);
+  return {
+    recommended,
+    creditedWithholding,
+    separatelyReserved,
+    saved,
+    additionalNeeded: resolveAdditionalNeeded(recommended, saved),
+  };
+}
