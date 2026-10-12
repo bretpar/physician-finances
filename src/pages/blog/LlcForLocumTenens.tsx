@@ -1,5 +1,24 @@
 import { Link } from "react-router-dom";
-import { GuideLayout } from "@/components/GuideLayout";
+import { GuideLayout, type GuideFaq } from "@/components/GuideLayout";
+
+const FAQS: GuideFaq[] = [
+  {
+    q: "Does an LLC lower a locum tenens physician's taxes?",
+    a: "No. A single-member LLC is taxed exactly like a sole proprietor — the same Schedule C and the same self-employment tax. Real tax savings only come from electing S-Corp treatment, not from the LLC itself.",
+  },
+  {
+    q: "Does an LLC protect a physician from malpractice claims?",
+    a: "No. An LLC does not shield you from liability for your own clinical work. It generally limits exposure to business debts and contracts, but malpractice liability stays personal — you still need malpractice coverage.",
+  },
+  {
+    q: "Can physicians form a regular LLC in every state?",
+    a: "Not always. Many states require licensed professionals to use a professional LLC (PLLC) or professional corporation, and some don't allow physicians to use an ordinary LLC at all. Check your state medical board and secretary of state rules before filing.",
+  },
+  {
+    q: "When does an S-Corp election start to pay off for locums physicians?",
+    a: "Usually once net locums income is consistently above roughly $80,000–$100,000, after accounting for payroll costs and extra filings. Locums working in many states may need payroll registrations in each, which eats into the savings.",
+  },
+];
 
 export default function LlcForLocumTenens() {
   return (
@@ -9,6 +28,7 @@ export default function LlcForLocumTenens() {
       description="LLC for locum tenens physicians: what an LLC does and doesn't change for taxes, liability limits, PLLC rules, costs, and when an S-Corp election makes sense."
       updated="October 2026"
       datePublished="2026-10-12"
+      faqs={FAQS}
     >
       <h1 className="text-4xl font-bold tracking-tight">Should a Locum Tenens Physician Form an LLC?</h1>
       <p className="text-lg text-muted-foreground">

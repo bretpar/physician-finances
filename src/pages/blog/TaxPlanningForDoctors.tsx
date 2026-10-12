@@ -1,5 +1,24 @@
 import { Link } from "react-router-dom";
-import { GuideLayout } from "@/components/GuideLayout";
+import { GuideLayout, type GuideFaq } from "@/components/GuideLayout";
+
+const FAQS: GuideFaq[] = [
+  {
+    q: "What are the biggest tax planning moves for physicians?",
+    a: "Max out tax-advantaged accounts (employer 401(k)/403(b), a Solo 401(k) or SEP-IRA for 1099 income, and an HSA), check W-2 withholding mid-year, pay quarterly estimates on any 1099 income, and track side-gig deductions as you go rather than rebuilding them in March.",
+  },
+  {
+    q: "How much can doctors contribute to retirement accounts in 2025?",
+    a: "The employee 401(k)/403(b) limit is $23,500 (more if you're 50+), and many hospitals offer a 457(b) with its own separate limit. 1099 or locums income can fund a Solo 401(k) or SEP-IRA on top of the employer plan.",
+  },
+  {
+    q: "Do physicians need to pay quarterly estimated taxes?",
+    a: "Yes, on income with no withholding — locums, moonlighting, expert witness work, and consulting. Federal estimates are due around April 15, June 15, September 15, and January 15. Paying 100% of last year's tax (110% if prior-year income was over $150,000) generally avoids underpayment penalties.",
+  },
+  {
+    q: "How do student loans affect a physician's tax planning?",
+    a: "If you're on an income-driven repayment plan or pursuing PSLF, your filing status (jointly or separately) and how much you put into pre-tax accounts can change your required payment. Run the numbers before you file.",
+  },
+];
 
 export default function TaxPlanningForDoctors() {
   return (
@@ -9,6 +28,7 @@ export default function TaxPlanningForDoctors() {
       description="Tax planning for doctors with W-2 and 1099 income: retirement accounts, HSAs, withholding, quarterly estimates, side-gig deductions, and a month-by-month checklist."
       updated="October 2026"
       datePublished="2026-10-12"
+      faqs={FAQS}
     >
       <h1 className="text-4xl font-bold tracking-tight">Tax Planning for Doctors: A Year-Round Checklist</h1>
       <p className="text-lg text-muted-foreground">

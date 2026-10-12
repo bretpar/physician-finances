@@ -1,5 +1,24 @@
 import { Link } from "react-router-dom";
-import { GuideLayout } from "@/components/GuideLayout";
+import { GuideLayout, type GuideFaq } from "@/components/GuideLayout";
+
+const FAQS: GuideFaq[] = [
+  {
+    q: "How much should a locum tenens physician set aside for taxes?",
+    a: "A common starting point is 30–40% of every locums payment. That covers federal income tax, the 15.3% self-employment tax (2.9% above the Social Security wage base), and state income tax. Go higher if locums stacks on top of a full-time W-2 salary or you work in high-tax states.",
+  },
+  {
+    q: "Why is nothing withheld from my locum tenens pay?",
+    a: "Staffing agencies usually pay locums physicians as 1099 independent contractors. No federal tax, state tax, Social Security, or Medicare comes out of the check — you owe all of it yourself, usually through quarterly estimated payments.",
+  },
+  {
+    q: "When are quarterly estimated tax payments due?",
+    a: "Federal estimated payments are due around April 15, June 15, September 15, and January 15. To avoid an underpayment penalty you generally need to pay at least 90% of this year's tax, or 100% of last year's tax (110% if your prior-year income was over $150,000).",
+  },
+  {
+    q: "Can I cover locums taxes through my W-2 job instead?",
+    a: "Yes. If you also have a W-2 job, raising your W-2 withholding is another way to cover the tax on locums income, and it counts as paid evenly through the year even if you increase it late.",
+  },
+];
 
 export default function LocumTenensSetAside() {
   return (
@@ -9,6 +28,7 @@ export default function LocumTenensSetAside() {
       description="How much of each locum tenens payment to save for taxes: a 30–40% starting rule, what drives it up or down, and how to pay quarterly estimates."
       updated="October 2026"
       datePublished="2026-10-12"
+      faqs={FAQS}
     >
       <h1 className="text-4xl font-bold tracking-tight">
         How Much to Set Aside for Taxes as a Locum Tenens Physician
