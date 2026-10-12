@@ -76,6 +76,5 @@ describe("Personal Income W-2 catch-up consistency", () => {
     expect(reminder.additionalNeeded).toBeGreaterThan(0);
     // Before the fix the save path used the live catch-up: target + 3,391.67.
     expect(canonicalFor(undefined, 500, 5000).totalSuggestedReserve).toBeCloseTo(sc.totalSuggestedReserve + LIVE_CATCH_UP, 2);
-    console.log("FIX", card.remainingSavingsNeeded, reminder.additionalNeeded);
   });
 });
