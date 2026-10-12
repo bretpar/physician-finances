@@ -428,8 +428,11 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
   // Counted credits = federal + state withholding + estimated payments.
   // (State withholding offsets state tax inside the engine; we surface the gross
   // here so users see the full picture of money already applied to their bill.)
+  // State withholding is NOT counted here: the engine's state tax is already
+  // net of state withholding (floored at $0), so adding it again would
+  // double-count it and let excess state withholding offset federal tax.
   const countedCreditsTotal =
-    combinedFederalWithheld + combinedStateWithheld + actualEstimatedPaymentsMade;
+    combinedFederalWithheld + actualEstimatedPaymentsMade;
   const nonCountedSavingsTotal = taxSavingsSetAside + txActualWithholding;
   // Remaining = totalEstimatedTax − countedCreditsTotal. We compute this here
   // (instead of using estimate.remainingLiability) so the identity always
