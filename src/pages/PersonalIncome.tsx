@@ -473,7 +473,10 @@ export default function PersonalIncome() {
           federal_withholding: num(form.federal_withholding),
           ss_withholding: num(form.ss_withholding),
           medicare_withholding: num(form.medicare_withholding),
-        }) + (stateIncomeTaxEnabled ? num(form.state_withholding) : 0),
+        }),
+      // State withholding is credited only against this entry's state tax
+      // (capped), never against federal tax.
+      stateWithholding: stateIncomeTaxEnabled ? num(form.state_withholding) : 0,
       // Employee SS + Medicare are payroll taxes, NOT income-tax credits. They
       // are passed separately so the engine removes them from the credit while
       // the canonical total above stays intact for display.
@@ -549,6 +552,13 @@ export default function PersonalIncome() {
         num(form.ss_withholding) + num(form.medicare_withholding),
       stateWithholdingIfEnabled: stateIncomeTaxEnabled ? num(form.state_withholding) : 0,
       stateTaxIncludedInTarget: stateIncomeTaxEnabled,
+      // Cap the state credit at this paycheck's state tax so excess state
+      // withholding never reduces the federal savings need. Flat mode has no
+      // state split, so its legacy behavior is kept.
+      stateTaxTargetForPaycheck:
+        method !== "flat_estimate" && baseRecommendation?.target
+          ? baseRecommendation.target.personalStateTax + baseRecommendation.target.businessStateTax
+          : undefined,
       // Prospective catch-up so a user who is behind can actually recover.
       // Prospective ONLY: historical paychecks never carry catch-up.
       // W-2 paycheck targets NEVER receive catch-up (see isW2PaycheckTarget).

@@ -72,6 +72,25 @@ export const ALLOCATION_BUCKETS = {
  * (calculated tax ÷ combined base), bucket granularity does not affect the
  * per-event rate — only the correctness of the bases does.
  */
+/**
+ * Net-profit business state tax base for ONE event, attributed marginally
+ * using the annual engine's own eligible gross/expense figures: the event's
+ * base is how much the annual net-profit base grows when this event is added.
+ * The annual estimate excludes the event being added/edited, so separately
+ * recorded expenses not yet absorbed by other eligible gross reduce this
+ * event once — never twice — and never beyond the event's own amount.
+ */
+export function netProfitBusinessStateBaseForEntry(
+  estimate: TaxEstimate | null | undefined,
+  entryNetBase: number,
+): number {
+  const annualGross = pos(estimate?.businessStateEligibleGross);
+  const annualExpenses = pos(estimate?.businessStateEligibleExpenses);
+  const without = Math.max(0, annualGross - annualExpenses);
+  const withEntry = Math.max(0, annualGross + pos(entryNetBase) - annualExpenses);
+  return Math.round((withEntry - without) * 100) / 100;
+}
+
 export function buildAllocationFromEstimate(
   estimate: TaxEstimate | null | undefined,
 ): AnnualTaxAllocation {
@@ -414,7 +433,9 @@ export function computeCanonicalEventRecommendation(
       // engine): gross receipts, or gross less business deductions. Retirement,
       // HSA and other federal-only deductions never reduce it.
       businessStateTaxBase:
-        (settings as SavingsRateSettingsLike).businessStateTaxBase === "gross" ? gross : seBaseForEntry,
+        (settings as SavingsRateSettingsLike).businessStateTaxBase === "gross"
+          ? gross
+          : netProfitBusinessStateBaseForEntry(input.estimate, seBaseForEntry),
     });
     basis = "canonical_allocation";
   }
