@@ -77,3 +77,40 @@ describe("K-1 planner employer retirement", () => {
     expect(hook).toMatch(/upsertBusinessIncomeMirror[\s\S]*?\.eq\("linked_transaction_id", args\.txId\)/);
   });
 });
+
+import { employerRetirementReducesByStream } from "@/hooks/useProjectedIncome";
+
+describe("employer retirement cash-flow treatment", () => {
+  const on = { employer_retirement_contribution: true, employer_retirement_reduces_paycheck: true };
+  const off = { employer_retirement_contribution: true, employer_retirement_reduces_paycheck: false };
+  const co = (v: Record<string, boolean>) => [{ id: "c1", companyType: "k1_partnership", advancedFieldVisibility: v }];
+  const s = stream({ source_id: "c1" });
+
+  it("Planner net subtracts employer retirement only when the company setting is ON", () => {
+    const [pOn] = generateProjectedPaychecks([s], [], [], [], [], [], employerRetirementReducesByStream([s], co(on)));
+    const [pOff] = generateProjectedPaychecks([s], [], [], [], [], [], employerRetirementReducesByStream([s], co(off)));
+    expect(pOn.netAmount).toBe(20_000 - 2_000 - 1_500);
+    expect(pOff.netAmount).toBe(20_000 - 2_000);
+  });
+
+  it("override employer amount drives the reduction for that occurrence", () => {
+    const r = stream({ source_id: "c1", pay_frequency: "monthly", start_date: `${year}-01-15` });
+    const ov = { id: "o", stream_id: "s1", override_date: `${year}-03-15`, action: "modify", paycheck_amount: 20_000,
+      taxes_withheld: 0, retirement_401k: 2_000, employer_retirement_contribution: 500, pre_tax_deductions: 0 } as ProjectedIncomeOverride;
+    const ps = generateProjectedPaychecks([r], [], [], [ov], [], [], employerRetirementReducesByStream([r], co(on)));
+    expect(ps.find((p) => p.date === `${year}-03-15`)!.netAmount).toBe(17_500);
+    expect(ps.find((p) => p.date === `${year}-04-15`)!.netAmount).toBe(16_500);
+  });
+
+  it("converted Net Received estimate follows the setting; tax fields unchanged", () => {
+    const base = { grossAmount: 20_000, taxesWithheld: 0, retirement401k: 2_000, employerRetirementContribution: 1_500,
+      preTaxDeductions: 0, healthcareDeduction: 0, hsaContribution: 0 };
+    const fOn = buildOccurrenceLedgerFields({ ...base, employerRetirementReducesPaycheck: true });
+    const fOff = buildOccurrenceLedgerFields({ ...base, employerRetirementReducesPaycheck: false });
+    expect(fOn.deposited_amount).toBe(16_500);
+    expect(fOff.deposited_amount).toBe(18_000);
+    expect(fOn.retirement_401k).toBe(2_000);
+    expect(fOn.employer_retirement_contribution).toBe(1_500);
+    expect(fOn.gross_amount).toBe(20_000);
+  });
+});
