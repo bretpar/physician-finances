@@ -1,0 +1,2 @@
+ALTER TABLE public.projected_income_streams ADD COLUMN IF NOT EXISTS employer_retirement_contribution numeric NOT NULL DEFAULT 0;
+ALTER TABLE public.projected_income_overrides ADD COLUMN IF NOT EXISTS employer_retirement_contribution numeric NOT NULL DEFAULT 0;

@@ -1167,6 +1167,7 @@ export type Database = {
           action: string
           additional_tax_reserve: number
           created_at: string
+          employer_retirement_contribution: number
           federal_withholding: number
           has_detailed_breakdown: boolean
           healthcare_deduction: number
@@ -1191,6 +1192,7 @@ export type Database = {
           action?: string
           additional_tax_reserve?: number
           created_at?: string
+          employer_retirement_contribution?: number
           federal_withholding?: number
           has_detailed_breakdown?: boolean
           healthcare_deduction?: number
@@ -1215,6 +1217,7 @@ export type Database = {
           action?: string
           additional_tax_reserve?: number
           created_at?: string
+          employer_retirement_contribution?: number
           federal_withholding?: number
           has_detailed_breakdown?: boolean
           healthcare_deduction?: number
@@ -1259,6 +1262,7 @@ export type Database = {
           company_type: string
           created_at: string
           custom_interval_days: number | null
+          employer_retirement_contribution: number
           end_date: string | null
           federal_withholding: number
           forecast_expense_notes: string
@@ -1290,6 +1294,7 @@ export type Database = {
           company_type?: string
           created_at?: string
           custom_interval_days?: number | null
+          employer_retirement_contribution?: number
           end_date?: string | null
           federal_withholding?: number
           forecast_expense_notes?: string
@@ -1321,6 +1326,7 @@ export type Database = {
           company_type?: string
           created_at?: string
           custom_interval_days?: number | null
+          employer_retirement_contribution?: number
           end_date?: string | null
           federal_withholding?: number
           forecast_expense_notes?: string
