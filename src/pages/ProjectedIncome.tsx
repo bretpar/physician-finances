@@ -60,6 +60,7 @@ import { useCreateIncomeSource, type SourceKind } from "@/hooks/useIncomeSources
 import {
   normalizeFilingType,
   resolveAdvancedVisibility,
+  resolveEmployerPaycheckReduction,
   toCanonicalIncomeType,
   type ToggleKey,
 } from "@/lib/filingTypes";
@@ -2855,6 +2856,12 @@ export default function ProjectedIncome() {
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">401(k)</span>
                     <span>{fmtFull(convertTarget.retirement401k)}</span>
+                  </div>
+                )}
+                {(convertTarget.employerRetirementContribution || 0) > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Employer retirement</span>
+                    <span>{fmtFull(convertTarget.employerRetirementContribution || 0)}</span>
                   </div>
                 )}
                 {convertTarget.preTaxDeductions > 0 && (
