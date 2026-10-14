@@ -180,6 +180,35 @@ export function sumDetailedWithholding(f: {
   return parseAmt(f.federal_withholding) + parseAmt(f.ss_withholding) + parseAmt(f.medicare_withholding) + parseAmt(f.state_withholding);
 }
 
+/**
+ * Financial fields saved for a single-paycheck override. Depends only on the
+ * form's data (`detailed` = the occurrence owns classified components), never on
+ * whether the breakdown panel is open. Aggregate-only tax is preserved as-is.
+ */
+export function buildOverrideFinancials(f: {
+  detailed: boolean;
+  taxes_withheld: string; retirement_401k: string; employer_retirement_contribution: string;
+  pre_tax_deductions: string; federal_withholding: string; ss_withholding: string;
+  medicare_withholding: string; state_withholding: string; healthcare_deduction: string;
+  hsa_contribution: string; additional_tax_reserve: string;
+}) {
+  const classifiedTax = sumDetailedWithholding(f);
+  return {
+    taxes_withheld: f.detailed && classifiedTax > 0 ? classifiedTax : parseAmt(f.taxes_withheld),
+    retirement_401k: parseAmt(f.retirement_401k),
+    employer_retirement_contribution: Math.max(0, parseAmt(f.employer_retirement_contribution)),
+    pre_tax_deductions: f.detailed ? sumDetailedDeductions(f) : parseAmt(f.pre_tax_deductions),
+    has_detailed_breakdown: f.detailed,
+    federal_withholding: parseAmt(f.federal_withholding),
+    ss_withholding: parseAmt(f.ss_withholding),
+    medicare_withholding: parseAmt(f.medicare_withholding),
+    state_withholding: parseAmt(f.state_withholding),
+    healthcare_deduction: parseAmt(f.healthcare_deduction),
+    hsa_contribution: parseAmt(f.hsa_contribution),
+    additional_tax_reserve: parseAmt(f.additional_tax_reserve),
+  };
+}
+
 /** Sum of the deduction components entered in the detailed breakdown. */
 export function sumDetailedDeductions(f: {
   healthcare_deduction: string; hsa_contribution: string; pre_tax_deductions: string;
@@ -414,6 +443,8 @@ export default function ProjectedIncome() {
   // Override edit state
   const [overrideTarget, setOverrideTarget] = useState<{ streamId: string; date: string } | null>(null);
   const [overrideSaving, setOverrideSaving] = useState(false);
+  /** UI-only: whether the Detailed breakdown card is expanded. Never affects saved values. */
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
 
   const [overrideForm, setOverrideForm] = useState<OverrideForm>({
     paycheck_amount: "", taxes_withheld: "", retirement_401k: "", employer_retirement_contribution: "", pre_tax_deductions: "", notes: "", new_date: "",
@@ -1017,6 +1048,7 @@ export default function ProjectedIncome() {
       hsa_contribution: detail?.hsaContribution ? String(detail.hsaContribution) : "",
       additional_tax_reserve: detail?.additionalTaxReserve ? String(detail.additionalTaxReserve) : "",
     });
+    setBreakdownOpen(false);
     setOverrideTarget({ streamId: entry.streamId, date: anchorDate });
   };
 
@@ -1036,24 +1068,9 @@ export default function ProjectedIncome() {
       paycheck_amount: num(overrideForm.paycheck_amount),
       // When a detailed breakdown exists it is the source of truth: the basic
       // totals are derived from the components, never added to them.
-      taxes_withheld: overrideForm.detailed
-        ? sumDetailedWithholding(overrideForm)
-        : num(overrideForm.taxes_withheld),
-      retirement_401k: num(overrideForm.retirement_401k),
-      employer_retirement_contribution: Math.max(0, num(overrideForm.employer_retirement_contribution)),
-      pre_tax_deductions: overrideForm.detailed
-        ? sumDetailedDeductions(overrideForm)
-        : num(overrideForm.pre_tax_deductions),
+      ...buildOverrideFinancials(overrideForm),
       notes: overrideForm.notes,
       new_date: movedDate,
-      has_detailed_breakdown: overrideForm.detailed,
-      federal_withholding: overrideForm.detailed ? num(overrideForm.federal_withholding) : 0,
-      ss_withholding: overrideForm.detailed ? num(overrideForm.ss_withholding) : 0,
-      medicare_withholding: overrideForm.detailed ? num(overrideForm.medicare_withholding) : 0,
-      state_withholding: overrideForm.detailed ? num(overrideForm.state_withholding) : 0,
-      healthcare_deduction: overrideForm.detailed ? num(overrideForm.healthcare_deduction) : 0,
-      hsa_contribution: overrideForm.detailed ? num(overrideForm.hsa_contribution) : 0,
-      additional_tax_reserve: overrideForm.detailed ? num(overrideForm.additional_tax_reserve) : 0,
     };
     setOverrideSaving(true);
     try {
@@ -2416,12 +2433,23 @@ export default function ProjectedIncome() {
               const empVisible = !!overrideTarget && employerSettingsForStream(overrideTarget.streamId).visible;
               const employerAmt = num(overrideForm.employer_retirement_contribution);
               type OvKey = Exclude<keyof OverrideForm, "detailed">;
+              // Editing a classified component marks the occurrence as owning its breakdown.
+              const DETAIL_KEYS: OvKey[] = ["federal_withholding", "state_withholding", "ss_withholding",
+                "medicare_withholding", "healthcare_deduction", "hsa_contribution", "pre_tax_deductions", "additional_tax_reserve"];
+              const classifiedTax = sumDetailedWithholding(overrideForm);
+              const taxIsClassified = overrideForm.detailed && classifiedTax > 0;
               const field = (label: string, key: OvKey, testId?: string) => (
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">{label}</Label>
                   <Input type="number" inputMode="decimal" min="0" step="0.01" className="h-9 tabular-nums"
                     data-testid={testId} value={overrideForm[key]}
-                    onChange={(e) => setOverrideForm((p) => ({ ...p, [key]: e.target.value }))} />
+                    onChange={(e) => setOverrideForm((p) => ({
+                      ...p, [key]: e.target.value,
+                      ...(DETAIL_KEYS.includes(key) && !p.detailed
+                        // First classified edit: other pre-tax keeps meaning "other" only.
+                        ? { detailed: true }
+                        : {}),
+                    }))} />
                 </div>
               );
               const summary = (label: string, value: string, readOnly: boolean, onChange: (v: string) => void, testId: string) => (
@@ -2455,8 +2483,8 @@ export default function ProjectedIncome() {
                   {/* Summaries edit the same underlying values; detailed amounts drive them when present. */}
                   <div className="grid grid-cols-3 gap-2">
                     {summary("Tax",
-                      overrideForm.detailed ? String(sumDetailedWithholding(overrideForm)) : overrideForm.taxes_withheld,
-                      overrideForm.detailed, (v) => setOverrideForm((p) => ({ ...p, taxes_withheld: v })), "override-summary-tax")}
+                      taxIsClassified ? String(classifiedTax) : overrideForm.taxes_withheld,
+                      taxIsClassified, (v) => setOverrideForm((p) => ({ ...p, taxes_withheld: v })), "override-summary-tax")}
                     {summary("Retirement",
                       employerAmt > 0 ? String(num(overrideForm.retirement_401k) + employerAmt) : overrideForm.retirement_401k,
                       employerAmt > 0, (v) => setOverrideForm((p) => ({ ...p, retirement_401k: v })), "override-summary-retirement")}
@@ -2466,22 +2494,14 @@ export default function ProjectedIncome() {
                   </div>
 
                   <Collapsible
-                    open={overrideForm.detailed}
-                    onOpenChange={(open) => setOverrideForm((p) => {
-                      // Seed empty detail from the summary totals so opening the card never zeroes them.
-                      if (!open || p.detailed) return { ...p, detailed: open };
-                      const noTax = sumDetailedWithholding(p) === 0;
-                      return {
-                        ...p, detailed: true,
-                        federal_withholding: noTax && num(p.taxes_withheld) > 0 ? p.taxes_withheld : p.federal_withholding,
-                      };
-                    })}
+                    open={breakdownOpen}
+                    onOpenChange={setBreakdownOpen}
                   >
                     <div className="rounded-md border">
                       <CollapsibleTrigger asChild>
                         <button type="button" className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium">
                           <span>Detailed breakdown</span>
-                          <ChevronDown className={cn("h-4 w-4 transition-transform", overrideForm.detailed && "rotate-180")} />
+                          <ChevronDown className={cn("h-4 w-4 transition-transform", breakdownOpen && "rotate-180")} />
                         </button>
                       </CollapsibleTrigger>
                       <CollapsibleContent className="border-t px-3 pb-2">
@@ -2534,9 +2554,9 @@ export default function ProjectedIncome() {
                 <span className="text-muted-foreground">Est. take-home: </span>
                 <span className="font-semibold text-foreground">
                   {fmtFull(Math.max(0, num(overrideForm.paycheck_amount)
-                    - (overrideForm.detailed ? sumDetailedWithholding(overrideForm) : num(overrideForm.taxes_withheld))
+                    - buildOverrideFinancials(overrideForm).taxes_withheld
                     - num(overrideForm.retirement_401k)
-                    - (overrideForm.detailed ? sumDetailedDeductions(overrideForm) : num(overrideForm.pre_tax_deductions))
+                    - buildOverrideFinancials(overrideForm).pre_tax_deductions
                     - (overrideTarget && employerSettingsForStream(overrideTarget.streamId).reduces
                         ? num(overrideForm.employer_retirement_contribution) : 0)))}
                 </span>
