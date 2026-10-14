@@ -2438,7 +2438,7 @@ export default function ProjectedIncome() {
             {(() => {
               const empVisible = !!overrideTarget && employerSettingsForStream(overrideTarget.streamId).visible;
               const employerAmt = num(overrideForm.employer_retirement_contribution);
-              type OvKey = Exclude<keyof OverrideForm, "detailed">;
+              type OvKey = Exclude<keyof OverrideForm, "detailed" | "tax_classified">;
               // Editing a classified component marks the occurrence as owning its breakdown.
               const DETAIL_KEYS: OvKey[] = ["federal_withholding", "state_withholding", "ss_withholding",
                 "medicare_withholding", "healthcare_deduction", "hsa_contribution", "pre_tax_deductions", "additional_tax_reserve"];
