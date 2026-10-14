@@ -2467,7 +2467,17 @@ export default function ProjectedIncome() {
 
                   <Collapsible
                     open={overrideForm.detailed}
-                    onOpenChange={(open) => setOverrideForm((p) => ({ ...p, detailed: open }))}
+                    onOpenChange={(open) => setOverrideForm((p) => {
+                      // Seed empty detail from the summary totals so opening the card never zeroes them.
+                      if (!open || p.detailed) return { ...p, detailed: open };
+                      const noTax = sumDetailedWithholding(p) === 0;
+                      const noDed = sumDetailedDeductions(p) === 0;
+                      return {
+                        ...p, detailed: true,
+                        federal_withholding: noTax && num(p.taxes_withheld) > 0 ? p.taxes_withheld : p.federal_withholding,
+                        pre_tax_deductions: noDed ? p.pre_tax_deductions : p.pre_tax_deductions,
+                      };
+                    })}
                   >
                     <div className="rounded-md border">
                       <CollapsibleTrigger asChild>
