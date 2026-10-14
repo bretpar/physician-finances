@@ -787,7 +787,7 @@ export function useConfirmSuggestedMatch() {
             medicareWithholding: detail.medicareWithholding,
             additionalTaxReserve: detail.additionalTaxReserve,
             hasDetailedBreakdown: detail.hasDetailedBreakdown,
-            stateSeparate: ov.action === "modify",
+            stateSeparate: detail.isSnapshot,
           });
           const patch: Record<string, any> = {
             origin_type: "planner_converted",
@@ -888,7 +888,7 @@ export function useConfirmSuggestedMatch() {
             medicareWithholding: detail.medicareWithholding,
             additionalTaxReserve: detail.additionalTaxReserve,
             hasDetailedBreakdown: detail.hasDetailedBreakdown,
-            stateSeparate: ov.action === "modify",
+            stateSeparate: detail.isSnapshot,
           });
           // The bank deposit is the cash truth for Net Received.
           const bankAmount = Math.abs(Number(tx.amount) || 0);
@@ -1647,10 +1647,16 @@ export function resolveOccurrenceDetail(
   const detailed = !!override && override.action === "modify" && !!override.has_detailed_breakdown;
   // A saved single-paycheck override is a complete snapshot: its components
   // never mix with (newer) parent-stream components.
-  const snapshot = !!override && override.action === "modify";
+  // Legacy overrides saved before snapshots (no components at all) still inherit.
+  const snapshot = !!override && override.action === "modify" && (detailed || [
+    override.federal_withholding, override.state_withholding, override.ss_withholding,
+    override.medicare_withholding, override.healthcare_deduction, override.hsa_contribution,
+    override.additional_tax_reserve,
+  ].some((v) => Number(v || 0) > 0));
   const pick = (o?: number | null, s?: number | null) => Number((snapshot ? o : s) || 0);
   return {
     hasDetailedBreakdown: detailed,
+    isSnapshot: snapshot,
     federalWithholding: pick(override?.federal_withholding, stream.federal_withholding),
     stateWithholding: pick(override?.state_withholding, stream.state_withholding),
     ssWithholding: pick(override?.ss_withholding, stream.ss_withholding),
@@ -1682,7 +1688,7 @@ export function occurrenceDetailFields(
     medicareWithholding: d.medicareWithholding,
     additionalTaxReserve: d.additionalTaxReserve,
     hasDetailedBreakdown: d.hasDetailedBreakdown,
-    stateSeparate: override?.action === "modify",
+    stateSeparate: d.isSnapshot,
     // Modified occurrences own their employer amount; otherwise use the stream default.
     employerRetirementContribution:
       override?.action === "modify"
