@@ -467,7 +467,6 @@ Deno.serve(async (req) => {
         // Linked income-entry mirror (same shape as manual conversion) so
         // employee/employer retirement and owner deductions reach Business
         // Activity. Reuse an existing mirror for this transaction — never two.
-        const pre = Number(occ.preTaxDeductions || 0);
         const mirror = {
           name: stream.company, company: stream.company, source_id: stream.source_id,
           income_type: incomeType, ui_income_subtype: stream.ui_income_subtype ?? incomeType,
