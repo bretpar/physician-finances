@@ -31,6 +31,8 @@ export interface OccurrenceLedgerSource {
   retirement401k: number;
   /** Employer retirement — stored separately; never reduces Net Received here. */
   employerRetirementContribution?: number;
+  /** Company setting: employer retirement reduces cash received (estimate only). */
+  employerRetirementReducesPaycheck?: boolean;
   preTaxDeductions: number;
   healthcareDeduction: number;
   hsaContribution: number;
@@ -71,7 +73,8 @@ export function buildOccurrenceLedgerFields(src: OccurrenceLedgerSource): Occurr
   const gross = n(src.grossAmount);
   const taxes = n(src.taxesWithheld);
   const retirement = n(src.retirement401k);
-  const deposited = Math.max(0, gross - taxes - otherPreTax - retirement - healthcare - hsa);
+  const employerCash = src.employerRetirementReducesPaycheck ? n(src.employerRetirementContribution) : 0;
+  const deposited = Math.max(0, gross - taxes - otherPreTax - retirement - healthcare - hsa - employerCash);
   return {
     gross_amount: gross,
     paycheck_amount: gross,
