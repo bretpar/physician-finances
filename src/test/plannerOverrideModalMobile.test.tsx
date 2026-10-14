@@ -86,8 +86,8 @@ describe("Income Planner Edit Income modal wiring", () => {
 
   it("still renders the detailed breakdown inside the scrollable body", () => {
     const body = modal.slice(modal.indexOf("<DialogBody"), modal.indexOf("</DialogBody>"));
-    expect(body).toContain("Add detailed tax &amp; deduction breakdown");
-    expect(body).toContain("Additional Tax Reserve");
+    expect(body).toContain("<span>Detailed breakdown</span>");
+    expect(body).toContain("Additional tax reserve");
     expect(body).toContain("Est. take-home:");
   });
 });

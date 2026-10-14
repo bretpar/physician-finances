@@ -37,6 +37,7 @@ interface Stream {
   medicare_withholding: number;
   healthcare_deduction: number;
   hsa_contribution: number;
+  additional_tax_reserve?: number;
 }
 
 interface Bonus {
@@ -60,6 +61,14 @@ interface Override {
   retirement_401k: number;
   employer_retirement_contribution?: number;
   pre_tax_deductions: number;
+  has_detailed_breakdown?: boolean;
+  federal_withholding?: number;
+  state_withholding?: number;
+  ss_withholding?: number;
+  medicare_withholding?: number;
+  healthcare_deduction?: number;
+  hsa_contribution?: number;
+  additional_tax_reserve?: number;
   /** Optional moved date — must match the client's generateProjectedPaychecks
    * behavior so cron and client agree on which calendar date is converted. */
   new_date: string | null;
@@ -95,10 +104,90 @@ interface OccurrenceRaw {
   preTaxDeductions: number;
   healthcareDeduction: number;
   hsaContribution: number;
+  federalWithholding: number;
+  stateWithholding: number;
+  ssWithholding: number;
+  medicareWithholding: number;
+  additionalTaxReserve: number;
+  hasDetailedBreakdown: boolean;
+  stateSeparate: boolean;
   type: "paycheck" | "bonus";
   streamId: string;
   bonusId: string | null;
   isSkipped: boolean;
+}
+
+// ── Mirrors src/hooks/useProjectedIncome.ts resolveOccurrenceDetail and
+// src/lib/plannerOccurrenceLedger.ts (splitStreamTax, buildOccurrenceLedgerFields).
+// Edge runtime cannot import app code; keep these in sync.
+const num = (v: unknown) => Number(v || 0);
+function splitStreamTax(s: Stream) {
+  const agg = num(s.taxes_withheld);
+  const payroll = num(s.federal_withholding) + num(s.ss_withholding) + num(s.medicare_withholding);
+  const state = num(s.state_withholding);
+  const near = (a: number, b: number) => Math.abs(a - b) < 0.005;
+  if (payroll + state > 0 && (near(agg, payroll) || near(agg, payroll + state))) {
+    return { taxesWithheld: Math.round(payroll * 100) / 100, stateSeparate: true };
+  }
+  return { taxesWithheld: agg, stateSeparate: false };
+}
+function resolveOccurrence(s: Stream, ov: Override | undefined, date: string) {
+  const modified = ov?.action === "modify";
+  const detailed = modified && !!ov!.has_detailed_breakdown;
+  const snapshot = modified && (detailed || [
+    ov!.federal_withholding, ov!.state_withholding, ov!.ss_withholding, ov!.medicare_withholding,
+    ov!.healthcare_deduction, ov!.hsa_contribution, ov!.additional_tax_reserve,
+  ].some((v) => num(v) > 0));
+  const pick = (o: unknown, sv: unknown) => num(snapshot ? o : sv);
+  const tax = modified
+    ? { taxesWithheld: num(ov!.taxes_withheld), stateSeparate: snapshot }
+    : splitStreamTax(s);
+  return {
+    date: modified && ov!.new_date ? ov!.new_date : date,
+    amount: modified ? num(ov!.paycheck_amount) : num(s.paycheck_amount),
+    taxesWithheld: tax.taxesWithheld,
+    stateSeparate: tax.stateSeparate,
+    retirement401k: modified ? num(ov!.retirement_401k) : num(s.retirement_401k),
+    employerRetirement: modified ? num(ov!.employer_retirement_contribution) : num(s.employer_retirement_contribution),
+    preTaxDeductions: modified ? num(ov!.pre_tax_deductions) : num(s.pre_tax_deductions),
+    healthcareDeduction: pick(ov?.healthcare_deduction, s.healthcare_deduction),
+    hsaContribution: pick(ov?.hsa_contribution, s.hsa_contribution),
+    federalWithholding: pick(ov?.federal_withholding, s.federal_withholding),
+    stateWithholding: pick(ov?.state_withholding, s.state_withholding),
+    ssWithholding: pick(ov?.ss_withholding, s.ss_withholding),
+    medicareWithholding: pick(ov?.medicare_withholding, s.medicare_withholding),
+    additionalTaxReserve: pick(ov?.additional_tax_reserve, s.additional_tax_reserve),
+    hasDetailedBreakdown: detailed,
+    isSkipped: ov?.action === "skip",
+  };
+}
+function ledgerFields(o: OccurrenceRaw, employerReduces: boolean) {
+  const healthcare = num(o.healthcareDeduction), hsa = num(o.hsaContribution);
+  const rem = num(o.preTaxDeductions) - healthcare - hsa;
+  const otherPre = o.hasDetailedBreakdown ? (rem > 0 ? Math.round(rem * 100) / 100 : 0) : num(o.preTaxDeductions);
+  const gross = num(o.amount), taxes = num(o.taxesWithheld), ret = num(o.retirement401k);
+  const deposited = Math.max(0, gross - taxes - (o.stateSeparate ? num(o.stateWithholding) : 0) - otherPre - ret
+    - healthcare - hsa - (employerReduces ? num(o.employerRetirement) : 0));
+  return {
+    gross_amount: gross, paycheck_amount: gross, deposited_amount: deposited,
+    federal_withholding: num(o.federalWithholding), state_withholding: num(o.stateWithholding),
+    ss_withholding: num(o.ssWithholding), medicare_withholding: num(o.medicareWithholding),
+    taxes_withheld: taxes, pre_tax_deductions: otherPre, retirement_401k: ret,
+    employer_retirement_contribution: num(o.employerRetirement),
+    healthcare_deduction: healthcare, hsa_contribution: hsa,
+    additional_tax_reserve: num(o.additionalTaxReserve),
+  };
+}
+// Mirrors resolveEmployerPaycheckReduction: field must be explicitly shown for
+// a type that supports it AND the reduces-paycheck flag on (both default OFF).
+const EMPLOYER_RET_TYPES = new Set(["1099_schedule_c", "k1_partnership", "scorp_w2", "w2"]);
+function normalizeType(raw: string | null | undefined) {
+  const v = (raw || "").toLowerCase().trim();
+  if (!v) return "1099_schedule_c";
+  if (v === "1099") return "1099_schedule_c";
+  if (v === "w2" || v === "w2_user" || v === "w2_partner") return "w2";
+  if (v === "k1") return "k1_partnership";
+  return v;
 }
 
 function generateOccurrences(
@@ -121,19 +210,8 @@ function generateOccurrences(
     if (s.pay_frequency === "single") {
       if (start <= today) {
         const dStr = ymd(start);
-        const ov = overrideMap.get(`${s.id}:${dStr}`);
-        const skip = ov?.action === "skip";
-        const amt = ov?.action === "modify" ? ov.paycheck_amount : s.paycheck_amount;
-        const tax = ov?.action === "modify" ? ov.taxes_withheld : s.taxes_withheld;
-        const ret = ov?.action === "modify" ? ov.retirement_401k : s.retirement_401k;
-        const empRet = Number((ov?.action === "modify" ? ov.employer_retirement_contribution : s.employer_retirement_contribution) ?? 0) || 0;
-        const pre = ov?.action === "modify" ? ov.pre_tax_deductions : s.pre_tax_deductions;
-        const emittedDate = ov?.action === "modify" && ov.new_date ? ov.new_date : dStr;
-        out.push({
-          date: emittedDate, amount: amt, taxesWithheld: tax, retirement401k: ret, employerRetirement: empRet, preTaxDeductions: pre,
-          healthcareDeduction: s.healthcare_deduction || 0, hsaContribution: s.hsa_contribution || 0,
-          type: "paycheck", streamId: s.id, bonusId: null, isSkipped: skip,
-        });
+        const r = resolveOccurrence(s, overrideMap.get(`${s.id}:${dStr}`), dStr);
+        out.push({ ...r, type: "paycheck", streamId: s.id, bonusId: null });
       }
       continue;
     }
@@ -143,19 +221,8 @@ function generateOccurrences(
     while (cur < effectiveStart) cur = nextDate(cur, s.pay_frequency, s.custom_interval_days);
     while (cur <= end && cur <= today) {
       const dStr = ymd(cur);
-      const ov = overrideMap.get(`${s.id}:${dStr}`);
-      const skip = ov?.action === "skip";
-      const amt = ov?.action === "modify" ? ov.paycheck_amount : s.paycheck_amount;
-      const tax = ov?.action === "modify" ? ov.taxes_withheld : s.taxes_withheld;
-      const ret = ov?.action === "modify" ? ov.retirement_401k : s.retirement_401k;
-        const empRet = Number((ov?.action === "modify" ? ov.employer_retirement_contribution : s.employer_retirement_contribution) ?? 0) || 0;
-      const pre = ov?.action === "modify" ? ov.pre_tax_deductions : s.pre_tax_deductions;
-      const emittedDate = ov?.action === "modify" && ov.new_date ? ov.new_date : dStr;
-      out.push({
-        date: emittedDate, amount: amt, taxesWithheld: tax, retirement401k: ret, employerRetirement: empRet, preTaxDeductions: pre,
-        healthcareDeduction: s.healthcare_deduction || 0, hsaContribution: s.hsa_contribution || 0,
-        type: "paycheck", streamId: s.id, bonusId: null, isSkipped: skip,
-      });
+      const r = resolveOccurrence(s, overrideMap.get(`${s.id}:${dStr}`), dStr);
+      out.push({ ...r, type: "paycheck", streamId: s.id, bonusId: null });
       cur = nextDate(cur, s.pay_frequency, s.custom_interval_days);
     }
   }
@@ -175,6 +242,8 @@ function generateOccurrences(
       out.push({
         date: ymd(d), amount: b.amount, taxesWithheld: b.taxes_withheld,
         retirement401k: 0, employerRetirement: 0, preTaxDeductions: 0, healthcareDeduction: 0, hsaContribution: 0,
+        federalWithholding: 0, stateWithholding: 0, ssWithholding: 0, medicareWithholding: 0,
+        additionalTaxReserve: 0, hasDetailedBreakdown: false, stateSeparate: false,
         type: "bonus", streamId: b.stream_id, bonusId: b.id, isSkipped: false,
       });
     }
@@ -328,6 +397,19 @@ Deno.serve(async (req) => {
 
       const conversionId = (conv as any).id as string;
 
+      // Company "employer retirement reduces my paycheck" — net cash only.
+      let employerReduces = false;
+      if (stream.source_id && (occ.employerRetirement || 0) > 0) {
+        const { data: co } = await admin.from("companies")
+          .select("company_type, advanced_field_visibility").eq("id", stream.source_id).maybeSingle();
+        const v = ((co as any)?.advanced_field_visibility || {}) as Record<string, boolean>;
+        employerReduces = !!(co as any)?.company_type
+          && EMPLOYER_RET_TYPES.has(normalizeType((co as any).company_type))
+          && v.employer_retirement_contribution === true
+          && v.employer_retirement_reduces_paycheck === true;
+      }
+      const fields = ledgerFields(occ, employerReduces);
+
       if (bucket === "personal") {
         const { data: ie, error: ieErr } = await admin.from("income_entries").insert({
           user_id: userId,
@@ -338,18 +420,7 @@ Deno.serve(async (req) => {
           income_type: incomeType,
           ui_income_subtype: stream.ui_income_subtype ?? incomeType,
           income_date: occ.date,
-          gross_amount: occ.amount,
-          paycheck_amount: occ.amount,
-          federal_withholding: stream.federal_withholding || 0,
-          state_withholding: stream.state_withholding || 0,
-          ss_withholding: stream.ss_withholding || 0,
-          medicare_withholding: stream.medicare_withholding || 0,
-          taxes_withheld: occ.taxesWithheld,
-          pre_tax_deductions: occ.preTaxDeductions,
-          retirement_401k: occ.retirement401k,
-          employer_retirement_contribution: occ.employerRetirement,
-          healthcare_deduction: occ.healthcareDeduction,
-          hsa_contribution: occ.hsaContribution,
+          ...fields,
           source_bucket: "personal",
           tax_category: "ordinary",
           is_actual: true,
@@ -396,27 +467,11 @@ Deno.serve(async (req) => {
         // Linked income-entry mirror (same shape as manual conversion) so
         // employee/employer retirement and owner deductions reach Business
         // Activity. Reuse an existing mirror for this transaction — never two.
-        const pre = Number(occ.preTaxDeductions || 0);
-        // Company "employer retirement reduces my paycheck" — net cash only.
-        let employerReduces = false;
-        if (stream.source_id && (occ.employerRetirement || 0) > 0) {
-          const { data: co } = await admin.from("companies")
-            .select("advanced_field_visibility").eq("id", stream.source_id).maybeSingle();
-          const v = ((co as any)?.advanced_field_visibility || {}) as Record<string, boolean>;
-          employerReduces = v.employer_retirement_reduces_paycheck === true && v.employer_retirement_contribution !== false;
-        }
         const mirror = {
           name: stream.company, company: stream.company, source_id: stream.source_id,
           income_type: incomeType, ui_income_subtype: stream.ui_income_subtype ?? incomeType,
-          income_date: occ.date, gross_amount: occ.amount, paycheck_amount: occ.amount,
-          deposited_amount: Math.max(0, occ.amount - (occ.taxesWithheld || 0) - pre - (occ.retirement401k || 0) - (occ.healthcareDeduction || 0) - (occ.hsaContribution || 0)
-            - (employerReduces ? (occ.employerRetirement || 0) : 0)),
-          taxes_withheld: occ.taxesWithheld || 0,
-          pre_tax_deductions: pre,
-          retirement_401k: occ.retirement401k || 0,
-          employer_retirement_contribution: occ.employerRetirement || 0,
-          healthcare_deduction: occ.healthcareDeduction || 0,
-          hsa_contribution: occ.hsaContribution || 0,
+          income_date: occ.date,
+          ...fields,
           source_bucket: "business", tax_category: "ordinary", is_actual: true,
           include_in_tax_estimate: true, include_in_cash_flow: false, status: "received",
           linked_transaction_id: txId, origin_type: "planner_converted",
