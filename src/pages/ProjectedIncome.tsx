@@ -2456,7 +2456,7 @@ export default function ProjectedIncome() {
           </DialogStickyHeader>
           <DialogBody className="space-y-3">
             <p className="text-xs text-muted-foreground">
-              Changes apply to this occurrence only. The rest of the stream stays unchanged.
+              Changes apply to this paycheck only and stay as saved if you later edit the recurring income.
             </p>
             <div className="space-y-3">
 
@@ -2588,9 +2588,6 @@ export default function ProjectedIncome() {
                 </span>
               </div>
             )}
-            <p className="text-xs text-muted-foreground">
-              Saved changes to this paycheck stay as-is if you later edit the recurring income.
-            </p>
 
           </div>
           </DialogBody>
