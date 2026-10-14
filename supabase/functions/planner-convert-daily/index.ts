@@ -25,6 +25,7 @@ interface Stream {
   paycheck_amount: number;
   taxes_withheld: number;
   retirement_401k: number;
+  employer_retirement_contribution?: number;
   pre_tax_deductions: number;
   is_active: boolean;
   include_in_tax: boolean;
@@ -57,6 +58,7 @@ interface Override {
   paycheck_amount: number;
   taxes_withheld: number;
   retirement_401k: number;
+  employer_retirement_contribution?: number;
   pre_tax_deductions: number;
   /** Optional moved date — must match the client's generateProjectedPaychecks
    * behavior so cron and client agree on which calendar date is converted. */
@@ -89,6 +91,7 @@ interface OccurrenceRaw {
   amount: number;
   taxesWithheld: number;
   retirement401k: number;
+  employerRetirement: number;
   preTaxDeductions: number;
   healthcareDeduction: number;
   hsaContribution: number;
@@ -123,10 +126,11 @@ function generateOccurrences(
         const amt = ov?.action === "modify" ? ov.paycheck_amount : s.paycheck_amount;
         const tax = ov?.action === "modify" ? ov.taxes_withheld : s.taxes_withheld;
         const ret = ov?.action === "modify" ? ov.retirement_401k : s.retirement_401k;
+        const empRet = Number((ov?.action === "modify" ? ov.employer_retirement_contribution : s.employer_retirement_contribution) ?? 0) || 0;
         const pre = ov?.action === "modify" ? ov.pre_tax_deductions : s.pre_tax_deductions;
         const emittedDate = ov?.action === "modify" && ov.new_date ? ov.new_date : dStr;
         out.push({
-          date: emittedDate, amount: amt, taxesWithheld: tax, retirement401k: ret, preTaxDeductions: pre,
+          date: emittedDate, amount: amt, taxesWithheld: tax, retirement401k: ret, employerRetirement: empRet, preTaxDeductions: pre,
           healthcareDeduction: s.healthcare_deduction || 0, hsaContribution: s.hsa_contribution || 0,
           type: "paycheck", streamId: s.id, bonusId: null, isSkipped: skip,
         });
@@ -144,10 +148,11 @@ function generateOccurrences(
       const amt = ov?.action === "modify" ? ov.paycheck_amount : s.paycheck_amount;
       const tax = ov?.action === "modify" ? ov.taxes_withheld : s.taxes_withheld;
       const ret = ov?.action === "modify" ? ov.retirement_401k : s.retirement_401k;
+        const empRet = Number((ov?.action === "modify" ? ov.employer_retirement_contribution : s.employer_retirement_contribution) ?? 0) || 0;
       const pre = ov?.action === "modify" ? ov.pre_tax_deductions : s.pre_tax_deductions;
       const emittedDate = ov?.action === "modify" && ov.new_date ? ov.new_date : dStr;
       out.push({
-        date: emittedDate, amount: amt, taxesWithheld: tax, retirement401k: ret, preTaxDeductions: pre,
+        date: emittedDate, amount: amt, taxesWithheld: tax, retirement401k: ret, employerRetirement: empRet, preTaxDeductions: pre,
         healthcareDeduction: s.healthcare_deduction || 0, hsaContribution: s.hsa_contribution || 0,
         type: "paycheck", streamId: s.id, bonusId: null, isSkipped: skip,
       });
@@ -169,7 +174,7 @@ function generateOccurrences(
     for (const d of dates) {
       out.push({
         date: ymd(d), amount: b.amount, taxesWithheld: b.taxes_withheld,
-        retirement401k: 0, preTaxDeductions: 0, healthcareDeduction: 0, hsaContribution: 0,
+        retirement401k: 0, employerRetirement: 0, preTaxDeductions: 0, healthcareDeduction: 0, hsaContribution: 0,
         type: "bonus", streamId: b.stream_id, bonusId: b.id, isSkipped: false,
       });
     }
@@ -342,6 +347,7 @@ Deno.serve(async (req) => {
           taxes_withheld: occ.taxesWithheld,
           pre_tax_deductions: occ.preTaxDeductions,
           retirement_401k: occ.retirement401k,
+          employer_retirement_contribution: occ.employerRetirement,
           healthcare_deduction: occ.healthcareDeduction,
           hsa_contribution: occ.hsaContribution,
           source_bucket: "personal",
@@ -386,8 +392,38 @@ Deno.serve(async (req) => {
           await admin.from("planner_conversions").delete().eq("id", conversionId);
           userStats.errors++; continue;
         }
+        const txId = (tx as any).id as string;
+        // Linked income-entry mirror (same shape as manual conversion) so
+        // employee/employer retirement and owner deductions reach Business
+        // Activity. Reuse an existing mirror for this transaction — never two.
+        const pre = Number(occ.preTaxDeductions || 0);
+        const mirror = {
+          name: stream.company, company: stream.company, source_id: stream.source_id,
+          income_type: incomeType, ui_income_subtype: stream.ui_income_subtype ?? incomeType,
+          income_date: occ.date, gross_amount: occ.amount, paycheck_amount: occ.amount,
+          deposited_amount: Math.max(0, occ.amount - (occ.taxesWithheld || 0) - pre - (occ.retirement401k || 0) - (occ.healthcareDeduction || 0) - (occ.hsaContribution || 0)),
+          taxes_withheld: occ.taxesWithheld || 0,
+          pre_tax_deductions: pre,
+          retirement_401k: occ.retirement401k || 0,
+          employer_retirement_contribution: occ.employerRetirement || 0,
+          healthcare_deduction: occ.healthcareDeduction || 0,
+          hsa_contribution: occ.hsaContribution || 0,
+          source_bucket: "business", tax_category: "ordinary", is_actual: true,
+          include_in_tax_estimate: true, include_in_cash_flow: false, status: "received",
+          linked_transaction_id: txId, origin_type: "planner_converted",
+          origin_planner_conversion_id: conversionId,
+        };
+        const { data: existingIe } = await admin.from("income_entries")
+          .select("id").eq("linked_transaction_id", txId).limit(1).maybeSingle();
+        const { error: mErr } = existingIe
+          ? await admin.from("income_entries").update(mirror).eq("id", (existingIe as any).id)
+          : await admin.from("income_entries").insert({
+              user_id: userId, organization_id: stream.organization_id ?? orgId, ...mirror,
+              notes: `From planner${occ.type === "bonus" ? " (bonus)" : ""}`,
+            });
+        if (mErr) console.warn("planner-convert-daily mirror upsert failed", mErr);
         await admin.from("planner_conversions")
-          .update({ transaction_id: (tx as any).id })
+          .update({ transaction_id: txId })
           .eq("id", conversionId);
       }
       userStats.converted++;
