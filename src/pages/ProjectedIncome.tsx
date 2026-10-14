@@ -1,3 +1,4 @@
+import { buildTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -175,11 +176,32 @@ interface OverrideForm {
 
 const parseAmt = (v: string) => parseFloat(v) || 0;
 
-/** Sum of the actual withholding components entered in the detailed breakdown. */
+/**
+ * Tax summary from classified components: federal + SS + Medicare (canonical
+ * `taxes_withheld`). State withholding is separate and deducted from cash once.
+ */
 export function sumDetailedWithholding(f: {
-  federal_withholding: string; ss_withholding: string; medicare_withholding: string; state_withholding: string;
+  federal_withholding: string; ss_withholding: string; medicare_withholding: string; state_withholding?: string;
 }): number {
-  return parseAmt(f.federal_withholding) + parseAmt(f.ss_withholding) + parseAmt(f.medicare_withholding) + parseAmt(f.state_withholding);
+  return buildTotalFederalPayrollTaxes(f);
+}
+
+/** True when any withholding component (incl. state) is classified. */
+function hasClassifiedWithholding(f: {
+  federal_withholding: string; ss_withholding: string; medicare_withholding: string; state_withholding: string;
+}): boolean {
+  return sumDetailedWithholding(f) + parseAmt(f.state_withholding) > 0;
+}
+
+/** Estimated cash for an override form — state deducted exactly once. */
+export function overrideTakeHome(
+  f: Parameters<typeof buildOverrideFinancials>[0] & { paycheck_amount: string },
+  employerReduces: boolean,
+): number {
+  const fin = buildOverrideFinancials(f);
+  return Math.max(0, parseAmt(f.paycheck_amount) - fin.taxes_withheld - fin.state_withholding
+    - fin.retirement_401k - fin.pre_tax_deductions
+    - (employerReduces ? fin.employer_retirement_contribution : 0));
 }
 
 /**
@@ -197,7 +219,7 @@ export function buildOverrideFinancials(f: {
 }) {
   const classifiedTax = sumDetailedWithholding(f);
   return {
-    taxes_withheld: f.tax_classified && classifiedTax > 0 ? classifiedTax : parseAmt(f.taxes_withheld),
+    taxes_withheld: f.tax_classified && hasClassifiedWithholding(f) ? classifiedTax : parseAmt(f.taxes_withheld),
     retirement_401k: parseAmt(f.retirement_401k),
     employer_retirement_contribution: Math.max(0, parseAmt(f.employer_retirement_contribution)),
     pre_tax_deductions: f.detailed ? sumDetailedDeductions(f) : parseAmt(f.pre_tax_deductions),
@@ -1043,7 +1065,9 @@ export default function ProjectedIncome() {
       // Date field shows where this occurrence currently sits.
       new_date: entry.date,
       detailed: !!(existing as any)?.has_detailed_breakdown,
-      tax_classified: !!(existing as any)?.has_detailed_breakdown &&
+      // Any known component means Tax is derived from the snapshot's components;
+      // aggregate-only records (no components) stay unclassified.
+      tax_classified:
         Number(detail?.federalWithholding || 0) + Number(detail?.ssWithholding || 0) +
           Number(detail?.medicareWithholding || 0) + Number(detail?.stateWithholding || 0) > 0,
       federal_withholding: detail?.federalWithholding ? String(detail.federalWithholding) : "",
@@ -1140,6 +1164,7 @@ export default function ProjectedIncome() {
         taxesWithheld: entry.taxesWithheld,
         preTaxDeductions: entry.preTaxDeductions,
         hasDetailedBreakdown: Boolean(detail?.hasDetailedBreakdown),
+        stateSeparate: Boolean(detail?.isSnapshot),
         existingTransactionId: pickExistingBankTransactionId(
           entry,
           isBusiness ? "business" : "personal",
@@ -2431,7 +2456,7 @@ export default function ProjectedIncome() {
           </DialogStickyHeader>
           <DialogBody className="space-y-3">
             <p className="text-xs text-muted-foreground">
-              Changes apply to this occurrence only. The rest of the stream stays unchanged.
+              Changes apply to this paycheck only and stay as saved if you later edit the recurring income.
             </p>
             <div className="space-y-3">
 
@@ -2443,7 +2468,7 @@ export default function ProjectedIncome() {
               const DETAIL_KEYS: OvKey[] = ["federal_withholding", "state_withholding", "ss_withholding",
                 "medicare_withholding", "healthcare_deduction", "hsa_contribution", "pre_tax_deductions", "additional_tax_reserve"];
               const classifiedTax = sumDetailedWithholding(overrideForm);
-              const taxIsClassified = !!overrideForm.tax_classified && classifiedTax > 0;
+              const taxIsClassified = !!overrideForm.tax_classified && hasClassifiedWithholding(overrideForm);
               const TAX_KEYS: OvKey[] = ["federal_withholding", "state_withholding", "ss_withholding", "medicare_withholding"];
               const field = (label: string, key: OvKey, testId?: string) => (
                 <div className="space-y-1">
@@ -2558,12 +2583,8 @@ export default function ProjectedIncome() {
               <div className="rounded-md bg-muted/50 px-3 py-2 text-sm">
                 <span className="text-muted-foreground">Est. take-home: </span>
                 <span className="font-semibold text-foreground">
-                  {fmtFull(Math.max(0, num(overrideForm.paycheck_amount)
-                    - buildOverrideFinancials(overrideForm).taxes_withheld
-                    - num(overrideForm.retirement_401k)
-                    - buildOverrideFinancials(overrideForm).pre_tax_deductions
-                    - (overrideTarget && employerSettingsForStream(overrideTarget.streamId).reduces
-                        ? num(overrideForm.employer_retirement_contribution) : 0)))}
+                  {fmtFull(overrideTakeHome(overrideForm,
+                    !!overrideTarget && employerSettingsForStream(overrideTarget.streamId).reduces))}
                 </span>
               </div>
             )}

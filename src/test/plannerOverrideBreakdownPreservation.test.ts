@@ -20,7 +20,7 @@ describe("override breakdown preservation", () => {
   it("open → close → save with no changes keeps every component", () => {
     const saved = buildOverrideFinancials(classified);
     expect(saved).toMatchObject({
-      taxes_withheld: 1200, federal_withholding: 600, state_withholding: 200,
+      taxes_withheld: 1000, federal_withholding: 600, state_withholding: 200,
       ss_withholding: 300, medicare_withholding: 100, retirement_401k: 500,
       employer_retirement_contribution: 750, healthcare_deduction: 250,
       hsa_contribution: 150, pre_tax_deductions: 450, additional_tax_reserve: 400,
@@ -49,7 +49,7 @@ describe("override breakdown preservation", () => {
 
   it("single classified component edit updates the Tax total from components", () => {
     const saved = buildOverrideFinancials({ ...classified, state_withholding: "300" });
-    expect(saved.taxes_withheld).toBe(1300);
+    expect(saved.taxes_withheld).toBe(1000);
     expect(saved.federal_withholding).toBe(600);
   });
 

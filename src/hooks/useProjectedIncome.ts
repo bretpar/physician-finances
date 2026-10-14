@@ -787,6 +787,7 @@ export function useConfirmSuggestedMatch() {
             medicareWithholding: detail.medicareWithholding,
             additionalTaxReserve: detail.additionalTaxReserve,
             hasDetailedBreakdown: detail.hasDetailedBreakdown,
+            stateSeparate: detail.isSnapshot,
           });
           const patch: Record<string, any> = {
             origin_type: "planner_converted",
@@ -887,6 +888,7 @@ export function useConfirmSuggestedMatch() {
             medicareWithholding: detail.medicareWithholding,
             additionalTaxReserve: detail.additionalTaxReserve,
             hasDetailedBreakdown: detail.hasDetailedBreakdown,
+            stateSeparate: detail.isSnapshot,
           });
           // The bank deposit is the cash truth for Net Received.
           const bankAmount = Math.abs(Number(tx.amount) || 0);
@@ -1008,6 +1010,8 @@ export function useManualPlannerConvert() {
       additionalTaxReserve?: number;
       /** True when `preTaxDeductions` is the planner AGGREGATE (health + HSA + other). */
       hasDetailedBreakdown?: boolean;
+      /** Override snapshot: taxesWithheld excludes state; deduct state once. */
+      stateSeparate?: boolean;
       /**
        * Existing imported/bank transaction that already represents this deposit.
        * When set, the conversion enriches that row instead of creating a new
@@ -1085,6 +1089,7 @@ export function useManualPlannerConvert() {
         medicareWithholding: input.medicareWithholding,
         additionalTaxReserve: input.additionalTaxReserve ?? 0,
         hasDetailedBreakdown: input.hasDetailedBreakdown,
+        stateSeparate: input.stateSeparate,
       });
       const estimatedTakeHome = ledger.deposited_amount;
 
@@ -1640,9 +1645,18 @@ export function resolveOccurrenceDetail(
   override?: Partial<ProjectedIncomeOverride> | null,
 ) {
   const detailed = !!override && override.action === "modify" && !!override.has_detailed_breakdown;
-  const pick = (o?: number | null, s?: number | null) => Number((detailed ? o : s) || 0);
+  // A saved single-paycheck override is a complete snapshot: its components
+  // never mix with (newer) parent-stream components.
+  // Legacy overrides saved before snapshots (no components at all) still inherit.
+  const snapshot = !!override && override.action === "modify" && (detailed || [
+    override.federal_withholding, override.state_withholding, override.ss_withholding,
+    override.medicare_withholding, override.healthcare_deduction, override.hsa_contribution,
+    override.additional_tax_reserve,
+  ].some((v) => Number(v || 0) > 0));
+  const pick = (o?: number | null, s?: number | null) => Number((snapshot ? o : s) || 0);
   return {
     hasDetailedBreakdown: detailed,
+    isSnapshot: snapshot,
     federalWithholding: pick(override?.federal_withholding, stream.federal_withholding),
     stateWithholding: pick(override?.state_withholding, stream.state_withholding),
     ssWithholding: pick(override?.ss_withholding, stream.ss_withholding),
@@ -1674,6 +1688,7 @@ export function occurrenceDetailFields(
     medicareWithholding: d.medicareWithholding,
     additionalTaxReserve: d.additionalTaxReserve,
     hasDetailedBreakdown: d.hasDetailedBreakdown,
+    stateSeparate: d.isSnapshot,
     // Modified occurrences own their employer amount; otherwise use the stream default.
     employerRetirementContribution:
       override?.action === "modify"
@@ -1757,6 +1772,7 @@ export function generateProjectedPaychecks(
     medicareWithholding: number;
     additionalTaxReserve: number;
     hasDetailedBreakdown: boolean;
+    stateSeparate?: boolean;
     employerRetirementContribution?: number;
     type: "paycheck" | "bonus";
     label: string;
@@ -1933,7 +1949,7 @@ export function generateProjectedPaychecks(
   const businessTxs = businessTransactions || [];
 
   for (const raw of rawPaychecks) {
-    const net = raw.grossAmount - raw.taxesWithheld - raw.retirement401k - raw.preTaxDeductions - raw.healthcareDeduction
+    const net = raw.grossAmount - raw.taxesWithheld - (raw.stateSeparate ? Number(raw.stateWithholding || 0) : 0) - raw.retirement401k - raw.preTaxDeductions - raw.healthcareDeduction
       - employerPaycheckReductions({
           employerRetirement: raw.employerRetirementContribution,
           employerRetirementReducesPaycheck: !!employerRetirementReducesByStream?.[raw.streamId],
