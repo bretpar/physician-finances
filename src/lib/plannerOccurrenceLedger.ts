@@ -42,6 +42,13 @@ export interface OccurrenceLedgerSource {
   medicareWithholding?: number;
   additionalTaxReserve?: number;
   hasDetailedBreakdown?: boolean;
+  /**
+   * True for single-paycheck override snapshots, whose `taxesWithheld` is the
+   * federal payroll aggregate (federal + SS + Medicare) with state separate.
+   * State is then deducted from cash exactly once. Stream rows keep their
+   * legacy aggregate and leave this unset.
+   */
+  stateSeparate?: boolean;
 }
 
 export interface OccurrenceLedgerFields {
@@ -74,7 +81,8 @@ export function buildOccurrenceLedgerFields(src: OccurrenceLedgerSource): Occurr
   const taxes = n(src.taxesWithheld);
   const retirement = n(src.retirement401k);
   const employerCash = src.employerRetirementReducesPaycheck ? n(src.employerRetirementContribution) : 0;
-  const deposited = Math.max(0, gross - taxes - otherPreTax - retirement - healthcare - hsa - employerCash);
+  const stateCash = src.stateSeparate ? n(src.stateWithholding) : 0;
+  const deposited = Math.max(0, gross - taxes - stateCash - otherPreTax - retirement - healthcare - hsa - employerCash);
   return {
     gross_amount: gross,
     paycheck_amount: gross,
