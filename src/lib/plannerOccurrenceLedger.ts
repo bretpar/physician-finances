@@ -70,6 +70,32 @@ export interface OccurrenceLedgerFields {
 
 const n = (v: unknown) => Number(v || 0);
 
+/**
+ * CANONICAL Tax for an UNEDITED (stream-derived) occurrence:
+ * Tax = federal income tax + Social Security + Medicare; state stays separate
+ * and is deducted from cash once. Applied only when the stream's saved total
+ * is recognisably built from its components (either the current
+ * federal-payroll total or the legacy total that also included state), so
+ * cash withholding is never double-counted or omitted. Aggregate-only streams
+ * keep their total untouched and unclassified.
+ */
+export function splitStreamTax(stream: {
+  taxes_withheld?: number | null;
+  federal_withholding?: number | null;
+  state_withholding?: number | null;
+  ss_withholding?: number | null;
+  medicare_withholding?: number | null;
+}): { taxesWithheld: number; stateSeparate: boolean } {
+  const agg = n(stream.taxes_withheld);
+  const payroll = n(stream.federal_withholding) + n(stream.ss_withholding) + n(stream.medicare_withholding);
+  const state = n(stream.state_withholding);
+  const near = (a: number, b: number) => Math.abs(a - b) < 0.005;
+  if (payroll + state > 0 && (near(agg, payroll) || near(agg, payroll + state))) {
+    return { taxesWithheld: Math.round(payroll * 100) / 100, stateSeparate: true };
+  }
+  return { taxesWithheld: agg, stateSeparate: false };
+}
+
 /** Build the exact ledger columns for one converted planner occurrence. */
 export function buildOccurrenceLedgerFields(src: OccurrenceLedgerSource): OccurrenceLedgerFields {
   const healthcare = n(src.healthcareDeduction);
