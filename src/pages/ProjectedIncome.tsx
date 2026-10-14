@@ -162,6 +162,8 @@ interface OverrideForm {
   new_date: string;
   /** Optional detailed breakdown — same field definitions as Personal Income. */
   detailed: boolean;
+  /** True once Tax is the sum of classified components (loaded or user-edited). Aggregate-only otherwise. */
+  tax_classified?: boolean;
   federal_withholding: string;
   ss_withholding: string;
   medicare_withholding: string;
@@ -187,6 +189,7 @@ export function sumDetailedWithholding(f: {
  */
 export function buildOverrideFinancials(f: {
   detailed: boolean;
+  tax_classified?: boolean;
   taxes_withheld: string; retirement_401k: string; employer_retirement_contribution: string;
   pre_tax_deductions: string; federal_withholding: string; ss_withholding: string;
   medicare_withholding: string; state_withholding: string; healthcare_deduction: string;
@@ -194,7 +197,7 @@ export function buildOverrideFinancials(f: {
 }) {
   const classifiedTax = sumDetailedWithholding(f);
   return {
-    taxes_withheld: f.detailed && classifiedTax > 0 ? classifiedTax : parseAmt(f.taxes_withheld),
+    taxes_withheld: f.tax_classified && classifiedTax > 0 ? classifiedTax : parseAmt(f.taxes_withheld),
     retirement_401k: parseAmt(f.retirement_401k),
     employer_retirement_contribution: Math.max(0, parseAmt(f.employer_retirement_contribution)),
     pre_tax_deductions: f.detailed ? sumDetailedDeductions(f) : parseAmt(f.pre_tax_deductions),
@@ -1040,6 +1043,9 @@ export default function ProjectedIncome() {
       // Date field shows where this occurrence currently sits.
       new_date: entry.date,
       detailed: !!(existing as any)?.has_detailed_breakdown,
+      tax_classified: !!(existing as any)?.has_detailed_breakdown &&
+        Number(detail?.federalWithholding || 0) + Number(detail?.ssWithholding || 0) +
+          Number(detail?.medicareWithholding || 0) + Number(detail?.stateWithholding || 0) > 0,
       federal_withholding: detail?.federalWithholding ? String(detail.federalWithholding) : "",
       ss_withholding: detail?.ssWithholding ? String(detail.ssWithholding) : "",
       medicare_withholding: detail?.medicareWithholding ? String(detail.medicareWithholding) : "",
@@ -2437,7 +2443,8 @@ export default function ProjectedIncome() {
               const DETAIL_KEYS: OvKey[] = ["federal_withholding", "state_withholding", "ss_withholding",
                 "medicare_withholding", "healthcare_deduction", "hsa_contribution", "pre_tax_deductions", "additional_tax_reserve"];
               const classifiedTax = sumDetailedWithholding(overrideForm);
-              const taxIsClassified = overrideForm.detailed && classifiedTax > 0;
+              const taxIsClassified = !!overrideForm.tax_classified && classifiedTax > 0;
+              const TAX_KEYS: OvKey[] = ["federal_withholding", "state_withholding", "ss_withholding", "medicare_withholding"];
               const field = (label: string, key: OvKey, testId?: string) => (
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">{label}</Label>
@@ -2445,10 +2452,8 @@ export default function ProjectedIncome() {
                     data-testid={testId} value={overrideForm[key]}
                     onChange={(e) => setOverrideForm((p) => ({
                       ...p, [key]: e.target.value,
-                      ...(DETAIL_KEYS.includes(key) && !p.detailed
-                        // First classified edit: other pre-tax keeps meaning "other" only.
-                        ? { detailed: true }
-                        : {}),
+                      ...(DETAIL_KEYS.includes(key) ? { detailed: true } : {}),
+                      ...(TAX_KEYS.includes(key) ? { tax_classified: true } : {}),
                     }))} />
                 </div>
               );
