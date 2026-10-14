@@ -1766,6 +1766,7 @@ export function generateProjectedPaychecks(
     medicareWithholding: number;
     additionalTaxReserve: number;
     hasDetailedBreakdown: boolean;
+    stateSeparate?: boolean;
     employerRetirementContribution?: number;
     type: "paycheck" | "bonus";
     label: string;
