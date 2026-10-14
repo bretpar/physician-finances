@@ -103,7 +103,7 @@ describe("detailed occurrence override isolation", () => {
     for (const p of others) {
       expect(p.isModified).toBeFalsy();
       expect(p.grossAmount).toBe(8000);
-      expect(p.taxesWithheld).toBe(2000);
+      expect(p.taxesWithheld).toBe(1700); // federal + SS + Medicare; state separate
       expect(p.retirement401k).toBe(500);
       expect(p.preTaxDeductions).toBe(100);
       expect(p.healthcareDeduction).toBe(250);
