@@ -29,6 +29,8 @@ export interface OccurrenceLedgerSource {
   grossAmount: number;
   taxesWithheld: number;
   retirement401k: number;
+  /** Employer retirement — stored separately; never reduces Net Received here. */
+  employerRetirementContribution?: number;
   preTaxDeductions: number;
   healthcareDeduction: number;
   hsaContribution: number;
@@ -51,6 +53,7 @@ export interface OccurrenceLedgerFields {
   taxes_withheld: number;
   pre_tax_deductions: number;
   retirement_401k: number;
+  employer_retirement_contribution: number;
   healthcare_deduction: number;
   hsa_contribution: number;
   additional_tax_reserve: number;
@@ -80,6 +83,7 @@ export function buildOccurrenceLedgerFields(src: OccurrenceLedgerSource): Occurr
     taxes_withheld: taxes,
     pre_tax_deductions: otherPreTax,
     retirement_401k: retirement,
+    employer_retirement_contribution: n(src.employerRetirementContribution),
     healthcare_deduction: healthcare,
     hsa_contribution: hsa,
     additional_tax_reserve: n(src.additionalTaxReserve),
