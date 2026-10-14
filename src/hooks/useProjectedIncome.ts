@@ -67,6 +67,8 @@ export interface ProjectedIncomeStream {
   paycheck_amount: number;
   taxes_withheld: number;
   retirement_401k: number;
+  /** Employer-funded retirement (K-1 / W-2). Separate from employee `retirement_401k`. */
+  employer_retirement_contribution?: number;
   pre_tax_deductions: number;
   is_active: boolean;
   include_in_tax: boolean;
@@ -117,6 +119,8 @@ export interface ProjectedIncomeOverride {
   paycheck_amount: number;
   taxes_withheld: number;
   retirement_401k: number;
+  /** Occurrence-level employer retirement (independent of the stream default). */
+  employer_retirement_contribution?: number;
   pre_tax_deductions: number;
   /** Optional detailed breakdown (mirrors the Personal Income ledger fields). */
   federal_withholding?: number;
@@ -152,6 +156,8 @@ export interface ProjectedPaycheck {
   grossAmount: number;
   taxesWithheld: number;
   retirement401k: number;
+  /** Employer retirement contribution for this occurrence (override > stream). Never reduces net by itself. */
+  employerRetirementContribution?: number;
   preTaxDeductions: number;
   /** Healthcare deduction (formerly ownerHealthcare). */
   healthcareDeduction: number;
@@ -648,6 +654,7 @@ export function buildProjectedIncomeStreamInsert(
     paycheck_amount: stream.paycheck_amount || 0,
     taxes_withheld: stream.taxes_withheld || 0,
     retirement_401k: stream.retirement_401k || 0,
+    employer_retirement_contribution: stream.employer_retirement_contribution || 0,
     pre_tax_deductions: stream.pre_tax_deductions || 0,
     is_active: stream.is_active ?? true,
     include_in_tax: stream.include_in_tax ?? true,
@@ -864,6 +871,11 @@ export function useConfirmSuggestedMatch() {
             grossAmount: gross,
             taxesWithheld: Number(ov.taxes_withheld ?? s.taxes_withheld ?? 0) || 0,
             retirement401k: Number(ov.retirement_401k ?? s.retirement_401k ?? 0) || 0,
+            employerRetirementContribution: Number(
+              overrideRow && ov.action === "modify"
+                ? ov.employer_retirement_contribution ?? 0
+                : s.employer_retirement_contribution ?? 0,
+            ) || 0,
             preTaxDeductions: Number(ov.pre_tax_deductions ?? s.pre_tax_deductions ?? 0) || 0,
             healthcareDeduction: detail.healthcareDeduction,
             hsaContribution: detail.hsaContribution,
@@ -930,6 +942,36 @@ export function useConfirmSuggestedMatch() {
 }
 
 /**
+ * One business event = one linked income_entries mirror row (carries the
+ * employee/employer retirement and other owner deductions). Reuses the row
+ * already linked to `txId`, so retries never insert a duplicate.
+ * Shared by manual and automatic Planner → Business Activity conversion.
+ */
+export async function upsertBusinessIncomeMirror(args: {
+  txId: string;
+  userId: string;
+  organizationId: string | null;
+  fields: Record<string, unknown>;
+  notes: string;
+}): Promise<{ error: unknown }> {
+  const { data: existingIe } = await supabase
+    .from("income_entries")
+    .select("id")
+    .eq("linked_transaction_id", args.txId)
+    .limit(1)
+    .maybeSingle();
+  const { error } = existingIe
+    ? await supabase.from("income_entries").update(args.fields as any).eq("id", (existingIe as any).id)
+    : await supabase.from("income_entries").insert({
+        user_id: args.userId,
+        organization_id: args.organizationId,
+        ...args.fields,
+        notes: args.notes,
+      } as any);
+  return { error };
+}
+
+/**
  * Manually convert a planned paycheck into a freshly-created ledger row.
  * Creates the planner_conversions record FIRST (acquiring the unique slot),
  * then inserts the ledger row, then back-links the conversion to it.
@@ -951,6 +993,8 @@ export function useManualPlannerConvert() {
       taxesWithheld: number;
       preTaxDeductions: number;
       retirement401k: number;
+      /** Employer retirement contribution — stored separately from retirement401k. */
+      employerRetirementContribution?: number;
       healthcareDeduction: number;
       hsaContribution: number;
       federalWithholding: number;
@@ -1027,6 +1071,7 @@ export function useManualPlannerConvert() {
         grossAmount: input.grossAmount,
         taxesWithheld: input.taxesWithheld,
         retirement401k: input.retirement401k,
+        employerRetirementContribution: input.employerRetirementContribution ?? 0,
         preTaxDeductions: input.preTaxDeductions,
         healthcareDeduction: input.healthcareDeduction,
         hsaContribution: input.hsaContribution,
@@ -1159,20 +1204,13 @@ export function useManualPlannerConvert() {
           origin_type: "planner_converted",
           origin_planner_conversion_id: conversionId,
         };
-        const { data: existingIe } = await supabase
-          .from("income_entries")
-          .select("id")
-          .eq("linked_transaction_id", txId)
-          .limit(1)
-          .maybeSingle();
-        const { error: ieErr } = existingIe
-          ? await supabase.from("income_entries").update(mirrorFields as any).eq("id", (existingIe as any).id)
-          : await supabase.from("income_entries").insert({
-              user_id: user.id,
-              organization_id: orgId,
-              ...mirrorFields,
-              notes: `From planner${input.isBonus ? " (bonus)" : ""}`,
-            } as any);
+        const { error: ieErr } = await upsertBusinessIncomeMirror({
+          txId,
+          userId: user.id,
+          organizationId: orgId,
+          fields: mirrorFields,
+          notes: `From planner${input.isBonus ? " (bonus)" : ""}`,
+        });
         if (ieErr) {
           console.warn("[planner-convert] business income_entry upsert failed", ieErr);
         }
@@ -1449,6 +1487,7 @@ export function useAddOverride() {
       paycheck_amount?: number;
       taxes_withheld?: number;
       retirement_401k?: number;
+      employer_retirement_contribution?: number;
       pre_tax_deductions?: number;
       notes?: string;
       new_date?: string | null;
@@ -1475,6 +1514,7 @@ export function useAddOverride() {
         paycheck_amount: override.paycheck_amount ?? 0,
         taxes_withheld: override.taxes_withheld ?? 0,
         retirement_401k: override.retirement_401k ?? 0,
+        employer_retirement_contribution: override.employer_retirement_contribution ?? 0,
         pre_tax_deductions: override.pre_tax_deductions ?? 0,
         federal_withholding: override.federal_withholding ?? 0,
         state_withholding: override.state_withholding ?? 0,
@@ -1630,6 +1670,11 @@ export function occurrenceDetailFields(
     medicareWithholding: d.medicareWithholding,
     additionalTaxReserve: d.additionalTaxReserve,
     hasDetailedBreakdown: d.hasDetailedBreakdown,
+    // Modified occurrences own their employer amount; otherwise use the stream default.
+    employerRetirementContribution:
+      override?.action === "modify"
+        ? Number(override.employer_retirement_contribution ?? 0) || 0
+        : Number((stream as any)?.employer_retirement_contribution ?? 0) || 0,
   };
 }
 
@@ -1688,6 +1733,7 @@ export function generateProjectedPaychecks(
     medicareWithholding: number;
     additionalTaxReserve: number;
     hasDetailedBreakdown: boolean;
+    employerRetirementContribution?: number;
     type: "paycheck" | "bonus";
     label: string;
     streamId: string;
@@ -1843,6 +1889,7 @@ export function generateProjectedPaychecks(
         medicareWithholding: 0,
         additionalTaxReserve: 0,
         hasDetailedBreakdown: false,
+        employerRetirementContribution: 0,
         type: "bonus",
         label: `${bonus.name} (${stream?.company || "Bonus"})`,
         streamId: bonus.stream_id,
@@ -1975,6 +2022,7 @@ export function getProjectedTotals(
     federalWithheld: 0,
     stateWithheld: 0,
     retirement401k: 0,
+    employerRetirementContribution: 0,
     preTaxDeductions: 0,
     healthInsuranceDeduction: 0,
     hsaContribution: 0,
@@ -2024,6 +2072,7 @@ export function getProjectedTotals(
     acc.stateWithheld += st;
     acc.taxesWithheld += fed + st;
     acc.retirement401k += p.retirement401k;
+    acc.employerRetirementContribution += p.employerRetirementContribution || 0;
     acc.preTaxDeductions += p.preTaxDeductions;
     acc.healthInsuranceDeduction += p.healthcareDeduction || 0;
     acc.hsaContribution += p.hsaContribution || 0;

@@ -60,6 +60,7 @@ import { useCreateIncomeSource, type SourceKind } from "@/hooks/useIncomeSources
 import {
   normalizeFilingType,
   resolveAdvancedVisibility,
+  resolveEmployerPaycheckReduction,
   toCanonicalIncomeType,
   type ToggleKey,
 } from "@/lib/filingTypes";
@@ -134,6 +135,7 @@ interface StreamForm {
   medicare_withholding: string;
   total_federal_payroll_taxes: string;
   retirement_401k: string;
+  employer_retirement_contribution: string;
   healthcare_deduction: string;
   hsa_contribution: string;
   pre_tax_deductions: string;
@@ -149,6 +151,7 @@ interface OverrideForm {
   paycheck_amount: string;
   taxes_withheld: string;
   retirement_401k: string;
+  employer_retirement_contribution: string;
   pre_tax_deductions: string;
   notes: string;
   /**
@@ -222,6 +225,7 @@ const emptyForm = (monthIdx?: number): StreamForm => {
     medicare_withholding: "",
     total_federal_payroll_taxes: "",
     retirement_401k: "",
+    employer_retirement_contribution: "",
     healthcare_deduction: "",
     hsa_contribution: "",
     pre_tax_deductions: "",
@@ -412,7 +416,7 @@ export default function ProjectedIncome() {
   const [overrideSaving, setOverrideSaving] = useState(false);
 
   const [overrideForm, setOverrideForm] = useState<OverrideForm>({
-    paycheck_amount: "", taxes_withheld: "", retirement_401k: "", pre_tax_deductions: "", notes: "", new_date: "",
+    paycheck_amount: "", taxes_withheld: "", retirement_401k: "", employer_retirement_contribution: "", pre_tax_deductions: "", notes: "", new_date: "",
     detailed: false, federal_withholding: "", ss_withholding: "", medicare_withholding: "",
     state_withholding: "", healthcare_deduction: "", hsa_contribution: "", additional_tax_reserve: "",
   });
@@ -694,6 +698,31 @@ export default function ProjectedIncome() {
   };
   const showField = (key: ToggleKey) => isRelevant(key);
 
+  /** Employer paycheck-reduction setting for the form's company (net cash only). */
+  const formEmployerReduces = useMemo(() => {
+    const company = form.source_id ? companies.find((c) => c.id === form.source_id) : undefined;
+    const meta = subtypeMeta(form.ui_income_subtype);
+    const filingType = company?.companyType
+      ? normalizeFilingType(company.companyType)
+      : (meta?.filingType ?? normalizeFilingType(form.ui_income_subtype));
+    return resolveEmployerPaycheckReduction(filingType, company?.advancedFieldVisibility);
+  }, [companies, form.source_id, form.ui_income_subtype]);
+
+  /** Visibility + paycheck-reduction for a saved stream's company (used by occurrence overrides). */
+  const employerSettingsForStream = (streamId: string | undefined) => {
+    const st = (streams || []).find((x) => x.id === streamId);
+    const company = st?.source_id ? companies.find((c) => c.id === st.source_id) : undefined;
+    const sub = st?.ui_income_subtype || st?.company_type || "w2";
+    const filingType = company?.companyType
+      ? normalizeFilingType(company.companyType)
+      : (subtypeMeta(sub)?.filingType ?? normalizeFilingType(sub));
+    const vis = resolveAdvancedVisibility(filingType, company?.advancedFieldVisibility);
+    return {
+      visible: !!vis.employer_retirement_contribution,
+      reduces: resolveEmployerPaycheckReduction(filingType, company?.advancedFieldVisibility).retirement,
+    };
+  };
+
   const defaultedCount = Object.keys(defaultedFields).length;
   /** Small inline "using default" badge shown next to prefilled advanced fields. */
   const DefaultBadge = ({ field }: { field: keyof StreamForm }) => {
@@ -753,6 +782,7 @@ export default function ProjectedIncome() {
       // Canonical Total Federal Payroll Taxes (shared wrapper).
       total_federal_payroll_taxes: String(getCanonicalTotalFederalPayrollTaxes(s as any)),
       retirement_401k: String(s.retirement_401k),
+      employer_retirement_contribution: String(s.employer_retirement_contribution || 0),
       healthcare_deduction: String(s.healthcare_deduction || 0),
       hsa_contribution: String(s.hsa_contribution || 0),
       pre_tax_deductions: String(s.pre_tax_deductions),
@@ -883,6 +913,8 @@ export default function ProjectedIncome() {
           ? num(form.medicare_withholding)
           : 0,
       retirement_401k: persistField("retirement_401k") ? num(form.retirement_401k) : 0,
+      // Hidden employer field keeps the previously saved (hydrated) value.
+      employer_retirement_contribution: Math.max(0, num(form.employer_retirement_contribution)),
       healthcare_deduction: persistField("healthcare_deduction") ? num(form.healthcare_deduction) : 0,
       hsa_contribution: persistField("hsa_contribution") ? num(form.hsa_contribution) : 0,
       pre_tax_deductions: persistField("pre_tax_deductions") ? num(form.pre_tax_deductions) : 0,
@@ -970,6 +1002,7 @@ export default function ProjectedIncome() {
       paycheck_amount: String(entry.grossAmount),
       taxes_withheld: String(entry.taxesWithheld),
       retirement_401k: String(entry.retirement401k),
+      employer_retirement_contribution: entry.employerRetirementContribution ? String(entry.employerRetirementContribution) : "",
       pre_tax_deductions: String(otherPreTax),
       notes: existing?.notes || "",
       // Date field shows where this occurrence currently sits.
@@ -1006,6 +1039,7 @@ export default function ProjectedIncome() {
         ? sumDetailedWithholding(overrideForm)
         : num(overrideForm.taxes_withheld),
       retirement_401k: num(overrideForm.retirement_401k),
+      employer_retirement_contribution: Math.max(0, num(overrideForm.employer_retirement_contribution)),
       pre_tax_deductions: overrideForm.detailed
         ? sumDetailedDeductions(overrideForm)
         : num(overrideForm.pre_tax_deductions),
@@ -1087,6 +1121,7 @@ export default function ProjectedIncome() {
           isBusiness ? "business" : "personal",
         ),
         retirement401k: entry.retirement401k,
+        employerRetirementContribution: entry.employerRetirementContribution ?? 0,
         healthcareDeduction: entry.healthcareDeduction,
         hsaContribution: entry.hsaContribution,
         federalWithholding: Number(detail?.federalWithholding ?? stream?.federal_withholding ?? 0),
@@ -2006,6 +2041,7 @@ export default function ProjectedIncome() {
                 - num(form.healthcare_deduction)
                 - hsa
                 - num(form.pre_tax_deductions)
+                - (formEmployerReduces.retirement ? num(form.employer_retirement_contribution) : 0)
               );
               const taxesToSave = num(form.additional_tax_reserve) > 0
                 ? num(form.additional_tax_reserve)
@@ -2149,6 +2185,15 @@ export default function ProjectedIncome() {
                           <Input type="number" min="0" step="0.01" placeholder="0.00"
                             value={form.retirement_401k}
                             onChange={(e) => setField("retirement_401k", e.target.value)} />
+                        </div>
+                      )}
+                      {showField("employer_retirement_contribution") && (
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground">Employer retirement contribution</Label>
+                          <Input type="number" min="0" step="0.01" placeholder="0.00"
+                            data-testid="planner-employer-retirement"
+                            value={form.employer_retirement_contribution}
+                            onChange={(e) => setField("employer_retirement_contribution", e.target.value)} />
                         </div>
                       )}
                       {showField("healthcare_deduction") && (
@@ -2413,6 +2458,19 @@ export default function ProjectedIncome() {
                   onChange={(e) => setOverrideForm((p) => ({ ...p, retirement_401k: e.target.value }))}
                 />
               </div>
+              {overrideTarget && employerSettingsForStream(overrideTarget.streamId).visible && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Employer retirement</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    data-testid="override-employer-retirement"
+                    value={overrideForm.employer_retirement_contribution}
+                    onChange={(e) => setOverrideForm((p) => ({ ...p, employer_retirement_contribution: e.target.value }))}
+                  />
+                </div>
+              )}
               <div className="space-y-1.5">
                 <Label className="text-xs">Deductions</Label>
                 <Input
@@ -2520,7 +2578,9 @@ export default function ProjectedIncome() {
                   {fmtFull(Math.max(0, num(overrideForm.paycheck_amount)
                     - (overrideForm.detailed ? sumDetailedWithholding(overrideForm) : num(overrideForm.taxes_withheld))
                     - num(overrideForm.retirement_401k)
-                    - (overrideForm.detailed ? sumDetailedDeductions(overrideForm) : num(overrideForm.pre_tax_deductions))))}
+                    - (overrideForm.detailed ? sumDetailedDeductions(overrideForm) : num(overrideForm.pre_tax_deductions))
+                    - (overrideTarget && employerSettingsForStream(overrideTarget.streamId).reduces
+                        ? num(overrideForm.employer_retirement_contribution) : 0)))}
                 </span>
               </div>
             )}
@@ -2796,6 +2856,12 @@ export default function ProjectedIncome() {
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">401(k)</span>
                     <span>{fmtFull(convertTarget.retirement401k)}</span>
+                  </div>
+                )}
+                {(convertTarget.employerRetirementContribution || 0) > 0 && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Employer retirement</span>
+                    <span>{fmtFull(convertTarget.employerRetirementContribution || 0)}</span>
                   </div>
                 )}
                 {convertTarget.preTaxDeductions > 0 && (
