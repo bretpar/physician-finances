@@ -2412,158 +2412,106 @@ export default function ProjectedIncome() {
             </p>
             <div className="space-y-3">
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label>Date</Label>
-                <DateField
-                  value={overrideForm.new_date}
-                  defaultMonth={overrideTarget?.date}
-                  onChange={(v) => setOverrideForm((p) => ({ ...p, new_date: v }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Gross Amount</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={overrideForm.paycheck_amount}
-                  onChange={(e) => setOverrideForm((p) => ({ ...p, paycheck_amount: e.target.value }))}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Tax Withholding</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  readOnly={overrideForm.detailed}
-                  className={overrideForm.detailed ? "bg-muted text-muted-foreground" : undefined}
-                  value={
-                    overrideForm.detailed
-                      ? String(sumDetailedWithholding(overrideForm))
-                      : overrideForm.taxes_withheld
-                  }
-                  onChange={(e) => setOverrideForm((p) => ({ ...p, taxes_withheld: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">401(k)</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={overrideForm.retirement_401k}
-                  onChange={(e) => setOverrideForm((p) => ({ ...p, retirement_401k: e.target.value }))}
-                />
-              </div>
-              {overrideTarget && employerSettingsForStream(overrideTarget.streamId).visible && (
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Employer retirement</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    data-testid="override-employer-retirement"
-                    value={overrideForm.employer_retirement_contribution}
-                    onChange={(e) => setOverrideForm((p) => ({ ...p, employer_retirement_contribution: e.target.value }))}
-                  />
+            {(() => {
+              const empVisible = !!overrideTarget && employerSettingsForStream(overrideTarget.streamId).visible;
+              const employerAmt = num(overrideForm.employer_retirement_contribution);
+              type OvKey = Exclude<keyof OverrideForm, "detailed">;
+              const field = (label: string, key: OvKey, testId?: string) => (
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">{label}</Label>
+                  <Input type="number" inputMode="decimal" min="0" step="0.01" className="h-9 tabular-nums"
+                    data-testid={testId} value={overrideForm[key]}
+                    onChange={(e) => setOverrideForm((p) => ({ ...p, [key]: e.target.value }))} />
                 </div>
-              )}
-              <div className="space-y-1.5">
-                <Label className="text-xs">Deductions</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  readOnly={overrideForm.detailed}
-                  className={overrideForm.detailed ? "bg-muted text-muted-foreground" : undefined}
-                  value={
-                    overrideForm.detailed
-                      ? String(sumDetailedDeductions(overrideForm))
-                      : overrideForm.pre_tax_deductions
-                  }
-                  onChange={(e) => setOverrideForm((p) => ({ ...p, pre_tax_deductions: e.target.value }))}
-                />
-              </div>
-            </div>
-
-            {/* Optional detailed breakdown — same field definitions as the
-                Personal Income ledger. Collapsed by default. */}
-            <Collapsible
-              open={overrideForm.detailed}
-              onOpenChange={(open) => setOverrideForm((p) => ({ ...p, detailed: open }))}
-            >
-              <CollapsibleTrigger asChild>
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground hover:bg-muted/50"
-                >
-                  <span>Add detailed tax &amp; deduction breakdown</span>
-                  <ChevronDown className={cn("h-4 w-4 transition-transform", overrideForm.detailed && "rotate-180")} />
-                </button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-3 pt-3">
-                <p className="text-[11px] text-muted-foreground">
-                  Detailed values become the source of truth for this occurrence — the totals above are
-                  calculated from them.
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Federal income tax</Label>
-                    <Input type="number" min="0" step="0.01" value={overrideForm.federal_withholding}
-                      onChange={(e) => setOverrideForm((p) => ({ ...p, federal_withholding: e.target.value }))} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Social Security</Label>
-                    <Input type="number" min="0" step="0.01" value={overrideForm.ss_withholding}
-                      onChange={(e) => setOverrideForm((p) => ({ ...p, ss_withholding: e.target.value }))} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Medicare</Label>
-                    <Input type="number" min="0" step="0.01" value={overrideForm.medicare_withholding}
-                      onChange={(e) => setOverrideForm((p) => ({ ...p, medicare_withholding: e.target.value }))} />
-                  </div>
-                  {taxSettings?.stateIncomeTaxEnabled && (
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">State income tax</Label>
-                      <Input type="number" min="0" step="0.01" value={overrideForm.state_withholding}
-                        onChange={(e) => setOverrideForm((p) => ({ ...p, state_withholding: e.target.value }))} />
-                    </div>
-                  )}
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Employee retirement contribution</Label>
-                    <Input type="number" min="0" step="0.01" value={overrideForm.retirement_401k}
-                      onChange={(e) => setOverrideForm((p) => ({ ...p, retirement_401k: e.target.value }))} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Health insurance</Label>
-                    <Input type="number" min="0" step="0.01" value={overrideForm.healthcare_deduction}
-                      onChange={(e) => setOverrideForm((p) => ({ ...p, healthcare_deduction: e.target.value }))} />
-                  </div>
-                  {taxSettings?.hsaEnabled && (
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">HSA</Label>
-                      <Input type="number" min="0" step="0.01" value={overrideForm.hsa_contribution}
-                        onChange={(e) => setOverrideForm((p) => ({ ...p, hsa_contribution: e.target.value }))} />
-                    </div>
-                  )}
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Other pre-tax deductions</Label>
-                    <Input type="number" min="0" step="0.01" value={overrideForm.pre_tax_deductions}
-                      onChange={(e) => setOverrideForm((p) => ({ ...p, pre_tax_deductions: e.target.value }))} />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Additional Tax Reserve</Label>
-                    <Input type="number" min="0" step="0.01" value={overrideForm.additional_tax_reserve}
-                      onChange={(e) => setOverrideForm((p) => ({ ...p, additional_tax_reserve: e.target.value }))} />
-                  </div>
+              );
+              const summary = (label: string, value: string, readOnly: boolean, onChange: (v: string) => void, testId: string) => (
+                <div className="min-w-0 space-y-1">
+                  <Label className="text-xs">{label}</Label>
+                  <Input type="number" inputMode="decimal" min="0" step="0.01" data-testid={testId}
+                    readOnly={readOnly}
+                    className={cn("h-9 px-2 tabular-nums", readOnly && "bg-muted text-muted-foreground")}
+                    value={value} onChange={(e) => onChange(e.target.value)} />
                 </div>
-              </CollapsibleContent>
-            </Collapsible>
+              );
+              return (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="min-w-0 space-y-1">
+                      <Label className="text-xs">Payment date</Label>
+                      <DateField
+                        value={overrideForm.new_date}
+                        defaultMonth={overrideTarget?.date}
+                        onChange={(v) => setOverrideForm((p) => ({ ...p, new_date: v }))}
+                      />
+                    </div>
+                    <div className="min-w-0 space-y-1">
+                      <Label className="text-xs">Gross income</Label>
+                      <Input type="number" inputMode="decimal" min="0" step="0.01" className="h-9 tabular-nums"
+                        value={overrideForm.paycheck_amount}
+                        onChange={(e) => setOverrideForm((p) => ({ ...p, paycheck_amount: e.target.value }))} />
+                    </div>
+                  </div>
+
+                  {/* Summaries edit the same underlying values; detailed amounts drive them when present. */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {summary("Tax",
+                      overrideForm.detailed ? String(sumDetailedWithholding(overrideForm)) : overrideForm.taxes_withheld,
+                      overrideForm.detailed, (v) => setOverrideForm((p) => ({ ...p, taxes_withheld: v })), "override-summary-tax")}
+                    {summary("Retirement",
+                      employerAmt > 0 ? String(num(overrideForm.retirement_401k) + employerAmt) : overrideForm.retirement_401k,
+                      employerAmt > 0, (v) => setOverrideForm((p) => ({ ...p, retirement_401k: v })), "override-summary-retirement")}
+                    {summary("Deductions",
+                      overrideForm.detailed ? String(sumDetailedDeductions(overrideForm)) : overrideForm.pre_tax_deductions,
+                      overrideForm.detailed, (v) => setOverrideForm((p) => ({ ...p, pre_tax_deductions: v })), "override-summary-deductions")}
+                  </div>
+
+                  <Collapsible
+                    open={overrideForm.detailed}
+                    onOpenChange={(open) => setOverrideForm((p) => ({ ...p, detailed: open }))}
+                  >
+                    <div className="rounded-md border">
+                      <CollapsibleTrigger asChild>
+                        <button type="button" className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium">
+                          <span>Detailed breakdown</span>
+                          <ChevronDown className={cn("h-4 w-4 transition-transform", overrideForm.detailed && "rotate-180")} />
+                        </button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="border-t px-3 pb-2">
+                        <Accordion type="multiple">
+                          <AccordionItem value="tax">
+                            <AccordionTrigger className="py-2 text-sm">Tax withholding</AccordionTrigger>
+                            <AccordionContent className="grid grid-cols-2 gap-2 pb-3">
+                              {field("Federal income tax", "federal_withholding")}
+                              {taxSettings?.stateIncomeTaxEnabled && field("State income tax", "state_withholding")}
+                              {field("Social Security", "ss_withholding")}
+                              {field("Medicare", "medicare_withholding")}
+                            </AccordionContent>
+                          </AccordionItem>
+                          <AccordionItem value="retirement">
+                            <AccordionTrigger className="py-2 text-sm">Retirement</AccordionTrigger>
+                            <AccordionContent className="grid grid-cols-2 gap-2 pb-3">
+                              {field("Employee contribution", "retirement_401k")}
+                              {(empVisible || employerAmt > 0) &&
+                                field("Employer contribution", "employer_retirement_contribution", "override-employer-retirement")}
+                            </AccordionContent>
+                          </AccordionItem>
+                          <AccordionItem value="deductions" className="border-b-0">
+                            <AccordionTrigger className="py-2 text-sm">Deductions</AccordionTrigger>
+                            <AccordionContent className="grid grid-cols-2 gap-2 pb-3">
+                              {field("Health insurance", "healthcare_deduction")}
+                              {taxSettings?.hsaEnabled && field("HSA", "hsa_contribution")}
+                              {field("Other pre-tax", "pre_tax_deductions")}
+                            </AccordionContent>
+                          </AccordionItem>
+                        </Accordion>
+                        {/* Saved for taxes — separate from payroll withholding; never part of the Tax summary. */}
+                        <div className="pt-2">{field("Additional tax reserve", "additional_tax_reserve")}</div>
+                      </CollapsibleContent>
+                    </div>
+                  </Collapsible>
+                </>
+              );
+            })()}
 
             <div className="space-y-1.5">
               <Label className="text-xs">Notes (optional)</Label>
