@@ -49,7 +49,7 @@ import {
   useAddBonus, useDeleteBonus, useUpdateBonus,
   useAddOverride, useUpdateOverride, useDeleteOverride,
   usePlannerConversions, useConfirmSuggestedMatch, useManualPlannerConvert,
-  generateProjectedPaychecks, getProjectedTotals, getProjectedFederalWithholdingBreakdown,
+  generateProjectedPaychecks, employerRetirementReducesByStream, getProjectedTotals, getProjectedFederalWithholdingBreakdown,
   isStreamExpired, resolveOccurrenceDetail,
   type ProjectedIncomeStream, type ProjectedPaycheck, type ProjectedIncomeOverride,
 } from "@/hooks/useProjectedIncome";
@@ -497,8 +497,9 @@ export default function ProjectedIncome() {
 
   const projectedPaychecks = useMemo(() => {
     if (!streams || !bonuses) return [];
-    return generateProjectedPaychecks(streams, bonuses, incomeEntriesForMatching, overrides || [], plannerConversions || [], businessTxsForMatching);
-  }, [streams, bonuses, incomeEntriesForMatching, overrides, plannerConversions, businessTxsForMatching]);
+    return generateProjectedPaychecks(streams, bonuses, incomeEntriesForMatching, overrides || [], plannerConversions || [], businessTxsForMatching,
+      employerRetirementReducesByStream(streams, companies));
+  }, [streams, bonuses, incomeEntriesForMatching, overrides, plannerConversions, businessTxsForMatching, companies]);
 
   const projectedTotals = useMemo(() => getProjectedTotals(projectedPaychecks, streams || []), [projectedPaychecks, streams]);
   const federalWithholdingBreakdown = useMemo(
@@ -1122,6 +1123,7 @@ export default function ProjectedIncome() {
         ),
         retirement401k: entry.retirement401k,
         employerRetirementContribution: entry.employerRetirementContribution ?? 0,
+        employerRetirementReducesPaycheck: employerSettingsForStream(entry.streamId).reduces,
         healthcareDeduction: entry.healthcareDeduction,
         hsaContribution: entry.hsaContribution,
         federalWithholding: Number(detail?.federalWithholding ?? stream?.federal_withholding ?? 0),

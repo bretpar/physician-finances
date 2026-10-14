@@ -1,3 +1,5 @@
+import { employerPaycheckReductions } from "@/lib/estimatedNet";
+import { resolveEmployerPaycheckReduction, normalizeFilingType } from "@/lib/filingTypes";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -995,6 +997,7 @@ export function useManualPlannerConvert() {
       retirement401k: number;
       /** Employer retirement contribution — stored separately from retirement401k. */
       employerRetirementContribution?: number;
+      employerRetirementReducesPaycheck?: boolean;
       healthcareDeduction: number;
       hsaContribution: number;
       federalWithholding: number;
@@ -1072,6 +1075,7 @@ export function useManualPlannerConvert() {
         taxesWithheld: input.taxesWithheld,
         retirement401k: input.retirement401k,
         employerRetirementContribution: input.employerRetirementContribution ?? 0,
+        employerRetirementReducesPaycheck: input.employerRetirementReducesPaycheck,
         preTaxDeductions: input.preTaxDeductions,
         healthcareDeduction: input.healthcareDeduction,
         hsaContribution: input.hsaContribution,
@@ -1678,6 +1682,24 @@ export function occurrenceDetailFields(
   };
 }
 
+/**
+ * Resolve each stream's company "Employer retirement contribution reduces my
+ * paycheck" setting. Cash-flow only — never affects tax deductions.
+ */
+export function employerRetirementReducesByStream(
+  streams: Array<Pick<ProjectedIncomeStream, "id" | "source_id">>,
+  companies: Array<{ id: string; companyType?: string | null; advancedFieldVisibility?: Record<string, boolean> | null }>,
+): Record<string, boolean> {
+  const out: Record<string, boolean> = {};
+  for (const s of streams) {
+    const c = s.source_id ? companies.find((x) => x.id === s.source_id) : undefined;
+    out[s.id] = c?.companyType
+      ? resolveEmployerPaycheckReduction(normalizeFilingType(c.companyType), c.advancedFieldVisibility).retirement
+      : false;
+  }
+  return out;
+}
+
 export function generateProjectedPaychecks(
   streams: ProjectedIncomeStream[],
   bonuses: ProjectedBonusEvent[],
@@ -1685,6 +1707,8 @@ export function generateProjectedPaychecks(
   overrides?: ProjectedIncomeOverride[],
   plannerConversions?: PlannerConversionRef[],
   businessTransactions?: MatchableBusinessTransaction[],
+  /** streamId → company "Employer retirement reduces my paycheck" (net cash only). */
+  employerRetirementReducesByStream?: Record<string, boolean>,
 ): ProjectedPaycheck[] {
   const now = startOfDay(new Date());
   const yearStart = parseISO(`${now.getFullYear()}-01-01`);
@@ -1909,7 +1933,11 @@ export function generateProjectedPaychecks(
   const businessTxs = businessTransactions || [];
 
   for (const raw of rawPaychecks) {
-    const net = raw.grossAmount - raw.taxesWithheld - raw.retirement401k - raw.preTaxDeductions - raw.healthcareDeduction;
+    const net = raw.grossAmount - raw.taxesWithheld - raw.retirement401k - raw.preTaxDeductions - raw.healthcareDeduction
+      - employerPaycheckReductions({
+          employerRetirement: raw.employerRetirementContribution,
+          employerRetirementReducesPaycheck: !!employerRetirementReducesByStream?.[raw.streamId],
+        });
 
     if (raw.isSkipped) {
       paychecks.push({ ...raw, netAmount: 0, matchStatus: "skipped" });
