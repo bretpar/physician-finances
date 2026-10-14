@@ -10,7 +10,7 @@ import { isBusinessIncomeType } from "@/lib/ledgerRouting";
 import { PLANNER_CLEANUP_INVALIDATION_KEYS } from "@/lib/plannerCleanup";
 import { getTodayLocalDateString } from "@/lib/localDate";
 import { excludeLinkedTransactionForIncomeEntry } from "@/lib/plaidTransactionExclusion";
-import { buildOccurrenceLedgerFields } from "@/lib/plannerOccurrenceLedger";
+import { buildOccurrenceLedgerFields, splitStreamTax } from "@/lib/plannerOccurrenceLedger";
 
 /** Minimal interface for income entries used in matching — works with both IncomeEntry and PersonalIncomeEntry */
 export interface MatchableIncomeEntry {

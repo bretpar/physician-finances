@@ -1164,7 +1164,7 @@ export default function ProjectedIncome() {
         taxesWithheld: entry.taxesWithheld,
         preTaxDeductions: entry.preTaxDeductions,
         hasDetailedBreakdown: Boolean(detail?.hasDetailedBreakdown),
-        stateSeparate: Boolean(detail?.isSnapshot),
+        stateSeparate: Boolean(entry.stateSeparate ?? detail?.stateSeparate),
         existingTransactionId: pickExistingBankTransactionId(
           entry,
           isBusiness ? "business" : "personal",
