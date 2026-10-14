@@ -25,6 +25,7 @@ import {
   type MatchableBusinessTransaction,
   type ProjectedPaycheck,
   upsertBusinessIncomeMirror,
+  employerRetirementReducesByStream,
 } from "@/hooks/useProjectedIncome";
 import { toCanonicalIncomeType } from "@/lib/filingTypes";
 import { getTodayLocalDateString } from "@/lib/localDate";
@@ -150,6 +151,8 @@ interface ConvertOneArgs {
   paycheck: ProjectedPaycheck;
   stream: ProjectedIncomeStream;
   bonusEventId?: string | null;
+  /** Company "employer retirement reduces my paycheck" (cash-flow only). */
+  employerRetirementReducesPaycheck?: boolean;
 }
 
 /** Convert a single paycheck into a ledger row + planner_conversion record. */
@@ -308,7 +311,10 @@ async function convertOne(args: ConvertOneArgs): Promise<"converted" | "duplicat
   const txId = (tx as { id: string }).id;
   // Same linked income-entry mirror as manual conversion: carries employee /
   // employer retirement and other owner deductions exactly once per event.
-  const ledgerFields = buildOccurrenceLedgerFields(paycheck);
+  const ledgerFields = buildOccurrenceLedgerFields({
+    ...paycheck,
+    employerRetirementReducesPaycheck: args.employerRetirementReducesPaycheck,
+  });
   const { error: ieErr } = await upsertBusinessIncomeMirror({
     txId,
     userId,
@@ -366,7 +372,7 @@ export async function runPlannerConversionForCurrentUser(): Promise<ConversionRu
   // already-converted occurrences are tagged "converted" and skipped),
   // personal income_entries (W-2 matching), and active business income
   // transactions (1099/K-1 matching).
-  const [streamsRes, bonusesRes, overridesRes, incomeRes, conversionsRes, businessTxRes, settingsRes] =
+  const [streamsRes, bonusesRes, overridesRes, incomeRes, conversionsRes, businessTxRes, settingsRes, companiesRes] =
     await Promise.all([
       supabase.from("projected_income_streams").select("*"),
       supabase.from("projected_bonus_events").select("*"),
@@ -387,6 +393,7 @@ export async function runPlannerConversionForCurrentUser(): Promise<ConversionRu
         .select("auto_convert_future_income_to_ledger, organization_id, timezone")
         .limit(1)
         .maybeSingle(),
+      supabase.from("companies").select("id, company_type, advanced_field_visibility"),
     ]);
 
   const settings = settingsRes.data as { auto_convert_future_income_to_ledger?: boolean; organization_id?: string | null; timezone?: string | null } | null;
@@ -434,6 +441,14 @@ export async function runPlannerConversionForCurrentUser(): Promise<ConversionRu
   // already rolled over. Falls back to America/Los_Angeles when unset.
   const today = getTodayLocalDateString(settings.timezone || undefined);
 
+  const employerReduces = employerRetirementReducesByStream(
+    streams,
+    (companiesRes.data || []).map((c: any) => ({
+      id: c.id,
+      companyType: c.company_type,
+      advancedFieldVisibility: c.advanced_field_visibility,
+    })),
+  );
   const streamById = new Map(streams.map((s) => [s.id, s] as const));
   const bonusByKey = new Map<string, ProjectedBonusEvent>();
   for (const b of bonuses) {
@@ -474,6 +489,7 @@ export async function runPlannerConversionForCurrentUser(): Promise<ConversionRu
         paycheck: p,
         stream,
         bonusEventId: bonus?.id ?? null,
+        employerRetirementReducesPaycheck: !!employerReduces[stream.id],
       });
     } catch (err) {
       // eslint-disable-next-line no-console

@@ -49,7 +49,7 @@ import {
   useAddBonus, useDeleteBonus, useUpdateBonus,
   useAddOverride, useUpdateOverride, useDeleteOverride,
   usePlannerConversions, useConfirmSuggestedMatch, useManualPlannerConvert,
-  generateProjectedPaychecks, getProjectedTotals, getProjectedFederalWithholdingBreakdown,
+  generateProjectedPaychecks, employerRetirementReducesByStream, getProjectedTotals, getProjectedFederalWithholdingBreakdown,
   isStreamExpired, resolveOccurrenceDetail,
   type ProjectedIncomeStream, type ProjectedPaycheck, type ProjectedIncomeOverride,
 } from "@/hooks/useProjectedIncome";

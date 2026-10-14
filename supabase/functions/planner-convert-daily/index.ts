@@ -397,11 +397,20 @@ Deno.serve(async (req) => {
         // employee/employer retirement and owner deductions reach Business
         // Activity. Reuse an existing mirror for this transaction — never two.
         const pre = Number(occ.preTaxDeductions || 0);
+        // Company "employer retirement reduces my paycheck" — net cash only.
+        let employerReduces = false;
+        if (stream.source_id && (occ.employerRetirement || 0) > 0) {
+          const { data: co } = await admin.from("companies")
+            .select("advanced_field_visibility").eq("id", stream.source_id).maybeSingle();
+          const v = ((co as any)?.advanced_field_visibility || {}) as Record<string, boolean>;
+          employerReduces = v.employer_retirement_reduces_paycheck === true && v.employer_retirement_contribution !== false;
+        }
         const mirror = {
           name: stream.company, company: stream.company, source_id: stream.source_id,
           income_type: incomeType, ui_income_subtype: stream.ui_income_subtype ?? incomeType,
           income_date: occ.date, gross_amount: occ.amount, paycheck_amount: occ.amount,
-          deposited_amount: Math.max(0, occ.amount - (occ.taxesWithheld || 0) - pre - (occ.retirement401k || 0) - (occ.healthcareDeduction || 0) - (occ.hsaContribution || 0)),
+          deposited_amount: Math.max(0, occ.amount - (occ.taxesWithheld || 0) - pre - (occ.retirement401k || 0) - (occ.healthcareDeduction || 0) - (occ.hsaContribution || 0)
+            - (employerReduces ? (occ.employerRetirement || 0) : 0)),
           taxes_withheld: occ.taxesWithheld || 0,
           pre_tax_deductions: pre,
           retirement_401k: occ.retirement401k || 0,
