@@ -173,6 +173,8 @@ export interface ProjectedPaycheck {
   additionalTaxReserve?: number;
   /** True when the occurrence override carries its own detailed breakdown. */
   hasDetailedBreakdown?: boolean;
+  /** True when Tax excludes state, so state is deducted from cash separately. */
+  stateSeparate?: boolean;
   netAmount: number;
   type: "paycheck" | "bonus";
   label: string;
@@ -776,7 +778,7 @@ export function useConfirmSuggestedMatch() {
           // health/HSA are never double-counted inside "Other pre-tax".
           const mapped = buildOccurrenceLedgerFields({
             grossAmount: gross,
-            taxesWithheld: Number(ov.taxes_withheld ?? s.taxes_withheld ?? 0) || 0,
+            taxesWithheld: detail.taxesWithheld,
             retirement401k: Number(ov.retirement_401k ?? s.retirement_401k ?? 0) || 0,
             preTaxDeductions: Number(ov.pre_tax_deductions ?? s.pre_tax_deductions ?? 0) || 0,
             healthcareDeduction: detail.healthcareDeduction,
@@ -787,7 +789,7 @@ export function useConfirmSuggestedMatch() {
             medicareWithholding: detail.medicareWithholding,
             additionalTaxReserve: detail.additionalTaxReserve,
             hasDetailedBreakdown: detail.hasDetailedBreakdown,
-            stateSeparate: detail.isSnapshot,
+            stateSeparate: detail.stateSeparate,
           });
           const patch: Record<string, any> = {
             origin_type: "planner_converted",
@@ -872,7 +874,7 @@ export function useConfirmSuggestedMatch() {
           const detail = resolveOccurrenceDetail(s as ProjectedIncomeStream, overrideRow as any);
           const mapped = buildOccurrenceLedgerFields({
             grossAmount: gross,
-            taxesWithheld: Number(ov.taxes_withheld ?? s.taxes_withheld ?? 0) || 0,
+            taxesWithheld: detail.taxesWithheld,
             retirement401k: Number(ov.retirement_401k ?? s.retirement_401k ?? 0) || 0,
             employerRetirementContribution: Number(
               overrideRow && ov.action === "modify"
@@ -888,7 +890,7 @@ export function useConfirmSuggestedMatch() {
             medicareWithholding: detail.medicareWithholding,
             additionalTaxReserve: detail.additionalTaxReserve,
             hasDetailedBreakdown: detail.hasDetailedBreakdown,
-            stateSeparate: detail.isSnapshot,
+            stateSeparate: detail.stateSeparate,
           });
           // The bank deposit is the cash truth for Net Received.
           const bankAmount = Math.abs(Number(tx.amount) || 0);
@@ -1641,7 +1643,7 @@ export function resolveOccurrenceDetail(
     ProjectedIncomeStream,
     | "federal_withholding" | "state_withholding" | "ss_withholding" | "medicare_withholding"
     | "healthcare_deduction" | "hsa_contribution" | "additional_tax_reserve"
-  >,
+  > & { taxes_withheld?: number | null },
   override?: Partial<ProjectedIncomeOverride> | null,
 ) {
   const detailed = !!override && override.action === "modify" && !!override.has_detailed_breakdown;
@@ -1654,9 +1656,17 @@ export function resolveOccurrenceDetail(
     override.additional_tax_reserve,
   ].some((v) => Number(v || 0) > 0));
   const pick = (o?: number | null, s?: number | null) => Number((snapshot ? o : s) || 0);
+  const modified = !!override && override.action === "modify";
+  // Tax (federal + SS + Medicare) and whether state is deducted separately.
+  // Edited occurrences own their total; unedited ones use the canonical split.
+  const tax = modified
+    ? { taxesWithheld: Number(override!.taxes_withheld || 0), stateSeparate: snapshot }
+    : splitStreamTax(stream);
   return {
     hasDetailedBreakdown: detailed,
     isSnapshot: snapshot,
+    taxesWithheld: tax.taxesWithheld,
+    stateSeparate: tax.stateSeparate,
     federalWithholding: pick(override?.federal_withholding, stream.federal_withholding),
     stateWithholding: pick(override?.state_withholding, stream.state_withholding),
     ssWithholding: pick(override?.ss_withholding, stream.ss_withholding),
@@ -1688,7 +1698,8 @@ export function occurrenceDetailFields(
     medicareWithholding: d.medicareWithholding,
     additionalTaxReserve: d.additionalTaxReserve,
     hasDetailedBreakdown: d.hasDetailedBreakdown,
-    stateSeparate: d.isSnapshot,
+    taxesWithheld: d.taxesWithheld,
+    stateSeparate: d.stateSeparate,
     // Modified occurrences own their employer amount; otherwise use the stream default.
     employerRetirementContribution:
       override?.action === "modify"
