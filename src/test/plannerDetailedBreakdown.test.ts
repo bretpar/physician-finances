@@ -46,12 +46,12 @@ const detailedOverride: Partial<ProjectedIncomeOverride> = {
 };
 
 describe("detailed breakdown → basic totals sync", () => {
-  it("sums only the withholding components into Tax Withholding", () => {
+  it("Tax = federal + SS + Medicare; state stays separate", () => {
     expect(
       sumDetailedWithholding(
         form({ federal_withholding: "900", ss_withholding: "200", medicare_withholding: "50", state_withholding: "100" }),
       ),
-    ).toBe(1250);
+    ).toBe(1150);
   });
 
   it("excludes deductions from the withholding total (no double counting)", () => {
@@ -93,10 +93,10 @@ describe("resolveOccurrenceDetail — source of truth", () => {
     expect(d.additionalTaxReserve).toBe(77);
   });
 
-  it("uses stream values when the override has no detailed breakdown", () => {
+  it("uses the saved occurrence snapshot even without a detailed breakdown", () => {
     const d = resolveOccurrenceDetail(stream, { action: "modify", has_detailed_breakdown: false, federal_withholding: 999 });
     expect(d.hasDetailedBreakdown).toBe(false);
-    expect(d.federalWithholding).toBe(111);
+    expect(d.federalWithholding).toBe(999);
   });
 
   it("ignores detailed values on a skip override", () => {
