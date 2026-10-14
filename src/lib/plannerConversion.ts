@@ -24,6 +24,7 @@ import {
   type MatchableIncomeEntry,
   type MatchableBusinessTransaction,
   type ProjectedPaycheck,
+  upsertBusinessIncomeMirror,
 } from "@/hooks/useProjectedIncome";
 import { toCanonicalIncomeType } from "@/lib/filingTypes";
 import { getTodayLocalDateString } from "@/lib/localDate";
@@ -304,9 +305,38 @@ async function convertOne(args: ConvertOneArgs): Promise<"converted" | "duplicat
     await supabase.from("planner_conversions").delete().eq("id", conversionId);
     return "error";
   }
+  const txId = (tx as { id: string }).id;
+  // Same linked income-entry mirror as manual conversion: carries employee /
+  // employer retirement and other owner deductions exactly once per event.
+  const ledgerFields = buildOccurrenceLedgerFields(paycheck);
+  const { error: ieErr } = await upsertBusinessIncomeMirror({
+    txId,
+    userId,
+    organizationId,
+    notes: `From planner${paycheck.type === "bonus" ? " (bonus)" : ""}`,
+    fields: {
+      name: stream.company || paycheck.label,
+      company: stream.company || paycheck.label,
+      source_id: stream.source_id,
+      income_type: incomeType,
+      ui_income_subtype: stream.ui_income_subtype ?? incomeType,
+      income_date: paycheck.date,
+      ...ledgerFields,
+      source_bucket: "business",
+      tax_category: "ordinary",
+      is_actual: true,
+      include_in_tax_estimate: true,
+      include_in_cash_flow: false,
+      status: "received",
+      linked_transaction_id: txId,
+      origin_type: "planner_converted",
+      origin_planner_conversion_id: conversionId,
+    },
+  });
+  if (ieErr) console.warn("[plannerConversion] business income_entry upsert failed", ieErr);
   await supabase
     .from("planner_conversions")
-    .update({ transaction_id: (tx as { id: string }).id })
+    .update({ transaction_id: txId })
     .eq("id", conversionId);
   return "converted";
 }
