@@ -36,6 +36,7 @@ import {
 import { getFederalIncomeTaxWithheld } from "@/lib/federalWithholding";
 import {
   computeCatchUpRecommendation,
+  expectedOrdinaryCoverageForEvents,
   deriveBaselineQuarterTarget,
 
   type CoverageStatus,
@@ -199,6 +200,8 @@ export interface QuarterRecommendation {
   remainingOpportunities: number;
   /** Per-opportunity catch-up to add to future recommendations. */
   catchUpPerOpportunity: number;
+  /** Ordinary reserves/withholding expected from remaining scheduled events. */
+  expectedOrdinaryCoverage: number;
   coverageStatus: CoverageStatus;
   statusHeadline: string;
   statusDetail: string;
@@ -630,11 +633,36 @@ export function buildQuarterRecommendation(
     );
 
 
+  // Ordinary coverage remaining scheduled events will carry. Rate = the same
+  // annual liability ÷ annual income basis used for the quarter target.
+  let ordinaryRate = 0;
+  {
+    const ys = new Date(year, 0, 1);
+    const ye = new Date(year + 1, 0, 1);
+    const inY = (iso?: string | null) => {
+      const d = iso ? parseLocalDate(iso) : null;
+      return !!d && d >= ys && d < ye;
+    };
+    let yInc = 0;
+    for (const t of transactions) if (t?.transaction_type === "income" && inY(t.transaction_date)) yInc += Math.abs(Number(t.amount) || 0);
+    for (const e of personalEntries) if (inY(e.income_date)) yInc += Number(e.gross_amount || e.paycheck_amount || 0);
+    for (const p of projectedPaychecks) if (inY(p.date)) yInc += Number(p.grossAmount || 0);
+    for (const e of investmentEntries) if (inY(e.entry_date)) yInc += Number(e.taxable_amount || 0);
+    ordinaryRate = yInc > 0 ? Math.max(0, annualTaxLiability) / yInc : 0;
+  }
+  const expectedOrdinaryCoverage = expectedOrdinaryCoverageForEvents(
+    projectedPaychecks,
+    now,
+    deadline,
+    ordinaryRate,
+  );
+
   const catchUp = computeCatchUpRecommendation({
     quarterTarget,
     coveredSoFar: progressAmount,
     remainingOpportunities: input.remainingOpportunities,
     baselineQuarterTarget,
+    expectedOrdinaryCoverage,
   });
 
 
@@ -715,6 +743,7 @@ export function buildQuarterRecommendation(
     statusHeadline: catchUp.statusHeadline,
     statusDetail: catchUp.statusDetail,
     baselineQuarterTarget: round2(baselineQuarterTarget),
+    expectedOrdinaryCoverage,
     estimatedPaymentsThisQuarter: estimatedPaymentsMade,
   };
 }

@@ -147,6 +147,7 @@ export function useIncomeRecommendation(options: IncomeRecommendationOptions = {
       quarterTarget: quarterRec.quarterTarget,
       coveredSoFar: quarterRec.progressAmount,
       remainingOpportunities,
+      expectedOrdinaryCoverage: quarterRec.expectedOrdinaryCoverage,
       // Carry the canonical baseline through: without it this recomputation
       // could never classify "estimate_increased", so a user who had satisfied
       // every prior recommendation still saw generic "stay on pace" copy after
@@ -188,6 +189,7 @@ export function useIncomeRecommendation(options: IncomeRecommendationOptions = {
         quarterTarget: quarterRec.quarterTarget + extra,
         coveredSoFar: quarterRec.progressAmount,
         remainingOpportunities,
+        expectedOrdinaryCoverage: quarterRec.expectedOrdinaryCoverage,
         baselineQuarterTarget: quarterRec.baselineQuarterTarget,
       });
     };
