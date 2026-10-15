@@ -195,6 +195,7 @@ export function useWithholdingRecommendation(options: WithholdingRecommendationO
       quarterTarget: quarterRec.quarterTarget,
       coveredSoFar: quarterRec.progressAmount,
       remainingOpportunities,
+      expectedOrdinaryCoverage: quarterRec.expectedOrdinaryCoverage,
     });
   }, [quarterInput]);
 

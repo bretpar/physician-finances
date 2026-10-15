@@ -46,6 +46,13 @@ export interface CatchUpInput {
    * never changes any dollar amount.
    */
   baselineQuarterTarget?: number;
+  /**
+   * Ordinary reserves + withholding the REMAINING scheduled income events are
+   * already expected to carry before the deadline (their normal per-event
+   * recommendation). Only the gap these don't cover becomes extra catch-up,
+   * so a quarter funded by ordinary future reserves gets $0 catch-up.
+   */
+  expectedOrdinaryCoverage?: number;
 }
 
 export interface CatchUpResult {
@@ -57,6 +64,8 @@ export interface CatchUpResult {
   remainingOpportunities: number;
   /** Per-opportunity catch-up dollars to add on top of the normal amount. */
   quarterlyAdjustmentAmount: number;
+  /** Shortfall left after expected ordinary reserves of remaining events. */
+  uncoveredGap: number;
   recommendationStatus: CoverageStatus;
   /** 3-value status safe to persist in `recommendation_status`. */
   legacyStatus: LegacyRecommendationStatus;
@@ -89,13 +98,16 @@ export function computeCatchUpRecommendation(input: CatchUpInput): CatchUpResult
 
   const shortfallOrSurplus = round2(target - covered);
   const totalShortfallByDeadline = Math.max(0, shortfallOrSurplus);
-  const quarterlyAdjustmentAmount = round2(totalShortfallByDeadline / opportunities);
+  const expectedOrdinary = Math.max(0, num(input.expectedOrdinaryCoverage));
+  const uncoveredGap = Math.max(0, round2(totalShortfallByDeadline - expectedOrdinary));
+  const quarterlyAdjustmentAmount = round2(uncoveredGap / opportunities);
 
   const base = {
     shortfallOrSurplus,
     totalShortfallByDeadline,
     remainingOpportunities: opportunities,
     quarterlyAdjustmentAmount,
+    uncoveredGap,
   };
 
   if (target <= 0) {
@@ -216,4 +228,28 @@ export function countRemainingOpportunities(
     if (d > now && d <= deadline) count += 1;
   }
   return Math.max(1, count);
+}
+
+/**
+ * Ordinary tax coverage the remaining scheduled events (now, deadline] are
+ * expected to carry: each event's gross × the effective annual rate already
+ * used for the quarter target. Covers reserve + withholding together, so
+ * neither is credited twice.
+ */
+export function expectedOrdinaryCoverageForEvents(
+  events: Array<{ date?: string | null; grossAmount?: number | null }> | undefined,
+  now: Date,
+  deadline: Date,
+  effectiveRate: number,
+): number {
+  const rate = Math.max(0, num(effectiveRate));
+  if (!events || rate <= 0) return 0;
+  let total = 0;
+  for (const e of events) {
+    if (!e?.date) continue;
+    const d = new Date(e.date);
+    if (Number.isNaN(d.getTime())) continue;
+    if (d > now && d <= deadline) total += Math.max(0, num(e.grossAmount)) * rate;
+  }
+  return round2(total);
 }
