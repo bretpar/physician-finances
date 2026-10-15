@@ -5,7 +5,7 @@
 // using the service role key. Idempotent: the planner_conversions unique
 // constraints prevent double-conversion if cron fires more than once per day.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { splitStreamTax, resolveOccurrence, ledgerFields } from "./calc.ts";
+import { resolveOccurrence, ledgerFields } from "./calc.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

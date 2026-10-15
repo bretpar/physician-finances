@@ -96,6 +96,25 @@ export function splitStreamTax(stream: {
   return { taxesWithheld: agg, stateSeparate: false };
 }
 
+/**
+ * CANONICAL Tax for an EDITED occurrence: classified components win over a
+ * (possibly legacy, state-inclusive) saved total, so state is deducted once.
+ * Aggregate-only totals stay untouched and unclassified.
+ */
+export function splitOverrideTax(ov: {
+  taxes_withheld?: number | null;
+  federal_withholding?: number | null;
+  state_withholding?: number | null;
+  ss_withholding?: number | null;
+  medicare_withholding?: number | null;
+}): { taxesWithheld: number; stateSeparate: boolean } {
+  const payroll = n(ov.federal_withholding) + n(ov.ss_withholding) + n(ov.medicare_withholding);
+  if (payroll + n(ov.state_withholding) > 0) {
+    return { taxesWithheld: Math.round(payroll * 100) / 100, stateSeparate: true };
+  }
+  return { taxesWithheld: n(ov.taxes_withheld), stateSeparate: false };
+}
+
 /** Build the exact ledger columns for one converted planner occurrence. */
 export function buildOccurrenceLedgerFields(src: OccurrenceLedgerSource): OccurrenceLedgerFields {
   const healthcare = n(src.healthcareDeduction);

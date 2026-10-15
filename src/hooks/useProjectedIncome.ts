@@ -1660,7 +1660,7 @@ export function resolveOccurrenceDetail(
   // Tax (federal + SS + Medicare) and whether state is deducted separately.
   // Edited occurrences own their total; unedited ones use the canonical split.
   const tax = modified
-    ? { taxesWithheld: Number(override!.taxes_withheld || 0), stateSeparate: snapshot }
+    ? splitOverrideTax(override!)
     : splitStreamTax(stream);
   return {
     hasDetailedBreakdown: detailed,
