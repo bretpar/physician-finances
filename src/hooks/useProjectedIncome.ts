@@ -10,7 +10,7 @@ import { isBusinessIncomeType } from "@/lib/ledgerRouting";
 import { PLANNER_CLEANUP_INVALIDATION_KEYS } from "@/lib/plannerCleanup";
 import { getTodayLocalDateString } from "@/lib/localDate";
 import { excludeLinkedTransactionForIncomeEntry } from "@/lib/plaidTransactionExclusion";
-import { buildOccurrenceLedgerFields, splitStreamTax } from "@/lib/plannerOccurrenceLedger";
+import { buildOccurrenceLedgerFields, splitStreamTax, splitOverrideTax } from "@/lib/plannerOccurrenceLedger";
 
 /** Minimal interface for income entries used in matching — works with both IncomeEntry and PersonalIncomeEntry */
 export interface MatchableIncomeEntry {
@@ -1660,7 +1660,7 @@ export function resolveOccurrenceDetail(
   // Tax (federal + SS + Medicare) and whether state is deducted separately.
   // Edited occurrences own their total; unedited ones use the canonical split.
   const tax = modified
-    ? { taxesWithheld: Number(override!.taxes_withheld || 0), stateSeparate: snapshot }
+    ? splitOverrideTax(override!)
     : splitStreamTax(stream);
   return {
     hasDetailedBreakdown: detailed,

@@ -90,7 +90,7 @@ describe("detailed occurrence override isolation", () => {
     expect(edited).toBeDefined();
     expect(edited!.isModified).toBe(true);
     expect(edited!.grossAmount).toBe(9500);
-    expect(edited!.taxesWithheld).toBe(1300);
+    expect(edited!.taxesWithheld).toBe(1100) // federal + SS + Medicare; state deducted separately;
     expect(edited!.retirement401k).toBe(900);
     expect(edited!.healthcareDeduction).toBe(425);
     expect(edited!.hsaContribution).toBe(325);
