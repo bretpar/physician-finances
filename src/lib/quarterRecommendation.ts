@@ -63,7 +63,14 @@ export interface QuarterRecommendationInput {
   transactions?: any[];
   investmentEntries?: InvestmentIncomeEntry[];
   /** Used only in dynamic mode to share annual liability across quarters. */
-  projectedPaychecks?: Array<{ date: string; grossAmount: number }>;
+  projectedPaychecks?: Array<{
+    date: string;
+    grossAmount: number;
+    matchStatus?: string | null;
+    isSkipped?: boolean | null;
+    /** Canonical ordinary coverage for this occurrence (catch-up disabled). */
+    ordinaryCoverage?: number | null;
+  }>;
   payments?: Array<{
     quarter?: string;
     applied_quarter?: string;
