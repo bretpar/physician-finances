@@ -73,6 +73,50 @@ export interface CatchUpResult {
   statusHeadline: string;
   /** Tooltip-length explanation. Never blames the user for a moved target. */
   statusDetail: string;
+  /** Read-only inputs behind this result, for the catch-up explanation UI. */
+  explanation?: CatchUpExplanation;
+}
+
+/** Read-only quarter inputs that produced a CatchUpResult (display only). */
+export interface CatchUpExplanation {
+  quarterLabel: string;
+  year: number;
+  deadlineLabel: string;
+  quarterTarget: number;
+  /** Taxes actually paid or withheld this quarter. */
+  paidOrWithheld: number;
+  /** Reserves recorded as saved but not yet paid (double-count guarded). */
+  reservesSaved: number;
+  /** Ordinary coverage expected from eligible future Planner paychecks. */
+  expectedOrdinaryCoverage: number;
+}
+
+/** Attach the quarter inputs to a catch-up result without changing any amount. */
+export function withCatchUpExplanation(
+  result: CatchUpResult,
+  rec: {
+    label: string;
+    year: number;
+    deadlineLabel: string;
+    quarterTarget: number;
+    paidThisQuarter: number;
+    savedThisQuarter: number;
+    expectedOrdinaryCoverage: number;
+  },
+  quarterTargetOverride?: number,
+): CatchUpResult {
+  return {
+    ...result,
+    explanation: {
+      quarterLabel: rec.label,
+      year: rec.year,
+      deadlineLabel: rec.deadlineLabel,
+      quarterTarget: quarterTargetOverride ?? rec.quarterTarget,
+      paidOrWithheld: rec.paidThisQuarter,
+      reservesSaved: rec.savedThisQuarter,
+      expectedOrdinaryCoverage: rec.expectedOrdinaryCoverage,
+    },
+  };
 }
 
 /** Covered at or above this share of the target counts as on track. */

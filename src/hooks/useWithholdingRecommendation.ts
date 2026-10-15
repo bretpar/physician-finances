@@ -25,6 +25,7 @@ import { useQuarterRecommendationInput } from "@/hooks/useQuarterRecommendationI
 import { buildQuarterRecommendation, getActivePaymentTarget } from "@/lib/quarterRecommendation";
 import {
   computeCatchUpRecommendation,
+  withCatchUpExplanation,
   countRemainingOpportunities,
   type CatchUpResult,
 } from "@/lib/catchUpRecommendation";
@@ -191,12 +192,12 @@ export function useWithholdingRecommendation(options: WithholdingRecommendationO
       new Date(),
       quarterRec.deadline,
     );
-    return computeCatchUpRecommendation({
+    return withCatchUpExplanation(computeCatchUpRecommendation({
       quarterTarget: quarterRec.quarterTarget,
       coveredSoFar: quarterRec.progressAmount,
       remainingOpportunities,
       expectedOrdinaryCoverage: quarterRec.expectedOrdinaryCoverage,
-    });
+    }), quarterRec);
   }, [quarterInput]);
 
   const getRecommendation = useMemo(() => {

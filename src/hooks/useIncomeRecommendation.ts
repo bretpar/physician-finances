@@ -20,6 +20,7 @@ import { useQuarterRecommendationInput } from "@/hooks/useQuarterRecommendationI
 import { buildQuarterRecommendation, getActivePaymentTarget } from "@/lib/quarterRecommendation";
 import {
   computeCatchUpRecommendation,
+  withCatchUpExplanation,
   countRemainingOpportunities,
   type CatchUpResult,
   type CoverageStatus,
@@ -143,7 +144,7 @@ export function useIncomeRecommendation(options: IncomeRecommendationOptions = {
       new Date(),
       quarterRec.deadline,
     );
-    return computeCatchUpRecommendation({
+    return withCatchUpExplanation(computeCatchUpRecommendation({
       quarterTarget: quarterRec.quarterTarget,
       coveredSoFar: quarterRec.progressAmount,
       remainingOpportunities,
@@ -153,7 +154,7 @@ export function useIncomeRecommendation(options: IncomeRecommendationOptions = {
       // every prior recommendation still saw generic "stay on pace" copy after
       // new income raised the target.
       baselineQuarterTarget: quarterRec.baselineQuarterTarget,
-    });
+    }), quarterRec);
   }, [quarterInput]);
 
   /**
@@ -185,13 +186,13 @@ export function useIncomeRecommendation(options: IncomeRecommendationOptions = {
       // cached quarter data still predates it. `additionalQuarterTarget` adds
       // the brand-new event's tax target so the moved target is visible here —
       // without it the status reads "on_track" and the modal shows generic copy.
-      return computeCatchUpRecommendation({
+      return withCatchUpExplanation(computeCatchUpRecommendation({
         quarterTarget: quarterRec.quarterTarget + extra,
         coveredSoFar: quarterRec.progressAmount,
         remainingOpportunities,
         expectedOrdinaryCoverage: quarterRec.expectedOrdinaryCoverage,
         baselineQuarterTarget: quarterRec.baselineQuarterTarget,
-      });
+      }), quarterRec, quarterRec.quarterTarget + extra);
     };
   }, [quarterInput, catchUpContext]);
 
