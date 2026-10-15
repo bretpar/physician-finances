@@ -640,10 +640,11 @@ export function buildQuarterRecommendation(
     );
 
 
-  // Ordinary coverage remaining scheduled events will carry. Rate = the same
-  // annual liability ÷ annual income basis used for the quarter target.
+  // Ordinary coverage remaining scheduled events will carry: canonical
+  // per-occurrence coverage (attached by the shared input builder). The
+  // blended annual rate is only a fallback for occurrences without it.
   let ordinaryRate = 0;
-  {
+  if (projectedPaychecks.some((p: any) => p?.ordinaryCoverage == null)) {
     const ys = new Date(year, 0, 1);
     const ye = new Date(year + 1, 0, 1);
     const inY = (iso?: string | null) => {
