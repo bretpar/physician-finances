@@ -545,3 +545,58 @@ export function getCanonicalBucketRatePct(input: {
   });
   return rec ? round2(rec.effectiveRatePct) : 0;
 }
+
+/**
+ * Canonical ORDINARY coverage a future Planner occurrence is expected to carry
+ * (its normal reserve + applicable credited withholding, each once), with
+ * quarterly catch-up disabled so this can feed catch-up without recursion.
+ */
+export function computeFutureOccurrenceOrdinaryCoverage(input: {
+  estimate: TaxEstimate | null | undefined;
+  taxSettings: SavingsRateSettingsLike | null | undefined;
+  occurrence: {
+    grossAmount: number;
+    streamCompanyType?: string | null;
+    streamSourceId?: string | null;
+    retirement401k?: number;
+    employerRetirementContribution?: number;
+    preTaxDeductions?: number;
+    taxesWithheld?: number;
+    federalWithholding?: number;
+    stateWithholding?: number;
+    ssWithholding?: number;
+    medicareWithholding?: number;
+  };
+  stateTaxIncludedInTarget: boolean;
+  w2FundingMethod?: EventFundingMethod;
+  filingStatus?: FilingStatus | null;
+}): number {
+  const o = input.occurrence;
+  const incomeType = o.streamCompanyType || "w2";
+  const isW2 = isW2FilingType(normalizeFilingType(incomeType));
+  const fed = pos(o.federalWithholding);
+  const fica = pos(o.ssWithholding) + pos(o.medicareWithholding);
+  // Same precedence as getFederalIncomeTaxWithheld: FICA never credited.
+  const creditedFederal = fica > 0 || fed > 0 ? fed : pos(o.taxesWithheld);
+  const state = input.stateTaxIncludedInTarget ? pos(o.stateWithholding) : 0;
+  const rec = computeCanonicalEventRecommendation({
+    estimate: input.estimate,
+    taxSettings: input.taxSettings,
+    incomeType,
+    incomeBucket: isW2 ? "personal" : "business",
+    grossIncome: pos(o.grossAmount),
+    retirement401k: o.retirement401k,
+    employerRetirement401k: isW2 ? 0 : o.employerRetirementContribution,
+    preTaxDeductions: o.preTaxDeductions,
+    stateWithholding: state,
+    companyId: o.streamSourceId ?? null,
+    filingStatus: input.filingStatus ?? undefined,
+    creditedWithholding: creditedFederal,
+    catchUpAmount: 0,
+    isFutureOpportunity: true,
+    w2FundingMethod: input.w2FundingMethod ?? "annual_w4",
+  });
+  if (!rec) return 0;
+  const reserve = rec.fundedByAnnualW4 ? 0 : pos(rec.recommendedWithholding);
+  return round2(pos(rec.creditedWithholding) + reserve);
+}

@@ -34,6 +34,7 @@ import {
 } from "@/hooks/useProjectedIncome";
 import type { QuarterRecommendationInput } from "@/lib/quarterRecommendation";
 import { excludeIncomeEntriesLinkedToTransaction } from "@/lib/taxRecommendationContext";
+import { computeFutureOccurrenceOrdinaryCoverage } from "@/lib/canonicalEventRecommendation";
 
 export interface QuarterRecommendationInputOptions {
   /**
@@ -138,6 +139,25 @@ export function useQuarterRecommendationInput(
   const federalIncomeTax = Math.max(0, Number(baseEstimate?.federalTax || 0));
   const selfEmploymentTax = Math.max(0, Number(baseEstimate?.seTax?.total || 0));
   const quarterMethod = rates?.quarterlyTrackerMethod ?? "even";
+  const stateIncomeTaxIncludedInTarget = !!rates?.stateIncomeTaxEnabled;
+
+  // Canonical ordinary coverage per occurrence (catch-up disabled) so future
+  // catch-up credits what each remaining paycheck will really carry.
+  const projectedWithCoverage = useMemo(
+    () =>
+      projectedPaychecks.map((p) => ({
+        ...p,
+        ordinaryCoverage: computeFutureOccurrenceOrdinaryCoverage({
+          estimate: baseEstimate,
+          taxSettings: rates as any,
+          occurrence: p,
+          stateTaxIncludedInTarget: stateIncomeTaxIncludedInTarget,
+          w2FundingMethod: (rates as any)?.w2PaycheckRecMethod ?? "annual_w4",
+          filingStatus: (rates as any)?.filingStatus ?? undefined,
+        }),
+      })),
+    [projectedPaychecks, baseEstimate, rates, stateIncomeTaxIncludedInTarget],
+  );
 
   // Edit mode (replacement semantics): remove the transaction being edited and
   // every income entry linked to it from the quarter progress context. The
@@ -172,12 +192,12 @@ export function useQuarterRecommendationInput(
     personalEntries: scopedPersonalEntries,
     transactions: scopedTransactions,
     investmentEntries: scopedInvestmentEntries,
-    projectedPaychecks,
+    projectedPaychecks: projectedWithCoverage,
     payments,
     manualSavings,
     // Symmetry: state withholding may only be credited toward quarterly Paid
     // when state income tax is actually part of the target.
-    stateIncomeTaxIncludedInTarget: !!rates?.stateIncomeTaxEnabled,
+    stateIncomeTaxIncludedInTarget,
     isLoading: ratesLoading || estLoading || txLoading || incLoading || piLoading,
   };
 }

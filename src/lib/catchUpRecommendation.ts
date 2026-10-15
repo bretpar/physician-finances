@@ -214,42 +214,66 @@ export function deriveBaselineQuarterTarget(
  * (exclusive) and the deadline (inclusive). Always at least 1 so a shortfall is
  * never silently dropped.
  */
+export interface FutureOccurrenceLike {
+  date?: string | null;
+  grossAmount?: number | null;
+  /** Planner occurrence status — matched/converted/suggested/skipped are already recorded or not happening. */
+  matchStatus?: string | null;
+  isSkipped?: boolean | null;
+  /** Canonical per-event ordinary coverage (reserve + credited withholding), catch-up disabled. */
+  ordinaryCoverage?: number | null;
+}
+
+/**
+ * ONE eligibility rule for both remaining-opportunity count and expected
+ * ordinary coverage: dated in (now, deadline] AND not already represented by
+ * an actual record (matched / converted / suggested) and not skipped.
+ */
+export function isEligibleFutureOccurrence(
+  e: FutureOccurrenceLike | null | undefined,
+  now: Date,
+  deadline: Date,
+): boolean {
+  if (!e?.date || e.isSkipped) return false;
+  const status = e.matchStatus ?? "active";
+  if (status !== "active") return false;
+  const d = new Date(e.date);
+  if (Number.isNaN(d.getTime())) return false;
+  return d > now && d <= deadline;
+}
+
 export function countRemainingOpportunities(
-  events: Array<{ date?: string | null }> | undefined,
+  events: FutureOccurrenceLike[] | undefined,
   now: Date,
   deadline: Date,
 ): number {
   if (!events || events.length === 0) return 1;
   let count = 0;
-  for (const e of events) {
-    if (!e?.date) continue;
-    const d = new Date(e.date);
-    if (Number.isNaN(d.getTime())) continue;
-    if (d > now && d <= deadline) count += 1;
-  }
+  for (const e of events) if (isEligibleFutureOccurrence(e, now, deadline)) count += 1;
   return Math.max(1, count);
 }
 
 /**
- * Ordinary tax coverage the remaining scheduled events (now, deadline] are
- * expected to carry: each event's gross × the effective annual rate already
- * used for the quarter target. Covers reserve + withholding together, so
- * neither is credited twice.
+ * Ordinary tax coverage the eligible remaining events are expected to carry.
+ * Uses each event's canonical `ordinaryCoverage` (reserve + credited
+ * withholding, catch-up disabled). The blended `effectiveRate` is only a
+ * fallback for callers that did not attach canonical coverage.
  */
 export function expectedOrdinaryCoverageForEvents(
-  events: Array<{ date?: string | null; grossAmount?: number | null }> | undefined,
+  events: FutureOccurrenceLike[] | undefined,
   now: Date,
   deadline: Date,
-  effectiveRate: number,
+  effectiveRate: number = 0,
 ): number {
+  if (!events) return 0;
   const rate = Math.max(0, num(effectiveRate));
-  if (!events || rate <= 0) return 0;
   let total = 0;
   for (const e of events) {
-    if (!e?.date) continue;
-    const d = new Date(e.date);
-    if (Number.isNaN(d.getTime())) continue;
-    if (d > now && d <= deadline) total += Math.max(0, num(e.grossAmount)) * rate;
+    if (!isEligibleFutureOccurrence(e, now, deadline)) continue;
+    total +=
+      e.ordinaryCoverage != null
+        ? Math.max(0, num(e.ordinaryCoverage))
+        : Math.max(0, num(e.grossAmount)) * rate;
   }
   return round2(total);
 }
