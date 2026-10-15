@@ -11,6 +11,7 @@ import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { isCompanyIncomeSourceInactive } from "@/lib/householdIncomeProfile";
 import { useIncomeEntries } from "@/hooks/useIncome";
 import { useWithholdingRecommendation } from "@/hooks/useWithholdingRecommendation";
+import { CatchUpExplanationPanel } from "@/components/CatchUpExplanationPanel";
 import { resolveReserveTargetEntry, nextReserveAmount } from "@/lib/reserveTargetEntry";
 import { useIncomeRecommendation } from "@/hooks/useIncomeRecommendation";
 import { SimpleTaxReminderModal } from "@/components/SimpleTaxReminderModal";
@@ -262,7 +263,16 @@ export default function Transactions() {
   const [editingIncomeEntryId, setEditingIncomeEntryId] = useState<string | null>(null);
   const [editingIncomeWasUnassigned, setEditingIncomeWasUnassigned] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [reserveInfoOpen, setReserveInfoOpen] = useState(false);
+  const [reserveInfoOpen, setReserveInfoOpenRaw] = useState(false);
+  const [reserveInfoView, setReserveInfoView] = useState<"breakdown" | "catchup">("breakdown");
+  // Reopening always starts on the tax breakdown.
+  const setReserveInfoOpen = (v: boolean | ((o: boolean) => boolean)) => {
+    setReserveInfoOpenRaw((o) => {
+      const next = typeof v === "function" ? v(o) : v;
+      if (next !== o) setReserveInfoView("breakdown");
+      return next;
+    });
+  };
   const [pendingIncomeAttachments, setPendingIncomeAttachments] = useState<File[]>([]);
 
   // ─── Expense modal state ───
@@ -2249,6 +2259,9 @@ export default function Transactions() {
                             <span>{label}{extra}</span><span>{value}</span>
                           </div>
                         );
+                        if (reserveInfoView === "catchup" && catchUp > 0) {
+                          return <CatchUpExplanationPanel catchUp={recommendation.catchUp} applied={catchUp} onBack={() => setReserveInfoView("breakdown")} />;
+                        }
                         return (
                           <>
                             <p className="text-xs font-medium">Your tax reserve breakdown</p>
@@ -2276,7 +2289,17 @@ export default function Transactions() {
                               )}
                               <div className="border-t border-border pt-0.5"><Row label="Tax for this income" value={cents(recommendation.eventTaxTarget)} /></div>
                               {credit > 0 && <Row label="Credited withholding" value={`−${cents(credit)}`} />}
-                              {catchUp > 0 && <Row label="Quarterly catch-up" value={`+${cents(catchUp)}`} />}
+                              {catchUp > 0 && (
+                                <Row
+                                  label="Quarterly catch-up"
+                                  value={`+${cents(catchUp)}`}
+                                  extra={
+                                    <button type="button" aria-label="Why a quarterly catch-up" className="ml-1 inline-flex h-4 w-4 items-center justify-center align-middle rounded-full text-muted-foreground hover:text-foreground" onClick={(e) => { e.stopPropagation(); e.preventDefault(); setReserveInfoView("catchup"); }}>
+                                      <Info className="h-3 w-3" />
+                                    </button>
+                                  }
+                                />
+                              )}
                               <div className="border-t border-border pt-0.5 font-semibold"><Row label="Recommended tax reserve" value={cents(displayRecommendedSavings)} /></div>
                             </div>
                             <p className="text-[11px] text-muted-foreground">The percentage is this reserve ÷ gross income, not your overall effective tax rate.</p>
