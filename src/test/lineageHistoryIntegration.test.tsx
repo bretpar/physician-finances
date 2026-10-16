@@ -73,6 +73,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 vi.mock("@/contexts/CompanyContext", () => ({
   useCompanies: () => ({ companies: [{ id: SRC, name: "K1Co", company_type: "k1_partnership", include_in_tax: true, apply_business_state_tax: false, advanced_field_visibility: {} }] }),
 }));
+vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => ({ user: { id: "u1" }, session: { user: { id: "u1" } }, loading: false }) }));
 vi.mock("@/hooks/useFeatureAccess", () => ({ useFeatureAccess: () => ({ accessStatus: () => "allowed" }) }));
 
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
