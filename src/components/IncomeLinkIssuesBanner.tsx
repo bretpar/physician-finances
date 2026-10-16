@@ -3,7 +3,7 @@ import { AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { LinkIssue } from "@/lib/incomeLinkValidation";
 
-const LABEL = { duplicate: "Possible duplicate", missing: "Missing link", conflicting: "Conflicting link" } as const;
+const LABEL = { duplicate: "Possible duplicate", missing: "Missing link", conflicting: "Conflicting link", incomplete_metadata: "Incomplete link details" } as const;
 
 /** Shows link problems found before estimates/exports. Never changes records. */
 export function IncomeLinkIssuesBanner({ issues, context = "estimate" }: { issues: LinkIssue[]; context?: "estimate" | "export" }) {
