@@ -167,15 +167,16 @@ export function buildLinkReviewItems(args: LinkReviewArgs): LinkReviewItem[] {
     .sort((a, b) => String(b.date ?? "").localeCompare(String(a.date ?? "")));
 }
 
-/** Manual income entries a deposit could be linked to (±30 days, not already linked). */
+/** Records the given one could be linked to: deposits for entries, entries for deposits (±30 days, unlinked). */
 export function manualLinkCandidates(deposit: Row, transactions: Row[]): Row[] {
+  const wantImported = !isImported(deposit);
   return transactions
     .filter(
       (t) =>
         t.id !== deposit.id &&
         isIncome(t) &&
         t.status === "active" &&
-        t.source_type !== "plaid" &&
+        isImported(t) === wantImported &&
         t.match_status !== "linked" &&
         !t.linked_group_id &&
         Math.abs(daysBetween(t.transaction_date, deposit.transaction_date)) <= 30,
