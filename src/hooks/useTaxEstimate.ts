@@ -596,7 +596,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         matchingTransactions: matchingTxs,
       },
     };
-  }, [transactions, reconciledIncomeEntries, personalEntries, stockTxs, investmentEntries, companies, rates?.businessStateTaxApplicationMode, rates?.businessStateTaxCompanyIds, todayStr, options.excludeTransactionId]);
+  }, [transactions, reconciledIncomeEntries, personalEntries, stockTxs, investmentEntries, companies, rates?.businessStateTaxApplicationMode, rates?.businessStateTaxCompanyIds, todayStr, options.excludeTransactionId, lineageConfirmations]);
 
   const isLoading = incLoading || piLoading || txLoading || ratesLoading || milLoading || strLoading || bonLoading || stkLoading || invLoading || retLoading || tpLoading || tsLoading || hoLoading;
 
