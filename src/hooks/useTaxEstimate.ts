@@ -727,6 +727,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       console.warn("[useTaxEstimate] YTD catch-up overlap detected — catch-up totals reduced to prevent double-counting:", overlapDebug);
     }
 
+    const selection: RecordSelectionByScope = {};
     const buildInput = (
       scope: typeof scopedTaxData.actualOnlyTaxInputs,
       incomeScope: "actualOnly" | "actualPlusPlanned",
