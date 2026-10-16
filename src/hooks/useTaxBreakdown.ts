@@ -46,6 +46,7 @@ import { normalizeFilingType, type FilingType } from "@/lib/filingTypes";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { aggregatePlannedBusinessExpenses } from "@/lib/plannedBusinessExpenses";
+import { plannedOccurrences } from "@/lib/taxRecordSelection";
 import { getSelectedWithholdingProfileRate } from "@/lib/savingsRateSelection";
 import { getDisplayedEffectiveRatePct } from "@/lib/effectiveTaxRateDisplay";
 import {
@@ -256,6 +257,7 @@ export function useTaxBreakdown(
     actualEstimate,
     currentPaceEstimate,
     forecastEstimate,
+    recordSelection,
     isLoading: estLoading,
   } = useTaxEstimate();
 
@@ -330,52 +332,74 @@ export function useTaxBreakdown(
     let plannedPreTaxTotal = 0;
     let plannedRetirementTotal = 0;
 
-    for (const e of incomes) {
-      if (!matchCompany(e.company)) continue;
-      const status = ((e as any).status ?? "received") as string;
-      const isReceived = status === "received";
-      const company = (e as any).source_id ? companies.find((c) => c.id === (e as any).source_id) : undefined;
-      const ft = normalizeFilingType(company?.companyType || e.income_type);
-      const agg = ensureAgg(company?.name || e.company || "Unassigned", ft, company?.id || (e as any).source_id || null);
+    // ── Income records: EXACTLY the records the canonical estimate selected ──
+    // (see src/lib/taxRecordSelection.ts). Business gross comes only from the
+    // canonical active income transactions; linked income_entries only add
+    // withholding/deductions; merged / non-reportable rows never count; planned
+    // income comes only from Planner occurrences still "active" after the
+    // estimate's own conversion + matching pass.
+    const sel = recordSelection?.[mode === "forecast" ? "actualPlusPlanned" : "actualOnly"];
+    const todayStr = new Date().toISOString().split("T")[0];
+    const companyForRow = (sourceId: string | null | undefined, name: string | null | undefined) =>
+      (sourceId ? companies.find((c) => c.id === sourceId) : undefined) ||
+      companies.find((c) => normName(c.name) === normName(name || ""));
 
-      if (isReceived) {
-        agg.actualGross += Number(e.paycheck_amount) || 0;
-        agg.preTax += Number(e.pre_tax_deductions) || 0;
-        agg.retirement += Number(e.retirement_401k) || 0;
-        agg.healthcare += Number((e as any).healthcare_deduction) || 0;
-        // W-2 personal-income HSA is treated as Section 125 payroll HSA — see
-        // useTaxEstimate line ~512. Track separately so we can subtract it
-        // from FICA wages without double-counting the (Section 125) `preTax` bucket.
-        agg.payrollHsa += Math.max(0, Number((e as any).hsa_contribution) || 0);
-        // Canonical federal total via shared helper (handles taxes_withheld,
-        // legacy federal_withholding-only rows, and split SS/Medicare).
-        agg.withheld += getTotalFederalPaid(e as any);
-        agg.federalWithheld += getTotalFederalPaid(e as any);
-        agg.stateWithheld += Number((e as any).state_withholding) || 0;
-      } else if (mode === "forecast") {
-        const gross = Number(e.paycheck_amount) || 0;
-        const preTax = Number(e.pre_tax_deductions) || 0;
-        const retirement = Number(e.retirement_401k) || 0;
-        agg.plannedGross += gross;
+    for (const tx of (sel?.businessIncomeTransactions ?? []) as any[]) {
+      if (!matchCompany(tx.entity)) continue;
+      const company = companyForRow(tx.source_id, tx.entity);
+      const ft = normalizeFilingType(company?.companyType || tx.company_type);
+      const agg = ensureAgg(company?.name || tx.entity || "Unassigned", ft, company?.id || tx.source_id || null);
+      const amt = Math.abs(Number(tx.amount) || 0);
+      if (tx.transaction_date > todayStr) agg.plannedGross += amt;
+      else agg.actualGross += amt;
+    }
+
+    const addEntryDetail = (agg: CompanyAgg, e: any, includeGross: boolean) => {
+      const isPlanned = (e.income_date || "") > todayStr;
+      if (includeGross) {
+        if (isPlanned) agg.plannedGross += Number(e.paycheck_amount) || 0;
+        else agg.actualGross += Number(e.paycheck_amount) || 0;
+      }
+      const preTax = Number(e.pre_tax_deductions) || 0;
+      const retirement = Number(e.retirement_401k) || 0;
+      agg.preTax += preTax;
+      agg.retirement += retirement;
+      if (isPlanned) {
         agg.plannedPreTax += preTax;
         agg.plannedRetirement += retirement;
-        agg.preTax += preTax;
-        agg.retirement += retirement;
-        agg.healthcare += Number((e as any).healthcare_deduction) || 0;
         plannedPreTaxTotal += preTax;
         plannedRetirementTotal += retirement;
       }
+      agg.healthcare += Number(e.healthcare_deduction) || 0;
+      // W-2 personal-income HSA is Section 125 payroll HSA (see useTaxEstimate).
+      agg.payrollHsa += Math.max(0, Number(e.hsa_contribution) || 0);
+      agg.withheld += getTotalFederalPaid(e);
+      agg.federalWithheld += getTotalFederalPaid(e);
+      agg.stateWithheld += Number(e.state_withholding) || 0;
+    };
+
+    for (const e of (sel?.linkedEnrichmentEntries ?? []) as any[]) {
+      if (!matchCompany(e.company)) continue;
+      const tx = (sel?.businessIncomeTransactions ?? []).find((t: any) => t.id === e.linked_transaction_id) as any;
+      const company = companyForRow(tx?.source_id || e.source_id, tx?.entity || e.company);
+      const ft = normalizeFilingType(company?.companyType || tx?.company_type || e.income_type);
+      const agg = ensureAgg(company?.name || tx?.entity || e.company || "Unassigned", ft, company?.id || tx?.source_id || e.source_id || null);
+      addEntryDetail(agg, e, false);
+    }
+
+    for (const e of (sel?.personalEntries ?? []) as any[]) {
+      if (!matchCompany(e.company)) continue;
+      const company = e.source_id ? companies.find((c) => c.id === e.source_id) : undefined;
+      const ft = normalizeFilingType(company?.companyType || e.income_type);
+      const agg = ensureAgg(company?.name || e.company || "Unassigned", ft, company?.id || e.source_id || null);
+      addEntryDetail(agg, e, true);
     }
 
     // Per-stream count of "active" planned paychecks, used below to project
-    // planned business expenses (forecast_expense_per_period × active count)
-    // into each linked company's expense bucket so include-planned Tax
-    // Breakdown reflects expenses the user entered on K-1 / 1099 streams.
+    // planned business expenses (forecast_expense_per_period × active count).
     const activePaychecksByStream = new Map<string, number>();
     if (mode === "forecast") {
-      const paychecks = generateProjectedPaychecks(streams, bonuses, incomes, overrides);
-      const activePlanned = paychecks.filter((p) => p.matchStatus === "active");
-      for (const p of activePlanned) {
+      for (const p of plannedOccurrences({ projectedPaychecks: sel?.projectedPaychecks ?? [] })) {
         const company = p.label.split(" (")[0];
         const stream = streams.find((s) => s.id === p.streamId);
         const ft = normalizeFilingType(stream?.company_type || "1099");
@@ -395,37 +419,6 @@ export function useTaxBreakdown(
           activePaychecksByStream.set(p.streamId, (activePaychecksByStream.get(p.streamId) || 0) + 1);
         }
       }
-    }
-
-    // ── Business income from transactions (canonical source) ─────────────
-    // The tax engine derives business gross from `transactions` where
-    // transaction_type === "income" for business-filing companies (1099 /
-    // K-1 / S-Corp distribution). income_entries only sometimes exist for
-    // these (paycheck-style enrichment). Without this loop a fresh 1099
-    // user with revenue transactions but no income_entries would not see
-    // their business as an income source on Tax Breakdown even though the
-    // tax math includes the profit. Dedupe via `linked_transaction_id`.
-    const txIdsCoveredByIncomes = new Set<string>(
-      incomes
-        .map((e) => (e as any).linked_transaction_id)
-        .filter((id): id is string => Boolean(id)),
-    );
-    for (const tx of txs) {
-      if ((tx as any).transaction_type !== "income") continue;
-      if (isExcludedFromBusiness(tx as any)) continue;
-      if (txIdsCoveredByIncomes.has(tx.id)) continue;
-      if (!matchCompany(tx.entity)) continue;
-      const company = (tx as any).source_id
-        ? companies.find((c) => c.id === (tx as any).source_id)
-        : companies.find((c) => normName(c.name) === normName(tx.entity || ""));
-      const ft = normalizeFilingType(company?.companyType || (tx as any).company_type);
-      const kind = FILING_TO_KIND(ft);
-      // Only canonical-source business kinds here; W-2 is already covered
-      // by income_entries above (paychecks).
-      if (kind !== "business") continue;
-      const name = company?.name || tx.entity || "Unassigned";
-      const agg = ensureAgg(name, ft, company?.id || (tx as any).source_id || null);
-      agg.actualGross += Math.abs(Number(tx.amount) || 0);
     }
 
     // Expense aggregation per company + cap gains
