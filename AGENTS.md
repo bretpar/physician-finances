@@ -28,3 +28,4 @@ Required artifacts for patient-flow tests:
 Do not change app code just to make the browser visible.
 Only change app code if the test reveals a real app bug.
 - Planner → Business Activity conversion (manual, in-app auto, and daily job) must write the single linked income_entries mirror via `upsertBusinessIncomeMirror` (or its edge-function equivalent) — owner deductions like employee/employer retirement live there, and reusing by linked_transaction_id keeps retries duplicate-free.
+- Link Review (/link-review) builds its list in the pure `src/lib/linkReview.ts` from the canonical record-selection bridge and resolves only via the existing linking hooks; "reviewed" state lives in `link_review_dismissals`, so dismissing never edits tax records.
