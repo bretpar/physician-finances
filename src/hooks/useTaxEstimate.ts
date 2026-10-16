@@ -544,6 +544,14 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         : Number((e as any).employer_retirement_contribution || 0);
       return s + Number(e.retirement_401k || 0) + employerRetirement;
     }, 0);
+    // QBI-attributable slice: self-employed/business plan money only. W-2
+    // employee deferrals must not reduce unrelated business QBI.
+    const businessRetirementQbi = linkedEntries.reduce((s, e) => {
+      const filing = normalizeFilingType((e as any).income_type);
+      const isW2Entry = filing === "w2" || filing === "scorp_w2";
+      if (isW2Entry) return s;
+      return s + Number(e.retirement_401k || 0) + Number((e as any).employer_retirement_contribution || 0);
+    }, 0);
     const ownerHealthcare = sumOwnerHealthcareDeduction(linkedEntries as any);
 
     const businessStateEligibleGross = Array.from(businessStateEligibleByTx.values()).reduce((s, v) => s + v, 0);
