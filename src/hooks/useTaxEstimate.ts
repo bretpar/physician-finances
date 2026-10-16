@@ -1202,6 +1202,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         projectedStateWithheld: projTotals.stateWithheld,
         projectedPreTax: projTotals.preTaxDeductions,
         projectedRetirement: projTotals.retirement401k,
+        projectedSeRetirement: (projTotals as any).retirement401kSe ?? 0,
         projectedHealthInsuranceDeduction: projTotals.healthInsuranceDeduction,
         filingStatus: rates.filingStatus as FilingStatus,
         lastYearTax: rates.lastYearTax,
