@@ -103,6 +103,32 @@ export function useTransactions() {
 }
 
 /**
+ * READ-ONLY full transaction history (every status, including merged rows).
+ * Used only to resolve link/merge lineage and validation — never for totals.
+ * Counted income must keep using the active-only `useTransactions()`.
+ */
+export function useTransactionHistory() {
+  return useQuery({
+    queryKey: ["transactions", "history"],
+    queryFn: async () => {
+      const rows: DbTransaction[] = [];
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await supabase
+          .from("transactions")
+          .select("*")
+          .order("transaction_date", { ascending: false })
+          .order("id", { ascending: true })
+          .range(from, from + 999);
+        if (error) throw error;
+        rows.push(...((data || []) as unknown as DbTransaction[]));
+        if (!data || data.length < 1000) break;
+      }
+      return rows;
+    },
+  });
+}
+
+/**
  * Strict business-ledger query. Reads the canonical `transactions` table as
  * the single source of truth. Returns ONLY rows that:
  *   - belong to the current authenticated user (enforced by RLS, repeated for safety)

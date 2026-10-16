@@ -5,7 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useTaxModeStore, type TaxMode as SharedTaxMode } from "@/lib/taxModeStore";
 import { useIncomeEntries, useWeightedIncome } from "@/hooks/useIncome";
 import { usePersonalIncomeEntries } from "@/hooks/usePersonalIncome";
-import { useTransactions } from "@/hooks/useTransactions";
+import { useTransactions, useTransactionHistory } from "@/hooks/useTransactions";
+import { resolveLineageForTaxContext } from "@/lib/lineageContext";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useMileageYTD, getMileageEntryDeduction } from "@/hooks/useMileage";
 import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks, getProjectedTotals, useStreamOverrides, usePlannerConversions } from "@/hooks/useProjectedIncome";
@@ -47,7 +48,7 @@ import { resolveApplicableHsaLimit } from "@/lib/hsaLimits";
 import { buildEngineItemizedInputs } from "@/lib/saltDeduction";
 import { resolveIncomeEarnerFor } from "@/lib/incomeEarner";
 import { validateIncomeLinks, type LinkIssue } from "@/lib/incomeLinkValidation";
-import { applyMergeLineageGross, type MergeLineageFinding } from "@/lib/taxRecordSelection";
+import { type MergeLineageFinding } from "@/lib/taxRecordSelection";
 import { paymentAppliesToTaxYear } from "@/lib/taxPaymentYear";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { excludeIncomeTransactionFromTaxContext, excludeIncomeEntriesLinkedToTransaction } from "@/lib/taxRecommendationContext";
@@ -134,6 +135,24 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
   const { data: incomeEntries, isLoading: incLoading } = useIncomeEntries();
   const { data: personalEntries, isLoading: piLoading } = usePersonalIncomeEntries();
   const { data: transactions, isLoading: txLoading } = useTransactions();
+  // Read-only lineage inputs: full history incl. merged rows + link tables.
+  const { data: transactionHistory } = useTransactionHistory();
+  const { data: incomeEntryLinks } = useQuery({
+    queryKey: ["income-entry-links", "history"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("income_entry_links").select("*");
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+  });
+  const { data: transactionLinkRows } = useQuery({
+    queryKey: ["transaction-links", "history"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("transaction_links").select("*");
+      if (error) throw error;
+      return (data || []) as any[];
+    },
+  });
   const { data: rates, isLoading: ratesLoading } = useTaxSettings();
   const currentYear = new Date().getFullYear();
   const { data: mileageEntries, isLoading: milLoading } = useMileageYTD(currentYear);
@@ -372,8 +391,14 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
     [lineageConfirmationKeys],
   );
   const linkIssues = useMemo(
-    () => validateIncomeLinks({ transactions: (transactions || []) as any[], incomeEntries: (reconciledIncomeEntries || []) as any[] }),
-    [transactions, reconciledIncomeEntries],
+    () => validateIncomeLinks({
+      transactions: (transactionHistory ?? transactions ?? []) as any[],
+      incomeEntries: (incomeEntries || []) as any[],
+      incomeEntryLinks: incomeEntryLinks ?? [],
+      transactionLinks: transactionLinkRows ?? [],
+      plaidTransactionIds: plaidTxIds,
+    }),
+    [transactionHistory, transactions, incomeEntries, incomeEntryLinks, transactionLinkRows, plaidTxIds],
   );
   const scopedTaxData = useMemo(() => {
     const makeCanonicalBusiness = (txs: typeof transactions, incomeRows: typeof reconciledIncomeEntries) => {
@@ -549,7 +574,13 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
     const matchingTxs = transactions || [];
     // Shared merge-lineage selection: authoritative gross + deductions once per
     // economic payment where the lineage proves it; ambiguous groups unchanged.
-    const lineage = applyMergeLineageGross(matchingTxs as any[], (reconciledIncomeEntries || []) as any[], { confirmedGroupIds: lineageConfirmations }) as { transactions: any[]; incomeEntries: NonNullable<typeof reconciledIncomeEntries>; findings: MergeLineageFinding[] };
+    const lineage = resolveLineageForTaxContext({
+      activeTransactions: matchingTxs as any[],
+      transactionHistory: transactionHistory as any[] | undefined,
+      allIncomeEntries: (incomeEntries || []) as any[],
+      countedIncomeEntries: (reconciledIncomeEntries || []) as any[],
+      confirmedGroupIds: lineageConfirmations,
+    }) as { transactions: any[]; incomeEntries: NonNullable<typeof reconciledIncomeEntries>; findings: MergeLineageFinding[] };
     const replacementContext = excludeIncomeTransactionFromTaxContext(
       lineage.transactions as typeof matchingTxs,
       lineage.incomeEntries,
@@ -596,7 +627,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         matchingTransactions: matchingTxs,
       },
     };
-  }, [transactions, reconciledIncomeEntries, personalEntries, stockTxs, investmentEntries, companies, rates?.businessStateTaxApplicationMode, rates?.businessStateTaxCompanyIds, todayStr, options.excludeTransactionId, lineageConfirmations]);
+  }, [transactions, reconciledIncomeEntries, personalEntries, stockTxs, investmentEntries, companies, rates?.businessStateTaxApplicationMode, rates?.businessStateTaxCompanyIds, todayStr, options.excludeTransactionId, lineageConfirmations, transactionHistory, incomeEntries]);
 
   const isLoading = incLoading || piLoading || txLoading || ratesLoading || milLoading || strLoading || bonLoading || stkLoading || invLoading || retLoading || tpLoading || tsLoading || hoLoading;
 

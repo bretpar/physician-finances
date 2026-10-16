@@ -279,7 +279,7 @@ export default function LinkReview() {
       )}
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
-      ) : items.length === 0 ? (
+      ) : items.length === 0 && proposed.length > 0 ? null : items.length === 0 ? (
         <Card><CardContent className="p-6 text-sm text-muted-foreground">Nothing to review. All income entries and deposits are linked or reviewed.</CardContent></Card>
       ) : (
         <div className="space-y-3">
