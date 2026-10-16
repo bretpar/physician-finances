@@ -24,7 +24,7 @@ import { type TaxEstimate } from "@/lib/taxEngine";
 import { filterNonOrphanIncomeEntries } from "@/lib/incomeOrphanFilter";
 import { computeUnifiedTaxEstimate, type UnifiedTaxInput, type TaxDebugBreakdown } from "@/lib/taxCalculationService";
 import { isSETaxableEntity } from "@/lib/k1TaxTreatment";
-import { normalizeFilingType, isSelfEmployedFilingType } from "@/lib/filingTypes";
+import { normalizeFilingType, isSelfEmployedFilingType, resolveHealthcarePretaxPayroll } from "@/lib/filingTypes";
 import { aggregateByCategory, classifyPersonalIncome } from "@/lib/incomeClassification";
 import { getFederalIncomeTaxWithheld } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
