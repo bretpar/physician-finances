@@ -115,13 +115,6 @@ export const FUTURE_ADJUSTMENT_REGISTRY: readonly FutureAdjustmentSpec[] = [
   // qbi_deduction — implemented; emitted at TaxStage.AGIBasedAdjustments
   // directly from `estimate.qbiComputation` (see buildTaxAdjustmentPipeline).
   {
-    id: "niit",
-    displayName: "Net Investment Income Tax (3.8%)",
-    stage: TaxStage.Surtaxes,
-    explanation:
-      "3.8% surtax on the lesser of net investment income or MAGI over $200k single / $250k MFJ.",
-  },
-  {
     id: "additional_medicare_refinement",
     displayName: "Additional Medicare Tax Refinements",
     stage: TaxStage.Surtaxes,
@@ -423,6 +416,16 @@ export function buildTaxAdjustmentPipeline(estimate: TaxEstimate): TaxAdjustment
     explanation: "0.9% on combined W-2 + SE earnings over the filing-status threshold.",
     sourceData: { additionalMedicare: n(estimate.seTax.additionalMedicare) },
   });
+  out.push({
+    id: "niit",
+    displayName: "Net Investment Income Tax (3.8%)",
+    stage: TaxStage.Surtaxes,
+    enabled: true,
+    amount: n(estimate.niit),
+    sign: "add",
+    explanation: "3.8% on the lesser of net investment income or MAGI over $200k single/HOH, $250k MFJ, $125k MFS.",
+    sourceData: { ...(estimate.niitComputation ?? {}) },
+  });
   for (const spec of FUTURE_ADJUSTMENT_REGISTRY.filter(
     (s) => s.stage === TaxStage.Surtaxes,
   )) {
@@ -446,7 +449,7 @@ export function buildTaxAdjustmentPipeline(estimate: TaxEstimate): TaxAdjustment
     enabled: true,
     amount: -n(estimate.taxCredits),
     sign: "subtract",
-    explanation: "CTC ($2,000/child) + ODC ($500/other dependent) with high-income phase-out.",
+    explanation: "CTC (tax-year amount, $2,200/child for 2026) + ODC ($500/other dependent) with high-income phase-out.",
     sourceData: { taxCredits: n(estimate.taxCredits) },
   });
   for (const spec of FUTURE_ADJUSTMENT_REGISTRY.filter(
