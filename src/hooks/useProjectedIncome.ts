@@ -2133,7 +2133,10 @@ export function getProjectedTotals(
     acc.retirement401k += p.retirement401k;
     acc.employerRetirementContribution += p.employerRetirementContribution || 0;
     acc.preTaxDeductions += p.preTaxDeductions;
-    acc.healthInsuranceDeduction += p.healthcareDeduction || 0;
+    // Self-employed health-insurance deduction is SE/business-only. W-2 payroll
+    // premiums are never this deduction (their pre/post-tax treatment is not
+    // recorded per stream, so we cannot invent a Section 125 exclusion either).
+    if (bucket === "se") acc.healthInsuranceDeduction += p.healthcareDeduction || 0;
     acc.hsaContribution += p.hsaContribution || 0;
     acc.netIncome += p.netAmount;
     acc.count += 1;
@@ -2141,18 +2144,25 @@ export function getProjectedTotals(
     if (bucket === "w2") acc.w2Income += p.grossAmount;
     else if (bucket === "se") {
       acc.seIncome += p.grossAmount;
+      // QBI-attributable retirement: only self-employed/business plan money
+      // (employee deferral + employer contribution on 1099 / K-1 streams).
+      // W-2 elective deferrals must not reduce unrelated business QBI.
+      acc.retirement401kSe += p.retirement401k + (p.employerRetirementContribution || 0);
       // Only SE (1099 / K-1 / Schedule C) streams contribute forecast expenses.
       // Paychecks count toward the assumption only while still "active" — past_due,
       // matched, suggested, skipped, and converted occurrences are excluded so
       // actual transactions own the expense side post-conversion.
       // Bonuses don't have an associated stream forecast expense in the model,
       // so when stream is missing we contribute 0.
-      if (stream && p.type === "paycheck") {
-        const fx = Math.max(0, Number(stream.forecast_expense_per_period) || 0);
-        acc.forecastBusinessExpenses += fx;
+      if (stream) {
         // Company provenance for business-state eligibility (source_id, else name).
         const key = (stream as any).source_id || `name::${String(stream.company || "").trim().toLowerCase()}`;
-        acc.forecastBusinessExpensesByCompany[key] = (acc.forecastBusinessExpensesByCompany[key] || 0) + fx;
+        acc.forecastBusinessGrossByCompany[key] = (acc.forecastBusinessGrossByCompany[key] || 0) + p.grossAmount;
+        if (p.type === "paycheck") {
+          const fx = Math.max(0, Number(stream.forecast_expense_per_period) || 0);
+          acc.forecastBusinessExpenses += fx;
+          acc.forecastBusinessExpensesByCompany[key] = (acc.forecastBusinessExpensesByCompany[key] || 0) + fx;
+        }
       }
     }
     else acc.otherIncome += p.grossAmount;
