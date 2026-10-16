@@ -64,3 +64,16 @@ describe("merge lineage — real account shapes", () => {
     expect(r.transactions).toBe(txs);
   });
 });
+
+import { computeUnifiedTaxEstimate } from "@/lib/taxCalculationService";
+import { SCENARIOS } from "@/lib/taxValidation/scenarios";
+
+describe("state withholding is credited exactly once (high-income baseline)", () => {
+  it("nets $20,000 state withholding against state tax and keeps it out of the paid-to-date credits", () => {
+    const s: any = (SCENARIOS as any[]).find((x) => x.id === "high-income-physician");
+    const { estimate: e, debug: d }: any = computeUnifiedTaxEstimate({ ...s.input, includeProjectedIncome: false });
+    expect(e.personalStateWithheldCredited).toBe(20000);
+    expect(e.personalStateTax).toBeCloseTo(e.personalStateTaxGross - 20000, 2);
+    expect(d.taxesAlreadyWithheldOrPaid).toBe(90000 + 25000); // federal withholding + estimated payments only
+  });
+});
