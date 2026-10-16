@@ -46,6 +46,7 @@ import { registerTaxEstimateConsumer } from "@/lib/taxEngineDiagnostics";
 import { resolveApplicableHsaLimit } from "@/lib/hsaLimits";
 import { buildEngineItemizedInputs } from "@/lib/saltDeduction";
 import { resolveIncomeEarnerFor } from "@/lib/incomeEarner";
+import { validateIncomeLinks, type LinkIssue } from "@/lib/incomeLinkValidation";
 import { applyMergeLineageGross, type MergeLineageFinding } from "@/lib/taxRecordSelection";
 import { paymentAppliesToTaxYear } from "@/lib/taxPaymentYear";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
@@ -122,6 +123,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
   canonicalInputs: { actualOnlyTaxInputs: unknown; includePlannedTaxInputs: unknown } | null;
   recordSelection: RecordSelectionByScope | null;
   mergeLineageFindings: MergeLineageFinding[];
+  linkIssues: LinkIssue[];
 } {
   const [taxMode, setTaxModeRaw] = useTaxModeStore();
 
@@ -1267,5 +1269,6 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
     /** Read-only: the exact records each canonical scope selected. */
     recordSelection: (scopedBaseInputs?.selection ?? null) as RecordSelectionByScope | null,
     mergeLineageFindings: scopedTaxData?.mergeLineageFindings ?? [],
+    linkIssues,
   };
 }
