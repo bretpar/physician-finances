@@ -1453,10 +1453,10 @@ function CompaniesSection() {
                                     <div className="pl-6 space-y-1" data-testid={`settings-company-${childKey}`}>
                                       <p className="text-[11px] text-muted-foreground">How are these premiums taken out of your pay?</p>
                                       <Select
-                                        value={resolveHealthcareTreatment(normalizeFilingType(getValue(company, "companyType") as string), savedVisibility)}
+                                        value={resolveHealthcareTreatment(normalizeFilingType(getValue(company, "companyType") as string), savedVisibility as Record<string, unknown>)}
                                         onValueChange={(v) => {
                                           const next = { ...savedVisibility, [childKey]: v };
-                                          setField(company.id, "advancedFieldVisibility", next);
+                                          setField(company.id, "advancedFieldVisibility", next as typeof savedVisibility);
                                         }}
                                       >
                                         <SelectTrigger className="h-8 text-[11px]"><SelectValue /></SelectTrigger>

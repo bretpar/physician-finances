@@ -125,6 +125,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
   recordSelection: RecordSelectionByScope | null;
   mergeLineageFindings: MergeLineageFinding[];
   linkIssues: LinkIssue[];
+  healthcareTreatmentUnsure: string[];
 } {
   const [taxMode, setTaxModeRaw] = useTaxModeStore();
 

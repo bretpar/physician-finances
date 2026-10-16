@@ -465,7 +465,7 @@ export function resolveHealthcareTreatment(
  */
 export function resolveHealthcarePretaxPayroll(
   filingType: FilingType,
-  saved: Record<string, boolean> | null | undefined,
+  saved: Record<string, unknown> | null | undefined,
 ): boolean {
   return resolveHealthcareTreatment(filingType, saved) === "pretax";
 }
