@@ -11,6 +11,8 @@ import {
   ADDITIONAL_MEDICARE_THRESHOLD,
   SE_INCOME_FACTOR as ACTIVE_SE_INCOME_FACTOR,
   calcBracketTax,
+  getTaxYearConfig,
+  NIIT_RATE,
   type FilingStatus,
 } from "@/lib/taxBrackets";
 import { buildTaxAdjustmentPipeline, type TaxAdjustment } from "@/lib/taxPipeline";
