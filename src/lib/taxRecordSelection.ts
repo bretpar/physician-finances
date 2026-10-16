@@ -87,13 +87,48 @@ export interface MergeLineageFinding {
   groupId: string | null;
   strandedEntryIds: string[];
   survivorTransactionId: string | null;
-  status: "authoritative_gross_applied" | "ambiguous";
+  status: "authoritative_gross_applied" | "proposed_pending_confirmation" | "ambiguous";
+  /**
+   * Set when the group has the "truncated Net Received + imported deposit
+   * mirror" shape. Nothing is applied until the user confirms the mapping.
+   */
+  proposedMapping?: {
+    strandedEntryId: string;
+    survivorTransactionId: string;
+    mirrorEntryId: string;
+    gross: number;
+    savedNetReceived: number;
+    survivorDeposit: number;
+    confirmationKey: string;
+  };
+  /** Other merged deposits in the group (e.g. separate receipts). */
+  components?: Array<{ transactionId: string; amount: number }>;
+  confirmed?: boolean;
   countedBefore: number;
   countedAfter: number;
   missingEvidence: string[];
 }
 
 const near = (a: number, b: number) => Math.abs(a - b) < 0.01;
+
+export const lineageConfirmationKey = (groupId: string) => `lineage-confirm:${groupId}`;
+
+const num = (v: unknown) => Number(v) || 0;
+/**
+ * An income entry that is only the bank-import copy of a deposit: same
+ * amount to the cent, no gross, deductions or withholding of its own.
+ */
+export function isDepositMirrorEntry(e: Record<string, any>, survivor: Record<string, any>): boolean {
+  const zeroFields = ["gross_amount", "deposited_amount", "retirement_401k", "employer_retirement_contribution", "pre_tax_deductions",
+    "healthcare_deduction", "hsa_contribution", "taxes_withheld", "federal_withholding", "state_withholding", "ss_withholding", "medicare_withholding"];
+  return (
+    e.linked_transaction_id === survivor.id &&
+    near(num(e.paycheck_amount), Math.abs(num(survivor.amount))) &&
+    zeroFields.every((f) => num(e[f]) === 0) &&
+    (!e.income_date || !survivor.transaction_date || e.income_date === survivor.transaction_date) &&
+    (!e.source_id || !survivor.source_id || e.source_id === survivor.source_id)
+  );
+}
 
 /**
  * Shared calculation selection for merge groups whose saved gross-pay entry
@@ -113,6 +148,7 @@ const near = (a: number, b: number) => Math.abs(a - b) < 0.01;
 export function applyMergeLineageGross<T extends Record<string, any>, E extends Record<string, any>>(
   transactions: T[],
   incomeEntries: E[],
+  options: { confirmedGroupIds?: ReadonlySet<string> } = {},
 ): { transactions: T[]; incomeEntries: E[]; findings: MergeLineageFinding[] } {
   const txById = new Map(transactions.map((t) => [t.id as string, t]));
   const byGroup = new Map<string, E[]>();
@@ -125,6 +161,7 @@ export function applyMergeLineageGross<T extends Record<string, any>, E extends 
   }
   const txPatch = new Map<string, number>();
   const entryRelink = new Map<string, string>();
+  const dropMirror = new Set<string>();
   const findings: MergeLineageFinding[] = [];
   for (const [groupId, stranded] of byGroup) {
     const survivors = transactions.filter((t) => t.linked_group_id === groupId && t.status === "active");
@@ -139,21 +176,44 @@ export function applyMergeLineageGross<T extends Record<string, any>, E extends 
     const gross = entry ? Number(entry.paycheck_amount) || 0 : 0;
     const deposit = survivor ? Math.abs(Number(survivor.amount) || 0) : 0;
     if (entry && gross <= 0) missing.push("merged entry has no saved gross pay");
-    if (survivor && incomeEntries.some((e) => e.linked_transaction_id === survivor.id))
-      missing.push("survivor already carries its own income entry");
+    const survivorEntries = survivor ? incomeEntries.filter((e) => e.linked_transaction_id === survivor.id) : [];
+    const mirror = survivor && survivorEntries.length === 1 && isDepositMirrorEntry(survivorEntries[0], survivor) ? survivorEntries[0] : null;
+    if (survivorEntries.length > 0 && !mirror) missing.push("survivor already carries its own income entry");
     const savedDeposit = entry ? Number(entry.deposited_amount) || 0 : 0;
+    // Whole-dollar Net Received that matches the deposit once cents are dropped.
+    const truncatedMatch = !!entry && !!survivor && savedDeposit > 0 && !near(savedDeposit, deposit) &&
+      Number.isInteger(savedDeposit) && savedDeposit === Math.trunc(deposit);
     if (entry && savedDeposit <= 0) missing.push("merged entry has no saved Net Received to tie it to a deposit");
-    else if (entry && survivor && !near(savedDeposit, deposit))
+    else if (entry && survivor && !near(savedDeposit, deposit) && !truncatedMatch)
       missing.push(`saved Net Received ${savedDeposit.toFixed(2)} does not equal surviving deposit ${deposit.toFixed(2)}`);
     const otherMembers = transactions.filter((t) => t.linked_group_id === groupId && t.status !== "active" && t.id !== entry?.linked_transaction_id);
+    const components = otherMembers.map((t) => ({ transactionId: t.id as string, amount: Math.abs(Number(t.amount) || 0) }));
     if (otherMembers.length > 1) missing.push(`${otherMembers.length} additional merged deposits need confirmation as components`);
 
-    if (missing.length === 0 && entry && survivor) {
+    // Proof is complete only with an exact Net Received and no survivor entry.
+    // A mirror entry or a truncated Net Received is strong evidence but not
+    // proof: it needs the user's confirmation before it is applied.
+    const needsConfirmation = !!mirror || truncatedMatch;
+    const confirmed = needsConfirmation && options.confirmedGroupIds?.has(groupId) === true;
+    if (missing.length === 0 && entry && survivor && (!needsConfirmation || confirmed)) {
       txPatch.set(survivor.id, gross);
       entryRelink.set(entry.id, survivor.id);
-      findings.push({ groupId, strandedEntryIds: [entry.id], survivorTransactionId: survivor.id, status: "authoritative_gross_applied", countedBefore: deposit, countedAfter: gross, missingEvidence: [] });
+      if (mirror) dropMirror.add(mirror.id);
+      findings.push({ groupId, strandedEntryIds: [entry.id], survivorTransactionId: survivor.id, status: "authoritative_gross_applied", countedBefore: deposit, countedAfter: gross, missingEvidence: [], confirmed: needsConfirmation || undefined });
+    } else if (missing.length === 0 && entry && survivor && mirror) {
+      findings.push({
+        groupId, strandedEntryIds: [entry.id], survivorTransactionId: survivor.id, status: "proposed_pending_confirmation",
+        countedBefore: deposit, countedAfter: deposit,
+        missingEvidence: [
+          truncatedMatch
+            ? `saved Net Received ${savedDeposit.toFixed(2)} matches deposit ${deposit.toFixed(2)} only with the cents dropped`
+            : "survivor carries an imported copy of the deposit",
+          "needs your confirmation that the imported entry is the same payment as the gross-pay entry",
+        ],
+        proposedMapping: { strandedEntryId: entry.id, survivorTransactionId: survivor.id, mirrorEntryId: mirror.id, gross, savedNetReceived: savedDeposit, survivorDeposit: deposit, confirmationKey: lineageConfirmationKey(groupId) },
+      });
     } else {
-      findings.push({ groupId, strandedEntryIds: stranded.map((e) => e.id), survivorTransactionId: survivor?.id ?? null, status: "ambiguous", countedBefore: deposit, countedAfter: deposit, missingEvidence: missing });
+      findings.push({ groupId, strandedEntryIds: stranded.map((e) => e.id), survivorTransactionId: survivor?.id ?? null, status: "ambiguous", countedBefore: deposit, countedAfter: deposit, missingEvidence: missing, components: components.length ? components : undefined });
     }
   }
   if (txPatch.size === 0) return { transactions, incomeEntries, findings };
@@ -162,7 +222,7 @@ export function applyMergeLineageGross<T extends Record<string, any>, E extends 
       const g = txPatch.get(t.id);
       return g == null ? t : ({ ...t, amount: Math.sign(Number(t.amount) || 1) * g, lineage_net_deposit: Math.abs(Number(t.amount) || 0) } as T);
     }),
-    incomeEntries: incomeEntries.map((e) => {
+    incomeEntries: incomeEntries.filter((e) => !dropMirror.has(e.id)).map((e) => {
       const to = entryRelink.get(e.id);
       return to == null ? e : ({ ...e, linked_transaction_id: to, lineage_original_transaction_id: e.linked_transaction_id } as E);
     }),
