@@ -1456,7 +1456,7 @@ function CompaniesSection() {
                                         value={resolveHealthcareTreatment(normalizeFilingType(getValue(company, "companyType") as string), savedVisibility as Record<string, unknown>)}
                                         onValueChange={(v) => {
                                           const next = { ...savedVisibility, [childKey]: v };
-                                          setField(company.id, "advancedFieldVisibility", next as typeof savedVisibility);
+                                          setField(company.id, "advancedFieldVisibility", next as unknown as typeof savedVisibility);
                                         }}
                                       >
                                         <SelectTrigger className="h-8 text-[11px]"><SelectValue /></SelectTrigger>
