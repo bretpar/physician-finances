@@ -544,6 +544,14 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         : Number((e as any).employer_retirement_contribution || 0);
       return s + Number(e.retirement_401k || 0) + employerRetirement;
     }, 0);
+    // QBI-attributable slice: self-employed/business plan money only. W-2
+    // employee deferrals must not reduce unrelated business QBI.
+    const businessRetirementQbi = linkedEntries.reduce((s, e) => {
+      const filing = normalizeFilingType((e as any).income_type);
+      const isW2Entry = filing === "w2" || filing === "scorp_w2";
+      if (isW2Entry) return s;
+      return s + Number(e.retirement_401k || 0) + Number((e as any).employer_retirement_contribution || 0);
+    }, 0);
     const ownerHealthcare = sumOwnerHealthcareDeduction(linkedEntries as any);
 
     const businessStateEligibleGross = Array.from(businessStateEligibleByTx.values()).reduce((s, v) => s + v, 0);
@@ -561,6 +569,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       businessW2Hsa,
       businessW2EmployerHsa,
       businessRetirement,
+      businessRetirementQbi,
       ownerHealthcare,
       businessStateEligibleGross,
       seEligibleGross,
@@ -1140,8 +1149,18 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         businessRetirement:
           businessRetirement + cu.business.retirement +
           standaloneRetirementRouting[incomeScope].selfEmployedEmployerDeduction,
+        // QBI slice: standalone self-employed employer plan money is
+        // business-classified, so it belongs here too; W-2 deferrals never do.
+        businessRetirementQbi:
+          canonicalBusiness.businessRetirementQbi +
+          standaloneRetirementRouting[incomeScope].selfEmployedEmployerDeduction,
         ownerHealthcare,
-        businessStateEligibleGross: businessStateEligibleGross + cuBizGross,
+        // Forecast: add active planned business receipts for state-tax-eligible
+        // companies only (company toggle + application mode + filing type).
+        businessStateEligibleGross: businessStateEligibleGross + cuBizGross +
+          (incomeScope === "actualPlusPlanned"
+            ? sumEligiblePlannedBusinessExpenses((projTotals as any).forecastBusinessGrossByCompany, companies as any, rates as any)
+            : 0),
         businessStateEligibleExpenses: canonicalBusiness.businessStateEligibleTxExpenses + businessStateEligibleHomeOfficeDeduction + // Planned + catch-up expenses attributed by their OWN company's
           // eligibility, so a replacement baseline with $0 income keeps them.
           (incomeScope === "actualPlusPlanned"
@@ -1183,6 +1202,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         projectedStateWithheld: projTotals.stateWithheld,
         projectedPreTax: projTotals.preTaxDeductions,
         projectedRetirement: projTotals.retirement401k,
+        projectedSeRetirement: (projTotals as any).retirement401kSe ?? 0,
         projectedHealthInsuranceDeduction: projTotals.healthInsuranceDeduction,
         filingStatus: rates.filingStatus as FilingStatus,
         lastYearTax: rates.lastYearTax,
