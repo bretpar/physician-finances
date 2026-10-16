@@ -830,7 +830,10 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       const avgEntriesPerMonth = receivedEntries.length > 0 ? receivedEntries.length / (now.getMonth() + 1) : 1;
       const remainingPayPeriods = Math.max(1, Math.round(avgEntriesPerMonth * monthsRemaining));
 
+      // Only payments APPLIED to this tax year count (a January payment applied
+      // to last year's Q4 is not a current-year credit, and vice versa).
       const quarterlyPaid = taxPayments
+        .filter((p) => paymentAppliesToTaxYear(p, currentYear))
         .filter((p) => incomeScope === "actualPlusPlanned" || p.payment_date <= todayStr)
         .reduce((s, p) => s + Number(p.amount), 0);
       const manualSavingsTotal = taxSavings
@@ -1025,7 +1028,34 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       const cappedPersonalNonW2Hsa = Math.max(0, rawPersonalAboveLine - reducePersonal);
       const cappedBusinessNonW2Hsa = Math.max(0, rawBusinessAboveLine - reduceBusiness);
 
+      // ── Per-earner Social Security wage base ─────────────────────────────
+      // Spouse-owned W-2 wages (companies.employee_role = "spouse", resolved by
+      // stable source id first) never consume the SE earner's wage base.
+      const earnerCompanies = companies.map((c) => ({ id: c.id, name: c.name, employeeRole: (c as any).employeeRole ?? null }));
+      let spouseW2FicaWages = 0;
+      for (const e of personal as any[]) {
+        if (classifyPersonalIncome(e) !== "w2") continue;
+        const earner = resolveIncomeEarnerFor({ sourceId: e.source_id, companyName: e.company }, earnerCompanies);
+        if (earner !== "spouse") continue;
+        spouseW2FicaWages += Math.max(0, Number(e.paycheck_amount || 0) - Number(e.pre_tax_deductions || 0) - Number(e.hsa_contribution || 0));
+      }
+      spouseW2FicaWages += Math.max(0, cu.w2.spouseFicaWages || 0);
+      let projectedSpouseW2FicaWages = 0;
+      for (const p of projectedPaychecks) {
+        if (p.matchStatus !== "active") continue;
+        const stream = streamById.get(p.streamId);
+        const filing = normalizeFilingType(stream?.company_type || p.streamCompanyType);
+        if (filing !== "w2") continue;
+        const earner = resolveIncomeEarnerFor({ sourceId: stream?.source_id, companyName: stream?.company }, earnerCompanies);
+        if (earner !== "spouse") continue;
+        projectedSpouseW2FicaWages += Math.max(0, p.grossAmount - (p.preTaxDeductions || 0) - (p.hsaContribution || 0));
+      }
+      const netInvestmentIncome = Math.max(0, netStockGain + longTermCapitalGains + personalCapGains + personalRental);
+
       return {
+        spouseW2FicaWages,
+        projectedSpouseW2FicaWages,
+        netInvestmentIncome,
         businessIncome: businessIncome + cuBizGross,
         seEligibleBusinessIncome: seEligibleBusinessIncome + cu.business.seEligibleGross,
         seEligibleBusinessExpenses: canonicalBusiness.seEligibleExpenses + seEligibleHomeOfficeDeduction + forecastBusinessExpenses + cu.business.seEligibleExpenses,
