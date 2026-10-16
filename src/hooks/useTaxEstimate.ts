@@ -401,6 +401,29 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
     [transactionHistory, transactions, incomeEntries, incomeEntryLinks, transactionLinkRows, plaidTxIds],
   );
   const scopedTaxData = useMemo(() => {
+    // Companies whose health-insurance premium is designated as pre-tax payroll
+    // (Section 125). Their healthcare_deduction reduces W-2 federal taxable
+    // wages and Social Security / Medicare wages once — it is never a
+    // self-employed health-insurance deduction.
+    const healthcarePretaxIds = new Set(
+      (companies || [])
+        .filter((c: any) =>
+          resolveHealthcarePretaxPayroll(
+            normalizeFilingType(c.companyType),
+            c.advancedFieldVisibility,
+          ),
+        )
+        .map((c: any) => c.id),
+    );
+    const healthcarePretaxNames = new Set(
+      (companies || [])
+        .filter((c: any) => healthcarePretaxIds.has(c.id))
+        .map((c: any) => c.name.toLowerCase().trim()),
+    );
+    const isHealthcarePretax = (e: { source_id?: string | null; company?: string | null }) =>
+      (e.source_id != null && healthcarePretaxIds.has(e.source_id)) ||
+      (e.company != null && healthcarePretaxNames.has(e.company.toLowerCase().trim()));
+
     const makeCanonicalBusiness = (txs: typeof transactions, incomeRows: typeof reconciledIncomeEntries) => {
     const companyById = new Map(companies.map((c) => [c.id, c] as const));
     const companyByName = new Map(companies.map((c) => [c.name.toLowerCase().trim(), c] as const));
