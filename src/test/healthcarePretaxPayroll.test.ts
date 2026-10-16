@@ -12,8 +12,10 @@
 import { describe, it, expect } from "vitest";
 import {
   resolveHealthcarePretaxPayroll,
+  resolveHealthcareTreatment,
   HEALTHCARE_PRETAX_PAYROLL_KEY,
 } from "@/lib/filingTypes";
+import { buildIncomeEntryRow } from "@/hooks/usePersonalIncome";
 import { getProjectedTotals } from "@/hooks/useProjectedIncome";
 import { computeUnifiedTaxEstimate, type UnifiedTaxInput } from "@/lib/taxCalculationService";
 
@@ -33,6 +35,43 @@ describe("healthcare pre-tax payroll designation", () => {
     expect(resolveHealthcarePretaxPayroll("k1_partnership", on)).toBe(false);
     // Field disabled → designation neutralized
     expect(resolveHealthcarePretaxPayroll("w2", { healthcare_deduction: false, [HEALTHCARE_PRETAX_PAYROLL_KEY]: true })).toBe(false);
+  });
+
+  it("supports the shared three-way treatment choice for every W-2 employer", () => {
+    const base = { healthcare_deduction: true };
+    expect(resolveHealthcareTreatment("w2", { ...base, [HEALTHCARE_PRETAX_PAYROLL_KEY]: "pretax" })).toBe("pretax");
+    expect(resolveHealthcareTreatment("w2", { ...base, [HEALTHCARE_PRETAX_PAYROLL_KEY]: "posttax" })).toBe("posttax");
+    expect(resolveHealthcareTreatment("w2", { ...base, [HEALTHCARE_PRETAX_PAYROLL_KEY]: "unsure" })).toBe("unsure");
+    // Legacy boolean true reads as pre-tax (existing saved designations keep working)
+    expect(resolveHealthcareTreatment("w2", { ...base, [HEALTHCARE_PRETAX_PAYROLL_KEY]: true })).toBe("pretax");
+    // Absent value reads as post-tax — never silently pre-tax
+    expect(resolveHealthcareTreatment("w2", base)).toBe("posttax");
+  });
+
+  it("'Not sure' never selects a tax exemption", () => {
+    const unsure = { healthcare_deduction: true, [HEALTHCARE_PRETAX_PAYROLL_KEY]: "unsure" };
+    expect(resolveHealthcarePretaxPayroll("w2", unsure)).toBe(false);
+  });
+
+  it("hiding the healthcare field neutralizes the designation but does not erase it", () => {
+    const saved = { healthcare_deduction: false, [HEALTHCARE_PRETAX_PAYROLL_KEY]: "pretax" };
+    // No wage exclusion while hidden…
+    expect(resolveHealthcareTreatment("w2", saved)).toBe("posttax");
+    // …but the saved designation survives and reapplies when re-enabled.
+    expect(resolveHealthcareTreatment("w2", { ...saved, healthcare_deduction: true })).toBe("pretax");
+  });
+});
+
+describe("uncommon user-labeled deductions", () => {
+  it("stores an other pre-tax amount with a plain-language description (e.g. union dues)", () => {
+    const row = buildIncomeEntryRow({
+      income_type: "w2_wages",
+      gross_amount: 10_000,
+      pre_tax_deductions: 45,
+      notes: "Union dues",
+    } as any);
+    expect(row.pre_tax_deductions).toBe(45);
+    expect(row.notes).toBe("Union dues");
   });
 });
 
