@@ -420,6 +420,35 @@ export function resolveEmployerPaycheckReduction(
   };
 }
 
+/* ─── W-2 health-insurance premium treatment (per company) ───
+ * Some employers (e.g. the VA) take health-insurance premiums out of pay
+ * BEFORE tax (Section 125 cafeteria plan): the premium reduces federal
+ * taxable wages AND Social Security / Medicare wages. Others deduct premiums
+ * post-tax. This per-company designation records that the company's
+ * `healthcare_deduction` field is a pre-tax payroll premium. It affects
+ * W-2 / S-Corp-W-2 companies only and never reclassifies the premium as a
+ * self-employed health-insurance deduction. Stored alongside the
+ * field-visibility toggles in companies.advanced_field_visibility. Defaults
+ * to OFF — we never assume all W-2 premiums are pre-tax.
+ */
+export const HEALTHCARE_PRETAX_PAYROLL_KEY =
+  "healthcare_pretax_payroll" as const;
+
+/** Resolve whether a company's healthcare premium is pre-tax payroll.
+ *  Effective only for W-2 / S-Corp-W-2 companies while the healthcare field
+ *  is enabled — disabling the field neutralizes the designation.
+ */
+export function resolveHealthcarePretaxPayroll(
+  filingType: FilingType,
+  saved: Record<string, boolean> | null | undefined,
+): boolean {
+  const ft = normalizeFilingType(filingType);
+  if (ft !== "w2" && ft !== "scorp_w2") return false;
+  const visibility = resolveAdvancedVisibility(ft, saved);
+  if (!visibility.healthcare_deduction) return false;
+  return (saved || {})[HEALTHCARE_PRETAX_PAYROLL_KEY] === true;
+}
+
 /**
  * When global HSA tracking is on, W-2 paycheck forms always show the existing
  * employee/employer HSA payroll fields (display only — saved per-company
