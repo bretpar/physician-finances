@@ -1290,7 +1290,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
   // generateProjectedPaychecks inside buildInput. Omitting them froze the
   // headline Projected Income / Projected Taxes numbers after an occurrence
   // edit or a planner conversion.
-}, [rates, reconciledIncomeEntries, scopedTaxData, hsaRows, todayStr, mileageEntries, taxPayments, taxSavings, streams, bonuses, overrides, plannerConversions, companies, annualizedRetirement, standaloneRetirementRouting, homeOfficeDeductions, ytdCatchups, itemizedDeductionsAllowed]);
+}, [rates, reconciledIncomeEntries, scopedTaxData, hsaRows, todayStr, mileageEntries, taxPayments, taxSavings, streams, bonuses, overrides, plannerConversions, companies, isHealthcarePretax, annualizedRetirement, standaloneRetirementRouting, homeOfficeDeductions, ytdCatchups, itemizedDeductionsAllowed]);
 
   const actualResult = useMemo(() => {
     if (!scopedBaseInputs) return null;
