@@ -35,7 +35,10 @@ export interface SelectionEntry {
 
 /** Business income transaction counted toward canonical business gross. */
 export function isCanonicalBusinessIncomeTx(t: SelectionTx): boolean {
-  return t.transaction_type === "income" && !isExcludedFromBusiness(t);
+  if (t.transaction_type !== "income") return false;
+  // Merged / deleted rows are never business gross (the surviving representation is).
+  if (t.status && t.status !== "active") return false;
+  return !isExcludedFromBusiness(t);
 }
 
 /** income_entries that enrich business income (linked to a live canonical income tx). */
