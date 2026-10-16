@@ -35,6 +35,7 @@ import {
   HEALTHCARE_PRETAX_PAYROLL_KEY,
   EMPLOYER_HSA_REDUCES_PAYCHECK_KEY,
   normalizeFilingType,
+  resolveHealthcareTreatment,
 
   type FilingType,
 } from "@/lib/filingTypes";
@@ -1448,7 +1449,26 @@ function CompaniesSection() {
                                     />
                                     <span>{opt.label}</span>
                                   </label>
-                                  {childKey && visibility[opt.key] && (
+                                  {childKey && visibility[opt.key] && childKey === HEALTHCARE_PRETAX_PAYROLL_KEY && (
+                                    <div className="pl-6 space-y-1" data-testid={`settings-company-${childKey}`}>
+                                      <p className="text-[11px] text-muted-foreground">How are these premiums taken out of your pay?</p>
+                                      <Select
+                                        value={resolveHealthcareTreatment(normalizeFilingType(getValue(company, "companyType") as string), savedVisibility as Record<string, unknown>)}
+                                        onValueChange={(v) => {
+                                          const next = { ...savedVisibility, [childKey]: v };
+                                          setField(company.id, "advancedFieldVisibility", next as unknown as typeof savedVisibility);
+                                        }}
+                                      >
+                                        <SelectTrigger className="h-8 text-[11px]"><SelectValue /></SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="pretax">Pre-tax payroll benefit (reduces taxable wages)</SelectItem>
+                                          <SelectItem value="posttax">Post-tax payroll deduction (take-home only)</SelectItem>
+                                          <SelectItem value="unsure">Not sure — flag my estimate for confirmation</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                  )}
+                                  {childKey && visibility[opt.key] && childKey !== HEALTHCARE_PRETAX_PAYROLL_KEY && (
                                     <label
                                       data-testid={`settings-company-${childKey}`}
                                       className="flex items-start gap-2 pl-6 text-[11px] text-muted-foreground cursor-pointer"

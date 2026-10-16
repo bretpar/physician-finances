@@ -24,7 +24,7 @@ import { type TaxEstimate } from "@/lib/taxEngine";
 import { filterNonOrphanIncomeEntries } from "@/lib/incomeOrphanFilter";
 import { computeUnifiedTaxEstimate, type UnifiedTaxInput, type TaxDebugBreakdown } from "@/lib/taxCalculationService";
 import { isSETaxableEntity } from "@/lib/k1TaxTreatment";
-import { normalizeFilingType, isSelfEmployedFilingType, resolveHealthcarePretaxPayroll } from "@/lib/filingTypes";
+import { normalizeFilingType, isSelfEmployedFilingType, resolveHealthcarePretaxPayroll, resolveHealthcareTreatment } from "@/lib/filingTypes";
 import { aggregateByCategory, classifyPersonalIncome } from "@/lib/incomeClassification";
 import { getFederalIncomeTaxWithheld } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
@@ -125,6 +125,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
   recordSelection: RecordSelectionByScope | null;
   mergeLineageFindings: MergeLineageFinding[];
   linkIssues: LinkIssue[];
+  healthcareTreatmentUnsure: string[];
 } {
   const [taxMode, setTaxModeRaw] = useTaxModeStore();
 
@@ -424,6 +425,29 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       (e.source_id != null && ids.has(e.source_id)) ||
       (e.company != null && names.has(e.company.toLowerCase().trim()));
   }, [companies]);
+
+  // Companies whose premium treatment is "Not sure" AND that actually have
+  // premiums entered (actual paychecks or active planner streams). Their
+  // premiums get no tax exemption, and the estimate is flagged for
+  // confirmation — never silently treated as pre-tax.
+  const healthcareTreatmentUnsure = useMemo(() => {
+    const unsure = (companies || []).filter(
+      (c: any) => resolveHealthcareTreatment(normalizeFilingType(c.companyType), c.advancedFieldVisibility) === "unsure",
+    );
+    if (unsure.length === 0) return [] as string[];
+    const ids = new Set(unsure.map((c: any) => c.id));
+    const names = new Set(unsure.map((c: any) => c.name.toLowerCase().trim()));
+    const matches = (sourceId: string | null | undefined, companyName: string | null | undefined) =>
+      (sourceId != null && ids.has(sourceId)) ||
+      (companyName != null && names.has(companyName.toLowerCase().trim()));
+    const hasActual = (reconciledIncomeEntries || []).some(
+      (e: any) => Number(e.healthcare_deduction || 0) > 0 && matches(e.source_id, e.company),
+    );
+    const hasPlanned = (streams || []).some(
+      (s: any) => s.is_active !== false && Number(s.healthcare_deduction || 0) > 0 && matches(s.source_id, s.company),
+    );
+    return hasActual || hasPlanned ? unsure.map((c: any) => c.name as string) : [];
+  }, [companies, reconciledIncomeEntries, streams]);
 
   const scopedTaxData = useMemo(() => {
     const makeCanonicalBusiness = (txs: typeof transactions, incomeRows: typeof reconciledIncomeEntries) => {
@@ -1382,5 +1406,9 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
     recordSelection: (scopedBaseInputs?.selection ?? null) as RecordSelectionByScope | null,
     mergeLineageFindings: scopedTaxData?.mergeLineageFindings ?? [],
     linkIssues,
+    /** Company names whose health-premium treatment is "Not sure" with
+     *  premiums present — the estimate excludes any exemption and needs
+     *  the user to confirm the treatment in Settings. */
+    healthcareTreatmentUnsure,
   };
 }

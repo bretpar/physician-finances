@@ -67,7 +67,7 @@ export default function Taxes() {
   // was lost to a previous timeout. Safe no-op when everything is intact.
   useRepairYtdCatchupMirrors();
   const { data: rates, isLoading: ratesLoading } = useTaxSettings();
-  const { estimate, isLoading: estLoading, taxMode, setTaxMode, actualEstimate, currentPaceEstimate, forecastEstimate, actualDebug, currentPaceDebug, forecastDebug, linkIssues } = useTaxEstimate();
+  const { estimate, isLoading: estLoading, taxMode, setTaxMode, actualEstimate, currentPaceEstimate, forecastEstimate, actualDebug, currentPaceDebug, forecastDebug, linkIssues, healthcareTreatmentUnsure } = useTaxEstimate();
   // CANONICAL withholding — single source of truth shared with Paychecks and Withholding Guide.
   const canonicalWithholding = useCanonicalWithholding("Taxes");
   const { data: savings = [] } = useTaxSavings();
@@ -307,6 +307,16 @@ export default function Taxes() {
 
         <TabsContent value="overview" className="space-y-6 mt-0">
       <IncomeLinkIssuesBanner issues={linkIssues} />
+      {healthcareTreatmentUnsure.length > 0 && (
+        <div
+          data-testid="healthcare-treatment-unsure-notice"
+          className="rounded-lg border border-amber-300/60 bg-amber-50 px-4 py-3 text-sm text-amber-900"
+        >
+          Health-insurance premiums for {healthcareTreatmentUnsure.join(", ")} are marked
+          "Not sure". No tax exemption is applied yet — confirm whether they're pre-tax or
+          post-tax in Settings → company → Advanced tax settings.
+        </div>
+      )}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Tax Overview</h1>
