@@ -71,7 +71,7 @@ export default function LinkReview() {
   const { data: incomeEntries = [], isLoading: ieLoading } = useIncomeEntries();
   const { data: links = [] } = useAllLinks();
   const { data: dismissed = new Set<string>() } = useDismissals();
-  const { recordSelection } = useTaxEstimate();
+  const { recordSelection, mergeLineageFindings } = useTaxEstimate();
   const suggestions = useSuggestedMatches(transactions as any, incomeEntries as any);
   const linkPair = useLinkTransactions();
   const createGroup = useCreateMatchGroup();
@@ -112,7 +112,7 @@ export default function LinkReview() {
   );
 
   const refresh = () => {
-    ["transactions", "transaction-links", "income_entries", "match-groups", "link-review-dismissals"].forEach((k) =>
+    ["transactions", "transaction-links", "income_entries", "match-groups", "link-review-dismissals", "tax-estimate"].forEach((k) =>
       qc.invalidateQueries({ queryKey: [k] }),
     );
   };
@@ -232,6 +232,8 @@ export default function LinkReview() {
   }
 
   const loading = txLoading || ieLoading;
+  const proposed = (mergeLineageFindings ?? []).filter((f) => f.status === "proposed_pending_confirmation" && f.proposedMapping);
+
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-6">
@@ -241,6 +243,40 @@ export default function LinkReview() {
           Income entries and bank deposits whose links are missing or uncertain. Each fix only changes the records shown on that card.
         </p>
       </div>
+      {proposed.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-sm font-medium text-foreground">Confirm before counting gross pay ({proposed.length})</p>
+          {proposed.map((f) => {
+            const m = f.proposedMapping!;
+            const entry = (incomeEntries as any[]).find((e) => e.id === m.strandedEntryId);
+            return (
+              <Card key={m.confirmationKey}>
+                <CardContent className="space-y-3 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <Badge variant="secondary">Needs your confirmation</Badge>
+                      <p className="mt-2 break-words font-medium text-foreground">{entry?.company ?? "Income"} — {entry?.income_date ?? ""}</p>
+                    </div>
+                    <p className="font-semibold tabular-nums text-foreground">{money(m.gross)}</p>
+                  </div>
+                  <p className="rounded-md bg-muted p-3 text-sm text-muted-foreground">
+                    Counted now: the {money(m.survivorDeposit)} bank deposit, with no deductions. Your gross-pay entry
+                    ({money(m.gross)}, Net Received saved as {money(m.savedNetReceived)}) is not counted.
+                    If you confirm they are the same payment, taxes will count {money(m.gross)} once with that entry's
+                    deductions{m.mirrorEntryId ? ", and the imported copy of the deposit is no longer counted" : ""}.
+                    Your records stay as they are.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" disabled={markReviewed.isPending} onClick={() => markReviewed.mutate(m.confirmationKey)}>
+                      Yes, same payment
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : items.length === 0 ? (

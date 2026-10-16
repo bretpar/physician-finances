@@ -357,6 +357,20 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
   // / healthcare_deduction values. Income_entries with no live linked transaction
   // contribute nothing — they cannot inflate gross above what the ledger shows.
   // Validate income links BEFORE any estimate/export uses them. Read-only.
+  // Merge-lineage mappings the user has explicitly confirmed (Link Review).
+  // Stored as review keys only — confirming never edits a financial record.
+  const { data: lineageConfirmationKeys } = useQuery({
+    queryKey: ["link-review-dismissals", "lineage"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("link_review_dismissals").select("item_key").like("item_key", "lineage-confirm:%");
+      if (error) throw error;
+      return (data ?? []).map((r) => r.item_key as string);
+    },
+  });
+  const lineageConfirmations = useMemo(
+    () => new Set((lineageConfirmationKeys ?? []).map((k) => k.slice("lineage-confirm:".length))),
+    [lineageConfirmationKeys],
+  );
   const linkIssues = useMemo(
     () => validateIncomeLinks({ transactions: (transactions || []) as any[], incomeEntries: (reconciledIncomeEntries || []) as any[] }),
     [transactions, reconciledIncomeEntries],
@@ -535,7 +549,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
     const matchingTxs = transactions || [];
     // Shared merge-lineage selection: authoritative gross + deductions once per
     // economic payment where the lineage proves it; ambiguous groups unchanged.
-    const lineage = applyMergeLineageGross(matchingTxs as any[], (reconciledIncomeEntries || []) as any[]) as { transactions: any[]; incomeEntries: NonNullable<typeof reconciledIncomeEntries>; findings: MergeLineageFinding[] };
+    const lineage = applyMergeLineageGross(matchingTxs as any[], (reconciledIncomeEntries || []) as any[], { confirmedGroupIds: lineageConfirmations }) as { transactions: any[]; incomeEntries: NonNullable<typeof reconciledIncomeEntries>; findings: MergeLineageFinding[] };
     const replacementContext = excludeIncomeTransactionFromTaxContext(
       lineage.transactions as typeof matchingTxs,
       lineage.incomeEntries,
@@ -582,7 +596,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         matchingTransactions: matchingTxs,
       },
     };
-  }, [transactions, reconciledIncomeEntries, personalEntries, stockTxs, investmentEntries, companies, rates?.businessStateTaxApplicationMode, rates?.businessStateTaxCompanyIds, todayStr, options.excludeTransactionId]);
+  }, [transactions, reconciledIncomeEntries, personalEntries, stockTxs, investmentEntries, companies, rates?.businessStateTaxApplicationMode, rates?.businessStateTaxCompanyIds, todayStr, options.excludeTransactionId, lineageConfirmations]);
 
   const isLoading = incLoading || piLoading || txLoading || ratesLoading || milLoading || strLoading || bonLoading || stkLoading || invLoading || retLoading || tpLoading || tsLoading || hoLoading;
 
