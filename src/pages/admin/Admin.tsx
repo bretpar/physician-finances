@@ -35,6 +35,7 @@ import {
 import { toast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import FeaturesPanel from "@/pages/admin/FeaturesPanel";
+import TaxReconciliationExportCard from "@/components/TaxReconciliationExportCard";
 
 const ROLE_OPTIONS: AccountRole[] = ["free", "premium", "premium_beta", "developer"];
 
@@ -306,7 +307,12 @@ export default function Admin() {
         <TabsList>
           <TabsTrigger value="users">Users</TabsTrigger>
           <TabsTrigger value="features">Features</TabsTrigger>
+          <TabsTrigger value="diagnostics">Diagnostics</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="diagnostics" className="mt-4">
+          <TaxReconciliationExportCard />
+        </TabsContent>
 
         <TabsContent value="features" className="mt-4">
           <FeaturesPanel />
