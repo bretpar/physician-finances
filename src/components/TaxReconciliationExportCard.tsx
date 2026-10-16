@@ -85,8 +85,8 @@ export default function TaxReconciliationExportCard() {
         : null;
       const reconciliation = sel && selActual
         ? {
-            actualPlusPlanned: buildSourceCardReconciliation(forecastBreakdown.sources as any[], sel as any),
-            actualOnly: buildSourceCardReconciliation(actualBreakdown.sources as any[], selActual as any),
+            actualPlusPlanned: buildSourceCardReconciliation(forecastBreakdown.sources as any[], sel as any, "actualPlusPlanned"),
+            actualOnly: buildSourceCardReconciliation(actualBreakdown.sources as any[], selActual as any, "actualOnly"),
             note: "Cards and canonicalRecords cover income records only; YTD catch-up, saved W-2 projections and investment income are separate canonical inputs.",
           }
         : null;
