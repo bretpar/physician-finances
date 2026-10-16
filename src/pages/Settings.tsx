@@ -34,6 +34,7 @@ import {
   EMPLOYER_RETIREMENT_REDUCES_PAYCHECK_KEY,
   HEALTHCARE_PRETAX_PAYROLL_KEY,
   EMPLOYER_HSA_REDUCES_PAYCHECK_KEY,
+  normalizeFilingType,
 
   type FilingType,
 } from "@/lib/filingTypes";
