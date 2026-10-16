@@ -45,6 +45,8 @@ import { defaultRemainingPaychecks } from "@/components/tax/W4PaycheckAdjustment
 import { registerTaxEstimateConsumer } from "@/lib/taxEngineDiagnostics";
 import { resolveApplicableHsaLimit } from "@/lib/hsaLimits";
 import { buildEngineItemizedInputs } from "@/lib/saltDeduction";
+import { resolveIncomeEarnerFor } from "@/lib/incomeEarner";
+import { paymentAppliesToTaxYear } from "@/lib/taxPaymentYear";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { excludeIncomeTransactionFromTaxContext, excludeIncomeEntriesLinkedToTransaction } from "@/lib/taxRecommendationContext";
 
@@ -1039,7 +1041,15 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         if (earner !== "spouse") continue;
         spouseW2FicaWages += Math.max(0, Number(e.paycheck_amount || 0) - Number(e.pre_tax_deductions || 0) - Number(e.hsa_contribution || 0));
       }
-      spouseW2FicaWages += Math.max(0, cu.w2.spouseFicaWages || 0);
+      for (const c of (ytdCatchups || []) as any[]) {
+        if (c.tax_year !== currentYear || c.source_type !== "w2") continue;
+        const earner = c.owner_person === "spouse"
+          ? "spouse"
+          : resolveIncomeEarnerFor({ sourceId: c.company_id, companyName: c.company_name }, earnerCompanies);
+        if (earner !== "spouse") continue;
+        const section125 = Number(c.healthcare_premiums || 0) + Number(c.dental_vision || 0) + Number(c.other_pretax || 0) + Number(c.hsa_contribution || 0);
+        spouseW2FicaWages += Math.max(0, Number(c.gross_income || 0) - section125);
+      }
       let projectedSpouseW2FicaWages = 0;
       for (const p of projectedPaychecks) {
         if (p.matchStatus !== "active") continue;
