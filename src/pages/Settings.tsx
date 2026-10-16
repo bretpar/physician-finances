@@ -1425,11 +1425,15 @@ function CompaniesSection() {
                                   ? EMPLOYER_RETIREMENT_REDUCES_PAYCHECK_KEY
                                   : opt.key === "employer_hsa_contribution"
                                     ? EMPLOYER_HSA_REDUCES_PAYCHECK_KEY
-                                    : null;
+                                    : opt.key === "healthcare_deduction" && (normalizeFilingType(getValue(company, "companyType") as string) === "w2" || normalizeFilingType(getValue(company, "companyType") as string) === "scorp_w2")
+                                      ? HEALTHCARE_PRETAX_PAYROLL_KEY
+                                      : null;
                               const childLabel =
                                 opt.key === "employer_retirement_contribution"
                                   ? "Employer retirement contribution reduces my paycheck"
-                                  : "Employer HSA contribution reduces my paycheck";
+                                  : opt.key === "employer_hsa_contribution"
+                                    ? "Employer HSA contribution reduces my paycheck"
+                                    : "Health insurance premiums are pre-tax payroll (Section 125)";
                               return (
                                 <div key={opt.key} className="space-y-1.5">
                                   <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
