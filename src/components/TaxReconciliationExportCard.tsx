@@ -149,7 +149,7 @@ export default function TaxReconciliationExportCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <IncomeLinkIssuesBanner issues={est.linkIssues ?? []} context="export" />
+        <IncomeLinkIssuesBanner issues={est.linkIssues ?? []} context="export" showMetadata />
         <Button onClick={handleExport} disabled={busy || loading} className="gap-2">
           {busy || loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           {loading ? "Loading data…" : busy ? "Generating…" : "Export tax reconciliation data"}
