@@ -126,6 +126,16 @@ export interface UnifiedTaxInput {
   businessStateTaxRate?: number;
   businessStateTaxBase?: "net_profit" | "gross";
 
+  /**
+   * FICA wages (gross − Section 125) on W-2 income owned by the SPOUSE
+   * (companies.employee_role = "spouse"). Removed from the self-employed
+   * earner's Social Security wage-base offset; Additional Medicare stays joint.
+   */
+  spouseW2FicaWages?: number;
+  projectedSpouseW2FicaWages?: number;
+  /** §1411 net investment income (actual records; never projected). */
+  netInvestmentIncome?: number;
+
   includeProjectedIncome: boolean;
 }
 
@@ -292,6 +302,9 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     businessStateTaxRate = 0,
     businessStateTaxBase = "net_profit",
     includeProjectedIncome,
+    spouseW2FicaWages = 0,
+    projectedSpouseW2FicaWages = 0,
+    netInvestmentIncome = 0,
   } = input;
 
   // Floor LTCG slice at zero — losses already netted upstream.
@@ -349,6 +362,14 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
   // FICA wages from Section 125-inclusive gross-income aggregates.
   const actualW2FicaWages = Math.max(0, (businessW2 + personalW2) - (businessPreTax + personalPreTax));
   const plannedW2FicaWages = Math.max(0, projW2 - projPreTax);
+  // Social Security wage base is per earner: only the SE earner's own W-2
+  // wages offset it. Self-employment income is attributed to the primary earner.
+  const seEarnerW2FicaWages = Math.max(
+    0,
+    actualW2FicaWages + plannedW2FicaWages
+      - Math.max(0, spouseW2FicaWages)
+      - (includeProjectedIncome ? Math.max(0, projectedSpouseW2FicaWages) : 0),
+  );
   const nonW2HsaAboveLineDeduction = Math.max(0, businessNonW2HsaAboveLine) + Math.max(0, personalNonW2HsaAboveLine);
   const nonW2PreTaxDeductions = nonW2HsaAboveLineDeduction;
   const actualHealthInsuranceDeduction = ownerHealthcare;
@@ -422,6 +443,8 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     // SE-attributable retirement (SEP / Solo-401(k)) — reduces synthesized
     // aggregate QBI. Excludes W-2 elective deferrals (personalRetirement).
     qbiSeRetirementDeduction: businessRetirement + projRetirement,
+    seEarnerW2FicaWages,
+    netInvestmentIncome,
   });
 
   const totalDeductions =
