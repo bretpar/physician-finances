@@ -2077,6 +2077,8 @@ export function getProjectedTotals(
     federalWithheld: 0,
     stateWithheld: 0,
     retirement401k: 0,
+    /** SE/business-only retirement (employee + employer) — the QBI-attributable slice. */
+    retirement401kSe: 0,
     employerRetirementContribution: 0,
     preTaxDeductions: 0,
     healthInsuranceDeduction: 0,
@@ -2089,6 +2091,8 @@ export function getProjectedTotals(
     /** Forecast business expenses summed across active SE paychecks (1099 / K-1 only). */
     forecastBusinessExpenses: 0,
     forecastBusinessExpensesByCompany: {} as Record<string, number>,
+    /** Forecast business gross keyed by company (source_id / name) for state-tax eligibility. */
+    forecastBusinessGrossByCompany: {} as Record<string, number>,
   };
 
   for (const p of paychecks) {
