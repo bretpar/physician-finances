@@ -528,10 +528,10 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
     const matchingTxs = transactions || [];
     // Shared merge-lineage selection: authoritative gross + deductions once per
     // economic payment where the lineage proves it; ambiguous groups unchanged.
-    const lineage = applyMergeLineageGross(matchingTxs as any[], (reconciledIncomeEntries || []) as any[]);
+    const lineage = applyMergeLineageGross(matchingTxs as any[], (reconciledIncomeEntries || []) as any[]) as { transactions: any[]; incomeEntries: NonNullable<typeof reconciledIncomeEntries>; findings: MergeLineageFinding[] };
     const replacementContext = excludeIncomeTransactionFromTaxContext(
       lineage.transactions as typeof matchingTxs,
-      lineage.incomeEntries as any,
+      lineage.incomeEntries,
       options.excludeTransactionId,
     );
     const allTxs = replacementContext.transactions;
