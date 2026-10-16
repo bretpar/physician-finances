@@ -27,6 +27,7 @@ function seed(confirmed: boolean) {
   ];
   db.transaction_links = [{ id: "l1", linked_group_id: "g1", manual_transaction_id: "dep", plaid_transaction_record_id: "parent", status: "linked" }];
   db.income_entry_links = [];
+  db.tax_settings = [{ id: "ts1", user_id: "u1", filing_status: "single", tax_mode: "projected_brackets", ss_wage_cap: 184500, last_year_tax: 0, onboarding_complete: true, updated_at: DATE, created_at: DATE }];
   db.link_review_dismissals = confirmed ? [{ item_key: "lineage-confirm:g1" }] : [];
 }
 
