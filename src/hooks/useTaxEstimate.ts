@@ -46,6 +46,7 @@ import { registerTaxEstimateConsumer } from "@/lib/taxEngineDiagnostics";
 import { resolveApplicableHsaLimit } from "@/lib/hsaLimits";
 import { buildEngineItemizedInputs } from "@/lib/saltDeduction";
 import { resolveIncomeEarnerFor } from "@/lib/incomeEarner";
+import { applyMergeLineageGross, type MergeLineageFinding } from "@/lib/taxRecordSelection";
 import { paymentAppliesToTaxYear } from "@/lib/taxPaymentYear";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { excludeIncomeTransactionFromTaxContext, excludeIncomeEntriesLinkedToTransaction } from "@/lib/taxRecommendationContext";
@@ -120,6 +121,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
   /** Read-only: the exact canonical inputs supplied to the Actual Only / Actual + Planned calculations. */
   canonicalInputs: { actualOnlyTaxInputs: unknown; includePlannedTaxInputs: unknown } | null;
   recordSelection: RecordSelectionByScope | null;
+  mergeLineageFindings: MergeLineageFinding[];
 } {
   const [taxMode, setTaxModeRaw] = useTaxModeStore();
 
@@ -524,9 +526,12 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
     // Keep the full transaction set for Planner conversion matching, but
     // exclude the row being edited from the tax aggregate and enrichment.
     const matchingTxs = transactions || [];
+    // Shared merge-lineage selection: authoritative gross + deductions once per
+    // economic payment where the lineage proves it; ambiguous groups unchanged.
+    const lineage = applyMergeLineageGross(matchingTxs as any[], (reconciledIncomeEntries || []) as any[]);
     const replacementContext = excludeIncomeTransactionFromTaxContext(
-      matchingTxs,
-      reconciledIncomeEntries || [],
+      lineage.transactions as typeof matchingTxs,
+      lineage.incomeEntries as any,
       options.excludeTransactionId,
     );
     const allTxs = replacementContext.transactions;
@@ -550,6 +555,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
     const actualInvestmentRows = allInvestmentRows.filter((s) => s.entry_date <= todayStr);
 
     return {
+      mergeLineageFindings: lineage.findings,
       actualOnlyTaxInputs: {
         transactions: actualTxs,
         incomeEntries: actualIncomeRows,
@@ -1260,5 +1266,6 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       : null,
     /** Read-only: the exact records each canonical scope selected. */
     recordSelection: (scopedBaseInputs?.selection ?? null) as RecordSelectionByScope | null,
+    mergeLineageFindings: scopedTaxData?.mergeLineageFindings ?? [],
   };
 }
