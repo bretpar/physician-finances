@@ -356,6 +356,11 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
   // transactions, providing per-paycheck withholding / retirement / pre-tax
   // / healthcare_deduction values. Income_entries with no live linked transaction
   // contribute nothing — they cannot inflate gross above what the ledger shows.
+  // Validate income links BEFORE any estimate/export uses them. Read-only.
+  const linkIssues = useMemo(
+    () => validateIncomeLinks({ transactions: (transactions || []) as any[], incomeEntries: (reconciledIncomeEntries || []) as any[] }),
+    [transactions, reconciledIncomeEntries],
+  );
   const scopedTaxData = useMemo(() => {
     const makeCanonicalBusiness = (txs: typeof transactions, incomeRows: typeof reconciledIncomeEntries) => {
     const companyById = new Map(companies.map((c) => [c.id, c] as const));
