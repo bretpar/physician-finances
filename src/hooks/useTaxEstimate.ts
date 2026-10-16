@@ -357,6 +357,20 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
   // / healthcare_deduction values. Income_entries with no live linked transaction
   // contribute nothing — they cannot inflate gross above what the ledger shows.
   // Validate income links BEFORE any estimate/export uses them. Read-only.
+  // Merge-lineage mappings the user has explicitly confirmed (Link Review).
+  // Stored as review keys only — confirming never edits a financial record.
+  const { data: lineageConfirmationKeys } = useQuery({
+    queryKey: ["link-review-dismissals", "lineage"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("link_review_dismissals").select("item_key").like("item_key", "lineage-confirm:%");
+      if (error) throw error;
+      return (data ?? []).map((r) => r.item_key as string);
+    },
+  });
+  const lineageConfirmations = useMemo(
+    () => new Set((lineageConfirmationKeys ?? []).map((k) => k.slice("lineage-confirm:".length))),
+    [lineageConfirmationKeys],
+  );
   const linkIssues = useMemo(
     () => validateIncomeLinks({ transactions: (transactions || []) as any[], incomeEntries: (reconciledIncomeEntries || []) as any[] }),
     [transactions, reconciledIncomeEntries],
