@@ -434,6 +434,31 @@ export function resolveEmployerPaycheckReduction(
 export const HEALTHCARE_PRETAX_PAYROLL_KEY =
   "healthcare_pretax_payroll" as const;
 
+/** Treatment of a W-2 company's health-insurance premium.
+ *  - "pretax": Section 125 payroll benefit — reduces federal taxable wages
+ *    and Social Security / Medicare wages (applied once).
+ *  - "posttax": reduces take-home pay only, never taxable wages.
+ *  - "unsure": no exemption is applied; the estimate is flagged as needing
+ *    confirmation. Never silently treated as pre-tax.
+ *  Stored value is one of the three strings; a legacy boolean `true` reads
+ *  as "pretax". Anything else (absent, false, unknown) reads as "posttax".
+ */
+export type HealthcarePremiumTreatment = "pretax" | "posttax" | "unsure";
+
+export function resolveHealthcareTreatment(
+  filingType: FilingType,
+  saved: Record<string, unknown> | null | undefined,
+): HealthcarePremiumTreatment {
+  const ft = normalizeFilingType(filingType);
+  if (ft !== "w2" && ft !== "scorp_w2") return "posttax";
+  const visibility = resolveAdvancedVisibility(ft, saved as Record<string, boolean>);
+  if (!visibility.healthcare_deduction) return "posttax";
+  const raw = (saved || {})[HEALTHCARE_PRETAX_PAYROLL_KEY];
+  if (raw === true || raw === "pretax") return "pretax";
+  if (raw === "unsure") return "unsure";
+  return "posttax";
+}
+
 /** Resolve whether a company's healthcare premium is pre-tax payroll.
  *  Effective only for W-2 / S-Corp-W-2 companies while the healthcare field
  *  is enabled — disabling the field neutralizes the designation.
@@ -442,11 +467,7 @@ export function resolveHealthcarePretaxPayroll(
   filingType: FilingType,
   saved: Record<string, boolean> | null | undefined,
 ): boolean {
-  const ft = normalizeFilingType(filingType);
-  if (ft !== "w2" && ft !== "scorp_w2") return false;
-  const visibility = resolveAdvancedVisibility(ft, saved);
-  if (!visibility.healthcare_deduction) return false;
-  return (saved || {})[HEALTHCARE_PRETAX_PAYROLL_KEY] === true;
+  return resolveHealthcareTreatment(filingType, saved) === "pretax";
 }
 
 /**
