@@ -2068,8 +2068,19 @@ function classifyStreamType(companyType?: string): "w2" | "se" | "other" {
 export function getProjectedTotals(
   paychecks: ProjectedPaycheck[],
   streams: ProjectedIncomeStream[] = [],
+  companies: Array<{ id: string; companyType?: string | null; advancedFieldVisibility?: Record<string, boolean> | null }> = [],
 ) {
   const streamById = new Map(streams.map((s) => [s.id, s] as const));
+  // Companies whose health-insurance premium is designated as pre-tax payroll
+  // (Section 125, e.g. VA). For W-2 streams at those companies the premium
+  // reduces federal taxable wages and SS/Medicare wages once.
+  const healthcarePretaxCompanyIds = new Set(
+    companies
+      .filter((c) =>
+        resolveHealthcarePretaxPayroll(normalizeFilingType(c.companyType), c.advancedFieldVisibility),
+      )
+      .map((c) => c.id),
+  );
 
   const acc = {
     grossIncome: 0,
@@ -2133,9 +2144,19 @@ export function getProjectedTotals(
     acc.retirement401k += p.retirement401k;
     acc.employerRetirementContribution += p.employerRetirementContribution || 0;
     acc.preTaxDeductions += p.preTaxDeductions;
+    // Designated pre-tax payroll health premiums (e.g. VA) reduce W-2 taxable
+    // wages once. Skip when preTaxDeductions is the planner aggregate
+    // (hasDetailedBreakdown false) — the premium is already inside it.
+    if (
+      bucket === "w2" &&
+      p.hasDetailedBreakdown !== false &&
+      stream?.source_id != null &&
+      healthcarePretaxCompanyIds.has(stream.source_id)
+    ) {
+      acc.preTaxDeductions += p.healthcareDeduction || 0;
+    }
     // Self-employed health-insurance deduction is SE/business-only. W-2 payroll
-    // premiums are never this deduction (their pre/post-tax treatment is not
-    // recorded per stream, so we cannot invent a Section 125 exclusion either).
+    // premiums are never this deduction.
     if (bucket === "se") acc.healthInsuranceDeduction += p.healthcareDeduction || 0;
     acc.hsaContribution += p.hsaContribution || 0;
     acc.netIncome += p.netAmount;
