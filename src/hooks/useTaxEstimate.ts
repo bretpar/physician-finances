@@ -24,7 +24,7 @@ import { type TaxEstimate } from "@/lib/taxEngine";
 import { filterNonOrphanIncomeEntries } from "@/lib/incomeOrphanFilter";
 import { computeUnifiedTaxEstimate, type UnifiedTaxInput, type TaxDebugBreakdown } from "@/lib/taxCalculationService";
 import { isSETaxableEntity } from "@/lib/k1TaxTreatment";
-import { normalizeFilingType, isSelfEmployedFilingType } from "@/lib/filingTypes";
+import { normalizeFilingType, isSelfEmployedFilingType, resolveHealthcarePretaxPayroll } from "@/lib/filingTypes";
 import { aggregateByCategory, classifyPersonalIncome } from "@/lib/incomeClassification";
 import { getFederalIncomeTaxWithheld } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
@@ -400,6 +400,31 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
     }),
     [transactionHistory, transactions, incomeEntries, incomeEntryLinks, transactionLinkRows, plaidTxIds],
   );
+  // Companies whose health-insurance premium is designated as pre-tax payroll
+  // (Section 125). Their healthcare_deduction reduces W-2 federal taxable
+  // wages and Social Security / Medicare wages once — it is never a
+  // self-employed health-insurance deduction.
+  const isHealthcarePretax = useMemo(() => {
+    const ids = new Set(
+      (companies || [])
+        .filter((c: any) =>
+          resolveHealthcarePretaxPayroll(
+            normalizeFilingType(c.companyType),
+            c.advancedFieldVisibility,
+          ),
+        )
+        .map((c: any) => c.id),
+    );
+    const names = new Set(
+      (companies || [])
+        .filter((c: any) => ids.has(c.id))
+        .map((c: any) => c.name.toLowerCase().trim()),
+    );
+    return (e: { source_id?: string | null; company?: string | null }) =>
+      (e.source_id != null && ids.has(e.source_id)) ||
+      (e.company != null && names.has(e.company.toLowerCase().trim()));
+  }, [companies]);
+
   const scopedTaxData = useMemo(() => {
     const makeCanonicalBusiness = (txs: typeof transactions, incomeRows: typeof reconciledIncomeEntries) => {
     const companyById = new Map(companies.map((c) => [c.id, c] as const));
@@ -523,6 +548,13 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       const hsa = Number((e as any).hsa_contribution || 0);
       const employerHsa = Number((e as any).employer_hsa_contribution || 0);
       businessPreTax += Number(e.pre_tax_deductions || 0) + (isW2 ? hsa : 0);
+      // Designated pre-tax payroll health premiums (e.g. VA) reduce W-2
+      // taxable wages once. Actual entries store the premium only in
+      // healthcare_deduction (the converter splits the aggregate), so adding
+      // it here cannot double-count against pre_tax_deductions.
+      if (isW2 && isHealthcarePretax(e)) {
+        businessPreTax += Number((e as any).healthcare_deduction || 0);
+      }
       if (isW2) {
         businessW2Hsa += hsa;
         // Employer HSA is excluded from wages by the employer; it never
@@ -836,10 +868,20 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
           personalHsaAboveLine += hsa;
         }
       }
+      // Designated pre-tax payroll health premiums (e.g. VA) reduce W-2
+      // taxable wages once; entries store the premium only in
+      // healthcare_deduction, so this cannot double-count pre_tax_deductions.
+      const personalHealthcarePretax = personal.reduce(
+        (s, e) =>
+          s + (classifyPersonalIncome(e as any) === "w2" && isHealthcarePretax(e as any)
+            ? Number((e as any).healthcare_deduction || 0)
+            : 0),
+        0,
+      );
       const personalPreTax = personal.reduce(
         (s, e) => s + Number(e.pre_tax_deductions || 0),
         0,
-      ) + personalHsaW2Pretax;
+      ) + personalHsaW2Pretax + personalHealthcarePretax;
       const personalNonW2HsaAboveLine = personalHsaAboveLine + individualHsaTotal;
       const personalRetirement = personal.reduce((s, e) => s + Number(e.retirement_401k || 0), 0);
 
@@ -943,7 +985,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         plannerConversions || [],
         activeBusinessIncomeTransactions,
       );
-      const projTotals = getProjectedTotals(projectedPaychecks, streams || []);
+      const projTotals = getProjectedTotals(projectedPaychecks, streams || [], companies || []);
       selection[incomeScope] = {
         businessIncomeTransactions: scope.transactions.filter((t) => isCanonicalBusinessIncomeTx(t as any)),
         linkedEnrichmentEntries: selectLinkedEnrichmentEntries(scope.incomeEntries, scope.transactions as any),
@@ -1248,7 +1290,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
   // generateProjectedPaychecks inside buildInput. Omitting them froze the
   // headline Projected Income / Projected Taxes numbers after an occurrence
   // edit or a planner conversion.
-}, [rates, reconciledIncomeEntries, scopedTaxData, hsaRows, todayStr, mileageEntries, taxPayments, taxSavings, streams, bonuses, overrides, plannerConversions, companies, annualizedRetirement, standaloneRetirementRouting, homeOfficeDeductions, ytdCatchups, itemizedDeductionsAllowed]);
+}, [rates, reconciledIncomeEntries, scopedTaxData, hsaRows, todayStr, mileageEntries, taxPayments, taxSavings, streams, bonuses, overrides, plannerConversions, companies, isHealthcarePretax, annualizedRetirement, standaloneRetirementRouting, homeOfficeDeductions, ytdCatchups, itemizedDeductionsAllowed]);
 
   const actualResult = useMemo(() => {
     if (!scopedBaseInputs) return null;
