@@ -276,6 +276,7 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     businessW2,
     businessFederalWithheld, businessStateWithheld,
     businessPreTax, businessRetirement,
+    businessRetirementQbi,
     businessNonW2HsaAboveLine = 0,
     ownerHealthcare,
     businessStateEligibleGross, businessStateEligibleExpenses,
@@ -292,7 +293,7 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     remainingPayPeriods,
     projectedW2Income, projectedSEIncome, projectedOtherIncome,
     projectedFederalWithheld, projectedStateWithheld,
-    projectedPreTax, projectedRetirement, projectedHealthInsuranceDeduction,
+    projectedPreTax, projectedRetirement, projectedSeRetirement, projectedHealthInsuranceDeduction,
     filingStatus, lastYearTax, standardDeductionOverride, ssWageCap,
     deductionType = "standard",
     itemizedDeductionAmount = 0,
@@ -453,8 +454,11 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
     longTermCapitalGains,
     stateTaxInputs,
     // SE-attributable retirement (SEP / Solo-401(k)) — reduces synthesized
-    // aggregate QBI. Excludes W-2 elective deferrals (personalRetirement).
-    qbiSeRetirementDeduction: businessRetirement + projRetirement,
+    // aggregate QBI. Excludes W-2 elective deferrals (personalRetirement and
+    // the W-2 share of projectedRetirement via the QBI-scoped fields).
+    qbiSeRetirementDeduction:
+      (businessRetirementQbi ?? businessRetirement) +
+      (includeProjectedIncome ? (projectedSeRetirement ?? projectedRetirement) : 0),
     seEarnerW2FicaWages,
     netInvestmentIncome,
   });
