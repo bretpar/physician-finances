@@ -1,3 +1,4 @@
+import { actionableLinkIssues, LINK_ISSUE_LABEL } from "@/components/IncomeLinkIssuesBanner";
 import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -71,7 +72,8 @@ export default function LinkReview() {
   const { data: incomeEntries = [], isLoading: ieLoading } = useIncomeEntries();
   const { data: links = [] } = useAllLinks();
   const { data: dismissed = new Set<string>() } = useDismissals();
-  const { recordSelection, mergeLineageFindings } = useTaxEstimate();
+  const { recordSelection, mergeLineageFindings, linkIssues } = useTaxEstimate();
+  const checkIssues = actionableLinkIssues(linkIssues ?? []);
   const suggestions = useSuggestedMatches(transactions as any, incomeEntries as any);
   const linkPair = useLinkTransactions();
   const createGroup = useCreateMatchGroup();
@@ -277,9 +279,23 @@ export default function LinkReview() {
           })}
         </div>
       )}
+      {checkIssues.length > 0 && (
+        <div className="space-y-3">
+          <p className="text-sm font-medium text-foreground">Link checks that may affect your taxes ({checkIssues.length})</p>
+          {checkIssues.map((i) => (
+            <Card key={i.key}>
+              <CardContent className="space-y-2 p-4">
+                <Badge variant="destructive">{LINK_ISSUE_LABEL[i.kind]}</Badge>
+                <p className="text-sm text-foreground">{i.message}</p>
+                <p className="text-xs text-muted-foreground">Fix it by linking or unlinking the records involved below or in Business Activity. Nothing changes until you do.</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
       {loading ? (
         <p className="text-sm text-muted-foreground">Loading…</p>
-      ) : items.length === 0 && proposed.length > 0 ? null : items.length === 0 ? (
+      ) : items.length === 0 && (proposed.length > 0 || checkIssues.length > 0) ? null : items.length === 0 ? (
         <Card><CardContent className="p-6 text-sm text-muted-foreground">Nothing to review. All income entries and deposits are linked or reviewed.</CardContent></Card>
       ) : (
         <div className="space-y-3">
