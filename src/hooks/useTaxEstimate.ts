@@ -535,7 +535,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
     const matchingTxs = transactions || [];
     // Shared merge-lineage selection: authoritative gross + deductions once per
     // economic payment where the lineage proves it; ambiguous groups unchanged.
-    const lineage = applyMergeLineageGross(matchingTxs as any[], (reconciledIncomeEntries || []) as any[]) as { transactions: any[]; incomeEntries: NonNullable<typeof reconciledIncomeEntries>; findings: MergeLineageFinding[] };
+    const lineage = applyMergeLineageGross(matchingTxs as any[], (reconciledIncomeEntries || []) as any[], { confirmedGroupIds: lineageConfirmations }) as { transactions: any[]; incomeEntries: NonNullable<typeof reconciledIncomeEntries>; findings: MergeLineageFinding[] };
     const replacementContext = excludeIncomeTransactionFromTaxContext(
       lineage.transactions as typeof matchingTxs,
       lineage.incomeEntries,

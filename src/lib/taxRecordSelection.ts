@@ -95,7 +95,7 @@ export interface MergeLineageFinding {
   proposedMapping?: {
     strandedEntryId: string;
     survivorTransactionId: string;
-    mirrorEntryId: string;
+    mirrorEntryId: string | null;
     gross: number;
     savedNetReceived: number;
     survivorDeposit: number;
@@ -200,17 +200,16 @@ export function applyMergeLineageGross<T extends Record<string, any>, E extends 
       entryRelink.set(entry.id, survivor.id);
       if (mirror) dropMirror.add(mirror.id);
       findings.push({ groupId, strandedEntryIds: [entry.id], survivorTransactionId: survivor.id, status: "authoritative_gross_applied", countedBefore: deposit, countedAfter: gross, missingEvidence: [], confirmed: needsConfirmation || undefined });
-    } else if (missing.length === 0 && entry && survivor && mirror) {
+    } else if (missing.length === 0 && entry && survivor && needsConfirmation) {
       findings.push({
         groupId, strandedEntryIds: [entry.id], survivorTransactionId: survivor.id, status: "proposed_pending_confirmation",
         countedBefore: deposit, countedAfter: deposit,
         missingEvidence: [
-          truncatedMatch
-            ? `saved Net Received ${savedDeposit.toFixed(2)} matches deposit ${deposit.toFixed(2)} only with the cents dropped`
-            : "survivor carries an imported copy of the deposit",
+          ...(truncatedMatch ? [`saved Net Received ${savedDeposit.toFixed(2)} matches deposit ${deposit.toFixed(2)} only with the cents dropped`] : []),
+          ...(mirror ? ["survivor carries an imported copy of the deposit with no deductions"] : []),
           "needs your confirmation that the imported entry is the same payment as the gross-pay entry",
         ],
-        proposedMapping: { strandedEntryId: entry.id, survivorTransactionId: survivor.id, mirrorEntryId: mirror.id, gross, savedNetReceived: savedDeposit, survivorDeposit: deposit, confirmationKey: lineageConfirmationKey(groupId) },
+        proposedMapping: { strandedEntryId: entry.id, survivorTransactionId: survivor.id, mirrorEntryId: mirror?.id ?? null, gross, savedNetReceived: savedDeposit, survivorDeposit: deposit, confirmationKey: lineageConfirmationKey(groupId) },
       });
     } else {
       findings.push({ groupId, strandedEntryIds: stranded.map((e) => e.id), survivorTransactionId: survivor?.id ?? null, status: "ambiguous", countedBefore: deposit, countedAfter: deposit, missingEvidence: missing, components: components.length ? components : undefined });
