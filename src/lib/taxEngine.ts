@@ -378,18 +378,20 @@ export interface TaxEstimate {
   adjustments: TaxAdjustment[];
 }
 
-/** Compute Child Tax Credit + Other Dependent Credit with high-income phase-out.
- *  CTC: $2,000/qualifying child. ODC: $500/other dependent.
- *  Phase-out begins at $200k single / $400k MFJ; $50 reduction per $1,000 over (or fraction). */
+/** Child Tax Credit + Other Dependent Credit with the §24(b) MAGI phase-out.
+ *  Per-child amount is tax-year specific (2026: $2,200, Rev. Proc. 2025-32).
+ *  Phase-out: $50 per $1,000 (or fraction) of MAGI over $400k MFJ / $200k others. */
 export function calculateDependentCredits(
   qualifyingChildren: number,
   otherDependents: number,
   agi: number,
   filingStatus: FilingStatus,
+  taxYear?: number,
 ): number {
-  const baseCredit = Math.max(0, qualifyingChildren) * 2000 + Math.max(0, otherDependents) * 500;
+  const cfg = getTaxYearConfig(taxYear);
+  const baseCredit = Math.max(0, qualifyingChildren) * cfg.childTaxCreditPerChild + Math.max(0, otherDependents) * cfg.otherDependentCredit;
   if (baseCredit <= 0) return 0;
-  const threshold = filingStatus === "married_filing_jointly" ? 400000 : 200000;
+  const threshold = cfg.childTaxCreditPhaseOutStart[filingStatus];
   if (agi <= threshold) return baseCredit;
   const over = agi - threshold;
   const reduction = Math.ceil(over / 1000) * 50;
@@ -657,7 +659,7 @@ export function calculateFullEstimate(params: {
     qbiEntities && qbiEntities.length > 0
       ? qbiEntities
       : defaultAggregateQbi > 0
-        ? [{ id: "aggregate", name: "Aggregate SE Business", isSSTB: true, qbi: defaultAggregateQbi }]
+        ? [{ id: "aggregate", name: "Aggregate SE Business", isSSTB: true, qbi: defaultAggregateQbi, synthesized: true }]
         : [];
   const qbiComputation = computeQbiDeduction({
     entities: effectiveQbiEntities,

@@ -36,6 +36,12 @@ export interface QbiEntityInput {
    * Never negative; caller floors at 0.
    */
   qbi: number;
+  /** W-2 wages paid by the entity (allocable share). Undefined = not supplied. */
+  w2Wages?: number;
+  /** Unadjusted basis of qualified property (allocable share). Undefined = not supplied. */
+  ubia?: number;
+  /** True when the entity is synthesized from aggregate SE income, not real per-entity data. */
+  synthesized?: boolean;
 }
 
 export interface QbiEntityResult {
@@ -71,6 +77,13 @@ export interface QbiComputation {
   sstbApplicablePercentage: number;
   /** Per-entity breakdown for diagnostics. */
   perEntity: QbiEntityResult[];
+  /**
+   * "verified" only when every rule that applies at this income level had the
+   * inputs it needs. Above the threshold the W-2 wage / UBIA limit needs
+   * per-entity wages and property; an aggregate synthesized entity is never
+   * fully verified there.
+   */
+  verification: { status: "verified" | "approximate"; missingInputs: string[] };
 }
 
 function emptyComputation(
@@ -91,6 +104,7 @@ function emptyComputation(
     phaseInRange,
     sstbApplicablePercentage,
     perEntity: [],
+    verification: { status: "verified", missingInputs: [] },
   };
 }
 
@@ -142,13 +156,31 @@ export function computeQbiDeduction(params: {
     );
   }
 
+  // §199A(b)(3): W-2 wage / UBIA limit phases in over the same range.
+  const aboveThreshold = taxableIncomeBeforeQbi > threshold;
+  const limitPhaseIn = aboveThreshold
+    ? Math.min(1, (taxableIncomeBeforeQbi - threshold) / phaseInRange)
+    : 0;
+  const missing = new Set<string>();
+
   const perEntity: QbiEntityResult[] = entities.map((e) => {
     const rawQbi = Math.max(0, e.qbi);
-    // SSTB entities scale down by the applicable percentage; non-SSTB entities
-    // are treated as fully eligible in this simplified model (see file header).
+    // §199A(d)(3): SSTB QBI, wages and UBIA all scale by the applicable percentage.
     const applicablePercentage = e.isSSTB ? sstbApplicablePercentage : 1;
     const qualifyingQbi = rawQbi * applicablePercentage;
-    const entityDeduction = qualifyingQbi * 0.2;
+    const tentative = qualifyingQbi * 0.2;
+    let entityDeduction = tentative;
+    if (e.synthesized) missing.add("per-entity business/K-1 detail (aggregate approximation used)");
+    if (aboveThreshold && applicablePercentage > 0 && rawQbi > 0) {
+      if (e.w2Wages == null || e.ubia == null) {
+        missing.add(`W-2 wages and UBIA for ${e.name}`);
+      } else {
+        const wages = Math.max(0, e.w2Wages) * applicablePercentage;
+        const ubia = Math.max(0, e.ubia) * applicablePercentage;
+        const wageLimit = Math.max(0.5 * wages, 0.25 * wages + 0.025 * ubia);
+        if (wageLimit < tentative) entityDeduction = tentative - limitPhaseIn * (tentative - wageLimit);
+      }
+    }
     const fullyPhasedOut = e.isSSTB && applicablePercentage === 0;
     return {
       input: e,
@@ -185,5 +217,9 @@ export function computeQbiDeduction(params: {
     phaseInRange,
     sstbApplicablePercentage,
     perEntity,
+    verification: {
+      status: missing.size ? "approximate" : "verified",
+      missingInputs: [...missing],
+    },
   };
 }
