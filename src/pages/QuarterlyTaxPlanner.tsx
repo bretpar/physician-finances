@@ -1,3 +1,4 @@
+import { paymentAppliesToTaxYear } from "@/lib/taxPaymentYear";
 import { useState, useMemo } from "react";
 import { format, isPast, isAfter } from "date-fns";
 import {
@@ -57,7 +58,7 @@ export default function QuarterlyTaxPlanner() {
   const totalEstTax = estimate?.totalTaxLiability ?? 0;
   const t = estimate?.tracking;
 
-  const totalPaid = useMemo(() => payments.reduce((s, p) => s + Number(p.amount), 0), [payments]);
+  const totalPaid = useMemo(() => payments.filter((p) => paymentAppliesToTaxYear(p, currentYear)).reduce((s, p) => s + Number(p.amount), 0), [payments, currentYear]);
   const totalCovered = (estimate?.taxesAlreadyWithheld ?? 0) + totalPaid;
   const stillOwed = Math.max(0, totalEstTax - totalCovered);
 

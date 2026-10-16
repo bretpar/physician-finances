@@ -243,10 +243,11 @@ export function canonicalRecordGross(sel: {
   businessIncomeTransactions: Row[];
   personalEntries: Row[];
   projectedPaychecks: ProjectedPaycheck[];
-}) {
+}, opts: { includePlanned?: boolean } = {}) {
+  const includePlanned = opts.includePlanned ?? true;
   const business = sel.businessIncomeTransactions.reduce((s, t) => s + Math.abs(num(t.amount)), 0);
   const personal = sel.personalEntries.reduce((s, e) => s + num(e.paycheck_amount), 0);
-  const planned = sel.projectedPaychecks.filter((p) => p.matchStatus === "active").reduce((s, p) => s + p.grossAmount, 0);
+  const planned = !includePlanned ? 0 : sel.projectedPaychecks.filter((p) => p.matchStatus === "active").reduce((s, p) => s + p.grossAmount, 0);
   return { business: round2(business), personal: round2(personal), planned: round2(planned), total: round2(business + personal + planned) };
 }
 
@@ -262,9 +263,18 @@ export function sourceCardGross(sources: Row[]) {
   return { business: round2(business), w2: round2(w2), other: round2(other), capitalGains: round2(capitalGains), recordTotal: round2(business + w2 + other) };
 }
 
-export function buildSourceCardReconciliation(sources: Row[], sel: Parameters<typeof canonicalRecordGross>[0]) {
+/**
+ * Actual Only must compare against actual records only: the shared selection
+ * still carries Planner occurrences (for matching), but projected additions
+ * are never part of the Actual Only calculation.
+ */
+export function buildSourceCardReconciliation(
+  sources: Row[],
+  sel: Parameters<typeof canonicalRecordGross>[0],
+  scope: "actualOnly" | "actualPlusPlanned" = "actualPlusPlanned",
+) {
   const cards = sourceCardGross(sources);
-  const canonical = canonicalRecordGross(sel);
+  const canonical = canonicalRecordGross(sel, { includePlanned: scope === "actualPlusPlanned" });
   const difference = round2(cards.recordTotal - canonical.total);
   return { cards, canonicalRecords: canonical, difference, reconciled: Math.abs(difference) < 0.01 };
 }

@@ -11,6 +11,8 @@ import {
   ADDITIONAL_MEDICARE_THRESHOLD,
   SE_INCOME_FACTOR as ACTIVE_SE_INCOME_FACTOR,
   calcBracketTax,
+  getTaxYearConfig,
+  NIIT_RATE,
   type FilingStatus,
 } from "@/lib/taxBrackets";
 import { buildTaxAdjustmentPipeline, type TaxAdjustment } from "@/lib/taxPipeline";
@@ -130,6 +132,13 @@ export function calculateSETax(
    */
   actualW2FicaWages?: number,
   plannedW2FicaWages?: number,
+  /**
+   * FICA wages of the SAME earner who owns the SE income. The Social Security
+   * wage base is per individual, so a spouse's W-2 wages must never consume it.
+   * Additional Medicare stays on household (joint) wages. When omitted, all
+   * W-2 wages are assumed to belong to the SE earner (legacy behaviour).
+   */
+  ssCapW2Wages?: number,
 ): SelfEmploymentTax {
   const hasSplit =
     typeof actualW2FicaWages === "number" || typeof plannedW2FicaWages === "number";
@@ -149,15 +158,16 @@ export function calculateSETax(
     actualW2SsWagesUsed: echoActual,
     plannedW2SsWagesUsed: echoPlanned,
     totalW2SsWagesUsed: effectiveW2,
-    ssRemainingBase: Math.max(0, ssWageCap - effectiveW2),
+    ssRemainingBase: Math.max(0, ssWageCap - (typeof ssCapW2Wages === "number" ? Math.max(0, ssCapW2Wages) : effectiveW2)),
     ssTaxableBase: 0,
   };
   if (netSEIncome <= 0) return zero;
 
   const seBase = netSEIncome * SE_INCOME_FACTOR;
 
-  // SS: 12.4% up to wage cap, minus W-2 wages already subject to SS.
-  const ssRemaining = Math.max(0, ssWageCap - effectiveW2);
+  // SS: 12.4% up to the SE earner's own wage cap, minus that earner's W-2 wages.
+  const ssEarnerW2 = typeof ssCapW2Wages === "number" ? Math.max(0, ssCapW2Wages) : effectiveW2;
+  const ssRemaining = Math.max(0, ssWageCap - ssEarnerW2);
   const ssTaxable = Math.min(seBase, ssRemaining);
   const ssTax = ssTaxable * 0.124;
 
@@ -370,6 +380,9 @@ export interface TaxEstimate {
   qbiDeduction: number;
   /** Per-entity breakdown + phase-out state for the QBI deduction. */
   qbiComputation: QbiComputation;
+  /** §1411 Net Investment Income Tax (3.8%), included in totalTaxLiability. */
+  niit: number;
+  niitComputation: { netInvestmentIncome: number; magi: number; threshold: number; base: number };
   /**
    * Ordered pipeline of every discrete adjustment/credit/surtax applied to
    * this estimate, grouped by calculation stage. Developer-only diagnostic —
@@ -378,18 +391,20 @@ export interface TaxEstimate {
   adjustments: TaxAdjustment[];
 }
 
-/** Compute Child Tax Credit + Other Dependent Credit with high-income phase-out.
- *  CTC: $2,000/qualifying child. ODC: $500/other dependent.
- *  Phase-out begins at $200k single / $400k MFJ; $50 reduction per $1,000 over (or fraction). */
+/** Child Tax Credit + Other Dependent Credit with the §24(b) MAGI phase-out.
+ *  Per-child amount is tax-year specific (2026: $2,200, Rev. Proc. 2025-32).
+ *  Phase-out: $50 per $1,000 (or fraction) of MAGI over $400k MFJ / $200k others. */
 export function calculateDependentCredits(
   qualifyingChildren: number,
   otherDependents: number,
   agi: number,
   filingStatus: FilingStatus,
+  taxYear?: number,
 ): number {
-  const baseCredit = Math.max(0, qualifyingChildren) * 2000 + Math.max(0, otherDependents) * 500;
+  const cfg = getTaxYearConfig(taxYear);
+  const baseCredit = Math.max(0, qualifyingChildren) * cfg.childTaxCreditPerChild + Math.max(0, otherDependents) * cfg.otherDependentCredit;
   if (baseCredit <= 0) return 0;
-  const threshold = filingStatus === "married_filing_jointly" ? 400000 : 200000;
+  const threshold = cfg.childTaxCreditPhaseOutStart[filingStatus];
   if (agi <= threshold) return baseCredit;
   const over = agi - threshold;
   const reduction = Math.ceil(over / 1000) * 50;
@@ -550,6 +565,10 @@ export function calculateFullEstimate(params: {
    * the §221 cap + MAGI phase-out via `computeStudentLoanInterestDeduction`.
    */
   studentLoanInterestPaid?: number;
+  /** FICA wages (actual + planned) of the earner who owns the SE income. */
+  seEarnerW2FicaWages?: number;
+  /** Net investment income for §1411 (gains, dividends, interest, rents), after losses. */
+  netInvestmentIncome?: number;
 }): TaxEstimate {
   const {
     totalIncome, w2Income, seIncome,
@@ -577,6 +596,8 @@ export function calculateFullEstimate(params: {
     stateTaxInputs = {},
     qbiEntities,
     qbiSeRetirementDeduction = 0,
+    seEarnerW2FicaWages,
+    netInvestmentIncome = 0,
   } = params;
 
   // Default backward-compat: if caller didn't separate, treat seIncome as both
@@ -602,6 +623,7 @@ export function calculateFullEstimate(params: {
     w2FicaWages,
     actualW2FicaWages,
     plannedW2FicaWages,
+    seEarnerW2FicaWages,
   );
 
   // Net business profit (display) — uses gross business income (all biz) minus
@@ -657,7 +679,7 @@ export function calculateFullEstimate(params: {
     qbiEntities && qbiEntities.length > 0
       ? qbiEntities
       : defaultAggregateQbi > 0
-        ? [{ id: "aggregate", name: "Aggregate SE Business", isSSTB: true, qbi: defaultAggregateQbi }]
+        ? [{ id: "aggregate", name: "Aggregate SE Business", isSSTB: true, qbi: defaultAggregateQbi, synthesized: true }]
         : [];
   const qbiComputation = computeQbiDeduction({
     entities: effectiveQbiEntities,
@@ -698,8 +720,14 @@ export function calculateFullEstimate(params: {
   const stateTax = personalStateTax + businessStateTax;
   const stateWithheld = personal.withheld + business.withheld;
 
+  // §1411 NIIT: 3.8% × lesser of NII or MAGI over the threshold (MAGI = AGI;
+  // the foreign earned income add-back is not modelled).
+  const niitThreshold = getTaxYearConfig().niitThreshold[filingStatus];
+  const niitBase = Math.min(Math.max(0, netInvestmentIncome), Math.max(0, agi - niitThreshold));
+  const niit = niitBase * NIIT_RATE;
+
   // Total liability includes state tax due (already net of state withholding)
-  const totalTaxLiability = federalTax + seTax.total + stateTax;
+  const totalTaxLiability = federalTax + seTax.total + stateTax + niit;
   // taxesWithheld passed in is FEDERAL-side withholding only (state isolated)
   const federalWithheld = Math.max(0, taxesWithheld);
   const totalPaid = federalWithheld + additionalTaxPaid;
@@ -788,6 +816,8 @@ export function calculateFullEstimate(params: {
     safeHarborTarget, safeHarborStatus: correctedStatus, recommendedSetAside, targetSetAside,
     tracking,
     qbiDeduction, qbiComputation,
+    niit,
+    niitComputation: { netInvestmentIncome: Math.max(0, netInvestmentIncome), magi: agi, threshold: niitThreshold, base: niitBase },
     adjustments: [],
   };
   // Populate the developer-diagnostic pipeline. Purely derived from the

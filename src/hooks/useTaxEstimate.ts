@@ -45,6 +45,9 @@ import { defaultRemainingPaychecks } from "@/components/tax/W4PaycheckAdjustment
 import { registerTaxEstimateConsumer } from "@/lib/taxEngineDiagnostics";
 import { resolveApplicableHsaLimit } from "@/lib/hsaLimits";
 import { buildEngineItemizedInputs } from "@/lib/saltDeduction";
+import { resolveIncomeEarnerFor } from "@/lib/incomeEarner";
+import { applyMergeLineageGross, type MergeLineageFinding } from "@/lib/taxRecordSelection";
+import { paymentAppliesToTaxYear } from "@/lib/taxPaymentYear";
 import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { excludeIncomeTransactionFromTaxContext, excludeIncomeEntriesLinkedToTransaction } from "@/lib/taxRecommendationContext";
 
@@ -118,6 +121,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
   /** Read-only: the exact canonical inputs supplied to the Actual Only / Actual + Planned calculations. */
   canonicalInputs: { actualOnlyTaxInputs: unknown; includePlannedTaxInputs: unknown } | null;
   recordSelection: RecordSelectionByScope | null;
+  mergeLineageFindings: MergeLineageFinding[];
 } {
   const [taxMode, setTaxModeRaw] = useTaxModeStore();
 
@@ -522,9 +526,12 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
     // Keep the full transaction set for Planner conversion matching, but
     // exclude the row being edited from the tax aggregate and enrichment.
     const matchingTxs = transactions || [];
+    // Shared merge-lineage selection: authoritative gross + deductions once per
+    // economic payment where the lineage proves it; ambiguous groups unchanged.
+    const lineage = applyMergeLineageGross(matchingTxs as any[], (reconciledIncomeEntries || []) as any[]) as { transactions: any[]; incomeEntries: NonNullable<typeof reconciledIncomeEntries>; findings: MergeLineageFinding[] };
     const replacementContext = excludeIncomeTransactionFromTaxContext(
-      matchingTxs,
-      reconciledIncomeEntries || [],
+      lineage.transactions as typeof matchingTxs,
+      lineage.incomeEntries,
       options.excludeTransactionId,
     );
     const allTxs = replacementContext.transactions;
@@ -548,6 +555,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
     const actualInvestmentRows = allInvestmentRows.filter((s) => s.entry_date <= todayStr);
 
     return {
+      mergeLineageFindings: lineage.findings,
       actualOnlyTaxInputs: {
         transactions: actualTxs,
         incomeEntries: actualIncomeRows,
@@ -830,7 +838,10 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       const avgEntriesPerMonth = receivedEntries.length > 0 ? receivedEntries.length / (now.getMonth() + 1) : 1;
       const remainingPayPeriods = Math.max(1, Math.round(avgEntriesPerMonth * monthsRemaining));
 
+      // Only payments APPLIED to this tax year count (a January payment applied
+      // to last year's Q4 is not a current-year credit, and vice versa).
       const quarterlyPaid = taxPayments
+        .filter((p) => paymentAppliesToTaxYear(p, currentYear))
         .filter((p) => incomeScope === "actualPlusPlanned" || p.payment_date <= todayStr)
         .reduce((s, p) => s + Number(p.amount), 0);
       const manualSavingsTotal = taxSavings
@@ -1025,7 +1036,42 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       const cappedPersonalNonW2Hsa = Math.max(0, rawPersonalAboveLine - reducePersonal);
       const cappedBusinessNonW2Hsa = Math.max(0, rawBusinessAboveLine - reduceBusiness);
 
+      // ── Per-earner Social Security wage base ─────────────────────────────
+      // Spouse-owned W-2 wages (companies.employee_role = "spouse", resolved by
+      // stable source id first) never consume the SE earner's wage base.
+      const earnerCompanies = companies.map((c) => ({ id: c.id, name: c.name, employeeRole: (c as any).employeeRole ?? null }));
+      let spouseW2FicaWages = 0;
+      for (const e of personal as any[]) {
+        if (classifyPersonalIncome(e) !== "w2") continue;
+        const earner = resolveIncomeEarnerFor({ sourceId: e.source_id, companyName: e.company }, earnerCompanies);
+        if (earner !== "spouse") continue;
+        spouseW2FicaWages += Math.max(0, Number(e.paycheck_amount || 0) - Number(e.pre_tax_deductions || 0) - Number(e.hsa_contribution || 0));
+      }
+      for (const c of (ytdCatchups || []) as any[]) {
+        if (c.tax_year !== currentYear || c.source_type !== "w2") continue;
+        const earner = c.owner_person === "spouse"
+          ? "spouse"
+          : resolveIncomeEarnerFor({ sourceId: c.company_id, companyName: c.company_name }, earnerCompanies);
+        if (earner !== "spouse") continue;
+        const section125 = Number(c.healthcare_premiums || 0) + Number(c.dental_vision || 0) + Number(c.other_pretax || 0) + Number(c.hsa_contribution || 0);
+        spouseW2FicaWages += Math.max(0, Number(c.gross_income || 0) - section125);
+      }
+      let projectedSpouseW2FicaWages = 0;
+      for (const p of projectedPaychecks) {
+        if (p.matchStatus !== "active") continue;
+        const stream = streamById.get(p.streamId);
+        const filing = normalizeFilingType(stream?.company_type || p.streamCompanyType);
+        if (filing !== "w2") continue;
+        const earner = resolveIncomeEarnerFor({ sourceId: stream?.source_id, companyName: stream?.company }, earnerCompanies);
+        if (earner !== "spouse") continue;
+        projectedSpouseW2FicaWages += Math.max(0, p.grossAmount - (p.preTaxDeductions || 0) - (p.hsaContribution || 0));
+      }
+      const netInvestmentIncome = Math.max(0, netStockGain + longTermCapitalGains + personalCapGains + personalRental);
+
       return {
+        spouseW2FicaWages,
+        projectedSpouseW2FicaWages,
+        netInvestmentIncome,
         businessIncome: businessIncome + cuBizGross,
         seEligibleBusinessIncome: seEligibleBusinessIncome + cu.business.seEligibleGross,
         seEligibleBusinessExpenses: canonicalBusiness.seEligibleExpenses + seEligibleHomeOfficeDeduction + forecastBusinessExpenses + cu.business.seEligibleExpenses,
@@ -1220,5 +1266,6 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       : null,
     /** Read-only: the exact records each canonical scope selected. */
     recordSelection: (scopedBaseInputs?.selection ?? null) as RecordSelectionByScope | null,
+    mergeLineageFindings: scopedTaxData?.mergeLineageFindings ?? [],
   };
 }

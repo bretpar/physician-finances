@@ -147,6 +147,10 @@ export default function InvestmentIncome() {
     0,
     (baseEstimate?.taxableIncome ?? 0) - (computedTaxable > 0 ? computedTaxable : 0),
   );
+  // NIIT uses the same canonical estimate, minus this entry's slice.
+  const slice = computedTaxable > 0 ? computedTaxable : 0;
+  const projectedMagi = Math.max(0, (baseEstimate?.agi ?? 0) - slice);
+  const projectedNetInvestmentIncome = Math.max(0, (baseEstimate?.niitComputation?.netInvestmentIncome ?? 0) - slice);
 
   const investmentRec = computedTaxable > 0
     ? calculateInvestmentTaxRecommendation({
@@ -155,6 +159,8 @@ export default function InvestmentIncome() {
         isQualifiedDividend: form.is_qualified_dividend,
         filingStatus,
         projectedOrdinaryTaxableIncome,
+        projectedMagi,
+        projectedNetInvestmentIncome,
       })
     : null;
 
@@ -236,6 +242,8 @@ export default function InvestmentIncome() {
           isQualifiedDividend: form.is_qualified_dividend,
           filingStatus,
           projectedOrdinaryTaxableIncome,
+          projectedMagi,
+          projectedNetInvestmentIncome,
         })
       : null;
 
