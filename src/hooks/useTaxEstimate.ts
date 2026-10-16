@@ -24,7 +24,7 @@ import { type TaxEstimate } from "@/lib/taxEngine";
 import { filterNonOrphanIncomeEntries } from "@/lib/incomeOrphanFilter";
 import { computeUnifiedTaxEstimate, type UnifiedTaxInput, type TaxDebugBreakdown } from "@/lib/taxCalculationService";
 import { isSETaxableEntity } from "@/lib/k1TaxTreatment";
-import { normalizeFilingType, isSelfEmployedFilingType, resolveHealthcarePretaxPayroll } from "@/lib/filingTypes";
+import { normalizeFilingType, isSelfEmployedFilingType, resolveHealthcarePretaxPayroll, resolveHealthcareTreatment } from "@/lib/filingTypes";
 import { aggregateByCategory, classifyPersonalIncome } from "@/lib/incomeClassification";
 import { getFederalIncomeTaxWithheld } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
@@ -1405,5 +1405,9 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
     recordSelection: (scopedBaseInputs?.selection ?? null) as RecordSelectionByScope | null,
     mergeLineageFindings: scopedTaxData?.mergeLineageFindings ?? [],
     linkIssues,
+    /** Company names whose health-premium treatment is "Not sure" with
+     *  premiums present — the estimate excludes any exemption and needs
+     *  the user to confirm the treatment in Settings. */
+    healthcareTreatmentUnsure,
   };
 }
