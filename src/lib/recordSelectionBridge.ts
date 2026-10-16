@@ -237,3 +237,34 @@ export function buildRecordSelectionBridge(args: BridgeArgs) {
     ],
   };
 }
+
+/** Gross of the exact canonical records (business tx + personal entries + active occurrences). */
+export function canonicalRecordGross(sel: {
+  businessIncomeTransactions: Row[];
+  personalEntries: Row[];
+  projectedPaychecks: ProjectedPaycheck[];
+}) {
+  const business = sel.businessIncomeTransactions.reduce((s, t) => s + Math.abs(num(t.amount)), 0);
+  const personal = sel.personalEntries.reduce((s, e) => s + num(e.paycheck_amount), 0);
+  const planned = sel.projectedPaychecks.filter((p) => p.matchStatus === "active").reduce((s, p) => s + p.grossAmount, 0);
+  return { business: round2(business), personal: round2(personal), planned: round2(planned), total: round2(business + personal + planned) };
+}
+
+/** Sum of the Tax Breakdown income-source cards (business/W-2/other; cap gains reported separately). */
+export function sourceCardGross(sources: Row[]) {
+  let business = 0, w2 = 0, other = 0, capitalGains = 0;
+  for (const s of sources) {
+    if (s.kind === "business") business += num(s.revenue);
+    else if (s.kind === "w2") w2 += num(s.grossWages);
+    else if (s.kind === "other") other += num(s.grossAmount);
+    else if (s.kind === "capital_gains") capitalGains += num(s.net) + num(s.dividends);
+  }
+  return { business: round2(business), w2: round2(w2), other: round2(other), capitalGains: round2(capitalGains), recordTotal: round2(business + w2 + other) };
+}
+
+export function buildSourceCardReconciliation(sources: Row[], sel: Parameters<typeof canonicalRecordGross>[0]) {
+  const cards = sourceCardGross(sources);
+  const canonical = canonicalRecordGross(sel);
+  const difference = round2(cards.recordTotal - canonical.total);
+  return { cards, canonicalRecords: canonical, difference, reconciled: Math.abs(difference) < 0.01 };
+}
