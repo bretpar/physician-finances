@@ -1575,7 +1575,12 @@ export default function PersonalIncome() {
                       )}
                       {showField("healthcare_deduction") && (
                         <div>
-                          <Label className="text-xs text-muted-foreground mb-1.5 block">Health Insurance</Label>
+                          <Label className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
+                            Health Insurance
+                            <InfoTooltip label="About health insurance premiums">
+                              Premiums taken out of this paycheck. Whether they reduce your taxable wages depends on this company's pre-tax / post-tax setting (Settings → company → Advanced tax settings).
+                            </InfoTooltip>
+                          </Label>
                           <Input data-testid="paycheck-health-insurance-input" type="number" min="0" step="0.01" placeholder="0.00" value={form.healthcare_deduction} onChange={(e) => setField("healthcare_deduction", e.target.value)} />
                         </div>
                       )}
@@ -1624,7 +1629,12 @@ export default function PersonalIncome() {
                       )}
                       {showField("pre_tax_deductions") && (
                         <div>
-                          <Label className="text-xs text-muted-foreground mb-1.5 block">Other Pre-Tax</Label>
+                          <Label className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
+                            Other Pre-Tax
+                            <InfoTooltip label="About other pre-tax deductions">
+                              Other pre-tax payroll deductions (e.g. union dues, commuter benefits). These reduce your federal taxable wages. Social Security and Medicare are figured from the withholding amounts you enter above. Use Notes to describe what this deduction is.
+                            </InfoTooltip>
+                          </Label>
                           <Input data-testid="paycheck-pretax-other-input" type="number" min="0" step="0.01" placeholder="0.00" value={form.deductions_pre_tax} onChange={(e) => setField("deductions_pre_tax", e.target.value)} />
                         </div>
                       )}
