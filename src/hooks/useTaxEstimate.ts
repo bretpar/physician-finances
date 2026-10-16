@@ -107,6 +107,8 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
   actualDebug: TaxDebugBreakdown | null;
   currentPaceDebug: TaxDebugBreakdown | null;
   forecastDebug: TaxDebugBreakdown | null;
+  /** Read-only: the exact canonical inputs supplied to the Actual Only / Actual + Planned calculations. */
+  canonicalInputs: { actualOnlyTaxInputs: unknown; includePlannedTaxInputs: unknown } | null;
 } {
   const [taxMode, setTaxModeRaw] = useTaxModeStore();
 
@@ -1223,5 +1225,6 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
     actualDebug,
     currentPaceDebug,
     forecastDebug,
+    canonicalInputs: scopedBaseInputs ?? null,
   };
 }
