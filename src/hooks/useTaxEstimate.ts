@@ -983,7 +983,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         plannerConversions || [],
         activeBusinessIncomeTransactions,
       );
-      const projTotals = getProjectedTotals(projectedPaychecks, streams || []);
+      const projTotals = getProjectedTotals(projectedPaychecks, streams || [], companies || []);
       selection[incomeScope] = {
         businessIncomeTransactions: scope.transactions.filter((t) => isCanonicalBusinessIncomeTx(t as any)),
         linkedEnrichmentEntries: selectLinkedEnrichmentEntries(scope.incomeEntries, scope.transactions as any),
