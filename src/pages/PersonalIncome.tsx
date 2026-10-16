@@ -1655,7 +1655,7 @@ export default function PersonalIncome() {
                   {visibleFields.notes && (
                     <div>
                       <Label className="text-xs text-muted-foreground mb-1.5 block">Notes</Label>
-                      <Input placeholder="Optional" value={form.notes} onChange={(e) => setField("notes", e.target.value)} />
+                      <Input placeholder="Optional — e.g. describe an uncommon deduction like &quot;Union dues&quot;" value={form.notes} onChange={(e) => setField("notes", e.target.value)} />
                     </div>
                   )}
                 </div>
