@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxBreakdown } from "@/hooks/useTaxBreakdown";
 import { getBuildInfo } from "@/lib/buildInfo";
+import { buildRecordSelectionBridge, buildSourceCardReconciliation } from "@/lib/recordSelectionBridge";
 import { toast } from "@/hooks/use-toast";
 import {
   RECONCILIATION_DATASETS,
@@ -17,16 +18,34 @@ import {
 
 const TAX_YEAR = 2026;
 
+const PAGE_SIZE = 1000;
+const MAX_PAGES = 50;
+
+/** Paginated read-only select; RLS limits rows to the signed-in account. Flags truncation. */
 async function fetchDataset(name: ReconciliationDatasetName): Promise<DatasetResult> {
   try {
     const cols = RECONCILIATION_DATASETS[name].join(",");
-    // Read-only select; RLS limits rows to the signed-in account.
-    const { data, error } = await (supabase.from(name as never) as any).select(cols).limit(10000);
-    if (error) return { status: "error", error: error.message };
-    return { status: "ok", rows: (data ?? []) as Record<string, unknown>[] };
+    const orderCol = (RECONCILIATION_DATASETS[name] as readonly string[]).includes("id") ? "id" : "updated_at";
+    const rows: Record<string, unknown>[] = [];
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const from = page * PAGE_SIZE;
+      const { data, error } = await (supabase.from(name as never) as any)
+        .select(cols)
+        .order(orderCol, { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) return { status: "error", error: error.message };
+      const batch = (data ?? []) as Record<string, unknown>[];
+      rows.push(...batch);
+      if (batch.length < PAGE_SIZE) return { status: "ok", rows, pages: page + 1 };
+    }
+    return { status: "ok", rows, pages: MAX_PAGES, truncated: true };
   } catch (e) {
     return { status: "error", error: e instanceof Error ? e.message : String(e) };
   }
+}
+
+function okRows(d: DatasetResult | undefined): Record<string, unknown>[] | null {
+  return d && d.status === "ok" ? d.rows : null;
 }
 
 export default function TaxReconciliationExportCard() {
@@ -42,7 +61,35 @@ export default function TaxReconciliationExportCard() {
     try {
       const names = Object.keys(RECONCILIATION_DATASETS) as ReconciliationDatasetName[];
       const results = await Promise.all(names.map(fetchDataset));
-      const datasets = Object.fromEntries(names.map((n, i) => [n, results[i]]));
+      const datasets = Object.fromEntries(names.map((n, i) => [n, results[i]])) as Record<ReconciliationDatasetName, DatasetResult>;
+      const sel = est.recordSelection?.actualPlusPlanned;
+      const selActual = est.recordSelection?.actualOnly;
+      const entries = okRows(datasets.income_entries);
+      const txs = okRows(datasets.transactions);
+      const links = okRows(datasets.transaction_links);
+      const convs = okRows(datasets.planner_conversions);
+      const ids = (rows: any[]) => rows.map((r) => r.id as string);
+      const bridge = sel && entries && txs && links && convs
+        ? buildRecordSelectionBridge({
+            incomeEntries: entries as any[],
+            transactions: txs as any[],
+            transactionLinks: links as any[],
+            plannerConversions: convs as any[],
+            selection: {
+              businessIncomeTransactionIds: ids(sel.businessIncomeTransactions),
+              linkedEnrichmentEntryIds: ids(sel.linkedEnrichmentEntries),
+              personalEntryIds: ids(sel.personalEntries),
+              projectedPaychecks: sel.projectedPaychecks,
+            },
+          })
+        : null;
+      const reconciliation = sel && selActual
+        ? {
+            actualPlusPlanned: buildSourceCardReconciliation(forecastBreakdown.sources as any[], sel as any),
+            actualOnly: buildSourceCardReconciliation(actualBreakdown.sources as any[], selActual as any),
+            note: "Cards and canonicalRecords cover income records only; YTD catch-up, saved W-2 projections and investment income are separate canonical inputs.",
+          }
+        : null;
       const payload = buildReconciliationExport({
         taxYear: TAX_YEAR,
         generatedAt: new Date(),
@@ -50,6 +97,8 @@ export default function TaxReconciliationExportCard() {
         build: { ...getBuildInfo() },
         selectedTaxMode: est.taxMode,
         datasets,
+        recordSelectionBridge: bridge,
+        reconciliation,
         calculations: {
           actualOnlyCanonicalInputs: est.canonicalInputs?.actualOnlyTaxInputs ?? null,
           actualPlusPlannedCanonicalInputs: est.canonicalInputs?.includePlannedTaxInputs ?? null,

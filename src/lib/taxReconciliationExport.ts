@@ -7,7 +7,7 @@
  * account numbers, DOB, SSNs, provider payloads) can never leak in.
  */
 
-export const RECONCILIATION_EXPORT_SCHEMA_VERSION = "1.0.0";
+export const RECONCILIATION_EXPORT_SCHEMA_VERSION = "1.1.0";
 
 export function reconciliationFileName(taxYear: number): string {
   return `paycheckmd-tax-reconciliation-${taxYear}.json`;
@@ -104,6 +104,19 @@ export const RECONCILIATION_DATASETS = {
     "id", "payment_date", "applied_tax_year", "applied_quarter", "quarter", "amount", "notes",
     "created_at", "updated_at",
   ],
+  investment_income_entries: [
+    "id", "entry_date", "investment_income_type", "asset_name_or_ticker", "sale_proceeds",
+    "cost_basis", "taxable_amount", "is_qualified_dividend", "tax_recommendation",
+    "actual_tax_saved", "tax_rate_used", "tax_method_used", "notes", "created_at", "updated_at",
+  ],
+  transaction_links: [
+    "id", "linked_group_id", "manual_transaction_id", "plaid_transaction_record_id", "status",
+    "confidence_score", "linked_at", "created_by_user", "created_at", "updated_at",
+  ],
+  income_entry_links: [
+    "id", "linked_group_id", "canonical_entry_id", "merged_entry_id", "status",
+    "created_by_user", "created_at", "updated_at",
+  ],
   tax_savings: ["id", "savings_date", "source", "amount", "notes", "created_at", "updated_at"],
   tax_settings: [
     "id", "filing_status", "tax_mode", "timezone", "state_of_residence", "deduction_type",
@@ -134,8 +147,30 @@ export const RECONCILIATION_DATASETS = {
 
 export type ReconciliationDatasetName = keyof typeof RECONCILIATION_DATASETS;
 
-/** Fields that must never appear anywhere in the export, even in nested outputs. */
-const FORBIDDEN_KEY = /(token|secret|password|access_key|account_number|routing|ssn|date_of_birth|receipt_url|raw_payload|plaid_item)/i;
+/**
+ * Sensitive-key detection on WORD boundaries (camelCase + snake_case), so
+ * legitimate calculation fields like `businessNonW2HsaAboveLine` (contains
+ * the letters "ssn") are kept while real secrets are dropped.
+ */
+const FORBIDDEN_WORDS = new Set(["token", "tokens", "secret", "secrets", "password", "ssn", "vault"]);
+const FORBIDDEN_PHRASES = [
+  "access_key", "account_number", "routing_number", "date_of_birth", "receipt_url",
+  "raw_payload", "raw_json", "plaid_item", "file_path", "thumbnail_path",
+];
+export function keyWords(key: string): string[] {
+  return key
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1_$2")
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+}
+export function isForbiddenKey(key: string): boolean {
+  const words = keyWords(key);
+  if (words.some((w) => FORBIDDEN_WORDS.has(w))) return true;
+  const joined = `_${words.join("_")}_`;
+  return FORBIDDEN_PHRASES.some((p) => joined.includes(`_${p}_`));
+}
 
 export function pickAllowed<T extends Record<string, unknown>>(
   row: T,
@@ -159,14 +194,14 @@ export function stripForbidden(value: unknown, seen = new WeakSet<object>()): un
   if (Array.isArray(value)) return value.map((v) => stripForbidden(v, seen));
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-    if (FORBIDDEN_KEY.test(k) || typeof v === "function") continue;
+    if (isForbiddenKey(k) || typeof v === "function") continue;
     out[k] = stripForbidden(v, seen);
   }
   return out;
 }
 
 export type DatasetResult =
-  | { status: "ok"; rows: Record<string, unknown>[] }
+  | { status: "ok"; rows: Record<string, unknown>[]; truncated?: boolean; pages?: number }
   | { status: "error"; error: string };
 
 export interface ReconciliationExportArgs {
@@ -178,6 +213,10 @@ export interface ReconciliationExportArgs {
   datasets: Partial<Record<ReconciliationDatasetName, DatasetResult>>;
   /** Existing calculation outputs, each null when not available. */
   calculations: Record<string, unknown>;
+  /** Read-only record-selection bridge (built from the canonical selection). */
+  recordSelectionBridge?: unknown | null;
+  /** Source-card vs canonical totals. */
+  reconciliation?: unknown | null;
 }
 
 export function buildReconciliationExport(args: ReconciliationExportArgs) {
@@ -196,6 +235,12 @@ export function buildReconciliationExport(args: ReconciliationExportArgs) {
       records[name] = { error: res.error };
       counts[name] = null;
       unavailable.push({ dataset: name, reason: res.error });
+    } else if (res.truncated) {
+      // Never certify a capped response.
+      const allowed = RECONCILIATION_DATASETS[name];
+      records[name] = res.rows.map((r) => pickAllowed(r, allowed));
+      counts[name] = res.rows.length;
+      unavailable.push({ dataset: name, reason: "truncated: more rows exist than were fetched" });
     } else {
       const allowed = RECONCILIATION_DATASETS[name];
       records[name] = res.rows.map((r) => pickAllowed(r, allowed));
@@ -210,6 +255,12 @@ export function buildReconciliationExport(args: ReconciliationExportArgs) {
       unavailable.push({ dataset: `calculations.${k}`, reason: "not available from existing calculation" });
     } else {
       calculations[k] = stripForbidden(v);
+    }
+  }
+
+  for (const k of ["recordSelectionBridge", "reconciliation"] as const) {
+    if (args[k] === null || args[k] === undefined) {
+      unavailable.push({ dataset: k, reason: "not available" });
     }
   }
 
@@ -235,5 +286,7 @@ export function buildReconciliationExport(args: ReconciliationExportArgs) {
     },
     records,
     calculations,
+    recordSelectionBridge: args.recordSelectionBridge == null ? { unavailable: true } : stripForbidden(args.recordSelectionBridge),
+    reconciliation: args.reconciliation == null ? { unavailable: true } : stripForbidden(args.reconciliation),
   };
 }

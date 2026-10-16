@@ -27,6 +27,14 @@ import { normalizeFilingType, isSelfEmployedFilingType } from "@/lib/filingTypes
 import { aggregateByCategory, classifyPersonalIncome } from "@/lib/incomeClassification";
 import { getFederalIncomeTaxWithheld } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
+import {
+  buildMatchableBusinessIncomeTransactions,
+  isCanonicalBusinessIncomeTx,
+  selectLinkedEnrichmentEntries,
+  type CanonicalRecordSelection,
+} from "@/lib/taxRecordSelection";
+
+export type RecordSelectionByScope = Partial<Record<"actualOnly" | "actualPlusPlanned", CanonicalRecordSelection>>;
 import { getIncludedHomeOfficeByCompany, getIncludedHomeOfficeTotal } from "@/lib/homeOfficeDeduction";
 import { useYtdCatchupEntries, type YtdCatchupEntry } from "@/hooks/useYtdCatchup";
 import {
@@ -109,6 +117,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
   forecastDebug: TaxDebugBreakdown | null;
   /** Read-only: the exact canonical inputs supplied to the Actual Only / Actual + Planned calculations. */
   canonicalInputs: { actualOnlyTaxInputs: unknown; includePlannedTaxInputs: unknown } | null;
+  recordSelection: RecordSelectionByScope | null;
 } {
   const [taxMode, setTaxModeRaw] = useTaxModeStore();
 
@@ -444,14 +453,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
     // Enrichment from income_entries — but ONLY for entries linked to a live
     // active transaction. This prevents stale/orphaned income_entries from
     // contributing federal_withholding, retirement, etc.
-    const liveTxIds = new Set(
-      txs
-        .filter((t) => t.transaction_type === "income" && !isExcludedFromBusiness(t as any))
-        .map((t) => t.id),
-    );
-    const linkedEntries = (incomeRows || []).filter(
-      (e) => e.linked_transaction_id && liveTxIds.has(e.linked_transaction_id),
-    );
+    const linkedEntries = selectLinkedEnrichmentEntries(incomeRows || [], txs as any);
 
     // Federal INCOME TAX withheld only — SS/Medicare are payroll taxes, never
     // credits against federal income-tax liability.
@@ -725,6 +727,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       console.warn("[useTaxEstimate] YTD catch-up overlap detected — catch-up totals reduced to prevent double-counting:", overlapDebug);
     }
 
+    const selection: RecordSelectionByScope = {};
     const buildInput = (
       scope: typeof scopedTaxData.actualOnlyTaxInputs,
       incomeScope: "actualOnly" | "actualPlusPlanned",
@@ -858,25 +861,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       // planner conversions) so generateProjectedPaychecks can flag converted/
       // matched occurrences and getProjectedTotals excludes them — preventing
       // double-counting of converted planner rows alongside their ledger twin.
-      const activeBusinessIncomeTransactions: import("@/hooks/useProjectedIncome").MatchableBusinessTransaction[] =
-        scope.matchingTransactions
-          .filter(
-            (t) =>
-              t.transaction_type === "income" &&
-              (t as any).status === "active" &&
-              !isExcludedFromBusiness(t as any),
-          )
-          .map((t) => ({
-            id: t.id,
-            transaction_date: t.transaction_date,
-            vendor: (t as any).vendor || "",
-            amount: Number(t.amount) || 0,
-            source_id: (t as any).source_id ?? null,
-            status: (t as any).status,
-            transaction_type: t.transaction_type,
-            origin_type: (t as any).origin_type ?? null,
-            origin_planner_conversion_id: (t as any).origin_planner_conversion_id ?? null,
-          }));
+      const activeBusinessIncomeTransactions = buildMatchableBusinessIncomeTransactions(scope.matchingTransactions as any);
 
       const projectedPaychecks = generateProjectedPaychecks(
         streams || [],
@@ -887,6 +872,12 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         activeBusinessIncomeTransactions,
       );
       const projTotals = getProjectedTotals(projectedPaychecks, streams || []);
+      selection[incomeScope] = {
+        businessIncomeTransactions: scope.transactions.filter((t) => isCanonicalBusinessIncomeTx(t as any)),
+        linkedEnrichmentEntries: selectLinkedEnrichmentEntries(scope.incomeEntries, scope.transactions as any),
+        personalEntries: personal,
+        projectedPaychecks,
+      };
 
       if (typeof window !== "undefined" && import.meta.env?.DEV && incomeScope === "actualPlusPlanned") {
         const byStatus = projectedPaychecks.reduce<Record<string, { count: number; gross: number }>>((acc, p) => {
@@ -1132,10 +1123,9 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       };
     };
 
-    return {
-      actualOnlyTaxInputs: buildInput(scopedTaxData.actualOnlyTaxInputs, "actualOnly"),
-      includePlannedTaxInputs: buildInput(scopedTaxData.includePlannedTaxInputs, "actualPlusPlanned"),
-    };
+    const actualOnlyTaxInputs = buildInput(scopedTaxData.actualOnlyTaxInputs, "actualOnly");
+    const includePlannedTaxInputs = buildInput(scopedTaxData.includePlannedTaxInputs, "actualPlusPlanned");
+    return { actualOnlyTaxInputs, includePlannedTaxInputs, selection };
     // `overrides` and `plannerConversions` MUST stay in this list: they feed
   // generateProjectedPaychecks inside buildInput. Omitting them froze the
   // headline Projected Income / Projected Taxes numbers after an occurrence
@@ -1225,6 +1215,10 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
     actualDebug,
     currentPaceDebug,
     forecastDebug,
-    canonicalInputs: scopedBaseInputs ?? null,
+    canonicalInputs: scopedBaseInputs
+      ? { actualOnlyTaxInputs: scopedBaseInputs.actualOnlyTaxInputs, includePlannedTaxInputs: scopedBaseInputs.includePlannedTaxInputs }
+      : null,
+    /** Read-only: the exact records each canonical scope selected. */
+    recordSelection: (scopedBaseInputs?.selection ?? null) as RecordSelectionByScope | null,
   };
 }
