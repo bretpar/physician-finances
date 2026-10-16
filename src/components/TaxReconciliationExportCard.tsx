@@ -1,3 +1,4 @@
+import { IncomeLinkIssuesBanner } from "@/components/IncomeLinkIssuesBanner";
 import { useState } from "react";
 import { Download, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -147,7 +148,8 @@ export default function TaxReconciliationExportCard() {
           Nothing is changed.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
+        <IncomeLinkIssuesBanner issues={est.linkIssues ?? []} context="export" />
         <Button onClick={handleExport} disabled={busy || loading} className="gap-2">
           {busy || loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           {loading ? "Loading data…" : busy ? "Generating…" : "Export tax reconciliation data"}

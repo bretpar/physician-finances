@@ -1,3 +1,4 @@
+import { IncomeLinkIssuesBanner } from "@/components/IncomeLinkIssuesBanner";
 import { useState, useMemo, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { format } from "date-fns";
@@ -66,7 +67,7 @@ export default function Taxes() {
   // was lost to a previous timeout. Safe no-op when everything is intact.
   useRepairYtdCatchupMirrors();
   const { data: rates, isLoading: ratesLoading } = useTaxSettings();
-  const { estimate, isLoading: estLoading, taxMode, setTaxMode, actualEstimate, currentPaceEstimate, forecastEstimate, actualDebug, currentPaceDebug, forecastDebug } = useTaxEstimate();
+  const { estimate, isLoading: estLoading, taxMode, setTaxMode, actualEstimate, currentPaceEstimate, forecastEstimate, actualDebug, currentPaceDebug, forecastDebug, linkIssues } = useTaxEstimate();
   // CANONICAL withholding — single source of truth shared with Paychecks and Withholding Guide.
   const canonicalWithholding = useCanonicalWithholding("Taxes");
   const { data: savings = [] } = useTaxSavings();
@@ -305,6 +306,7 @@ export default function Taxes() {
         )}
 
         <TabsContent value="overview" className="space-y-6 mt-0">
+      <IncomeLinkIssuesBanner issues={linkIssues} />
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-semibold text-foreground">Tax Overview</h1>
