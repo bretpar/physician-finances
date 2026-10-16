@@ -106,6 +106,43 @@ export function calculateInvestmentTaxRecommendation(args: {
   filingStatus: FilingStatus;
   /** Projected annual ordinary taxable income (excludes this entry's slice). */
   projectedOrdinaryTaxableIncome: number;
+  /** Projected MAGI excluding this entry (from the same canonical estimate). Enables NIIT. */
+  projectedMagi?: number;
+  /** Projected §1411 net investment income excluding this entry. */
+  projectedNetInvestmentIncome?: number;
+}): InvestmentTaxRecommendation {
+  const rec = calculateInvestmentIncomeTaxOnly(args);
+  if (args.projectedMagi == null) return rec;
+  const niit = calcNiitOnSlice({
+    filingStatus: args.filingStatus,
+    magi: args.projectedMagi,
+    netInvestmentIncome: args.projectedNetInvestmentIncome ?? 0,
+    slice: rec.taxableAmount,
+  });
+  if (niit <= 0) return rec;
+  const estimatedTax = Math.round((rec.estimatedTax + niit) * 100) / 100;
+  return {
+    ...rec,
+    estimatedTax,
+    effectiveRate: rec.taxableAmount > 0 ? estimatedTax / rec.taxableAmount : 0,
+    rateLabel: `${rec.rateLabel} + 3.8% NIIT`,
+  };
+}
+
+/** Incremental §1411 NIIT caused by adding `slice` of investment income. */
+export function calcNiitOnSlice(args: { filingStatus: FilingStatus; magi: number; netInvestmentIncome: number; slice: number }): number {
+  const threshold = getTaxYearConfig().niitThreshold[args.filingStatus];
+  const base = (magi: number, nii: number) => Math.min(Math.max(0, nii), Math.max(0, magi - threshold));
+  const slice = Math.max(0, args.slice);
+  return (base(args.magi + slice, args.netInvestmentIncome + slice) - base(args.magi, args.netInvestmentIncome)) * NIIT_RATE;
+}
+
+function calculateInvestmentIncomeTaxOnly(args: {
+  type: InvestmentIncomeType;
+  taxableAmount: number;
+  isQualifiedDividend?: boolean;
+  filingStatus: FilingStatus;
+  projectedOrdinaryTaxableIncome: number;
 }): InvestmentTaxRecommendation {
   const { type, taxableAmount, isQualifiedDividend = true, filingStatus, projectedOrdinaryTaxableIncome } = args;
   const method = getInvestmentTaxMethod(type, isQualifiedDividend);
