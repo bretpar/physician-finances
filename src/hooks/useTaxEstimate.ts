@@ -546,6 +546,13 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       const hsa = Number((e as any).hsa_contribution || 0);
       const employerHsa = Number((e as any).employer_hsa_contribution || 0);
       businessPreTax += Number(e.pre_tax_deductions || 0) + (isW2 ? hsa : 0);
+      // Designated pre-tax payroll health premiums (e.g. VA) reduce W-2
+      // taxable wages once. Actual entries store the premium only in
+      // healthcare_deduction (the converter splits the aggregate), so adding
+      // it here cannot double-count against pre_tax_deductions.
+      if (isW2 && isHealthcarePretax(e)) {
+        businessPreTax += Number((e as any).healthcare_deduction || 0);
+      }
       if (isW2) {
         businessW2Hsa += hsa;
         // Employer HSA is excluded from wages by the employer; it never
