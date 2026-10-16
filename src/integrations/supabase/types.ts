@@ -616,6 +616,30 @@ export type Database = {
         }
         Relationships: []
       }
+      link_review_dismissals: {
+        Row: {
+          created_at: string
+          id: string
+          item_key: string
+          note: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          item_key: string
+          note?: string | null
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          item_key?: string
+          note?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       mileage_entries: {
         Row: {
           company_id: string | null
