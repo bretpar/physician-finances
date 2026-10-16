@@ -866,10 +866,20 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
           personalHsaAboveLine += hsa;
         }
       }
+      // Designated pre-tax payroll health premiums (e.g. VA) reduce W-2
+      // taxable wages once; entries store the premium only in
+      // healthcare_deduction, so this cannot double-count pre_tax_deductions.
+      const personalHealthcarePretax = personal.reduce(
+        (s, e) =>
+          s + (classifyPersonalIncome(e as any) === "w2" && isHealthcarePretax(e as any)
+            ? Number((e as any).healthcare_deduction || 0)
+            : 0),
+        0,
+      );
       const personalPreTax = personal.reduce(
         (s, e) => s + Number(e.pre_tax_deductions || 0),
         0,
-      ) + personalHsaW2Pretax;
+      ) + personalHsaW2Pretax + personalHealthcarePretax;
       const personalNonW2HsaAboveLine = personalHsaAboveLine + individualHsaTotal;
       const personalRetirement = personal.reduce((s, e) => s + Number(e.retirement_401k || 0), 0);
 
