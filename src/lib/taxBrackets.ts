@@ -38,7 +38,23 @@ export interface TaxYearConfig {
    * (Rev. Proc. inflation-indexed; $50k single / $100k MFJ range is statutory.)
    */
   qbiThresholds: Record<FilingStatus, { threshold: number; phaseIn: number }>;
+  /** §24 Child Tax Credit maximum per qualifying child. */
+  childTaxCreditPerChild: number;
+  /** §24(h)(4) credit for other dependents (not indexed). */
+  otherDependentCredit: number;
+  /** §24(b) MAGI phase-out start ($50 per $1,000 or fraction over). Not indexed. */
+  childTaxCreditPhaseOutStart: Record<FilingStatus, number>;
+  /** §1411 NIIT MAGI thresholds (statutory, not indexed). */
+  niitThreshold: Record<FilingStatus, number>;
 }
+
+const CTC_PHASE_OUT_START: Record<FilingStatus, number> = {
+  single: 200000, married_filing_jointly: 400000, married_filing_separately: 200000, head_of_household: 200000,
+};
+// IRC §1411(b): $250k MFJ, $125k MFS, $200k all others.
+const NIIT_THRESHOLD: Record<FilingStatus, number> = {
+  single: 200000, married_filing_jointly: 250000, married_filing_separately: 125000, head_of_household: 200000,
+};
 
 // ── 2025 (kept for historical/comparison use) ────────────────────────────
 const CONFIG_2025: TaxYearConfig = {
@@ -116,6 +132,11 @@ const CONFIG_2025: TaxYearConfig = {
     married_filing_separately: { threshold: 197300, phaseIn: 50000 },
     head_of_household: { threshold: 197300, phaseIn: 50000 },
   },
+  // OBBBA (P.L. 119-21) raised the 2025 CTC to $2,200.
+  childTaxCreditPerChild: 2200,
+  otherDependentCredit: 500,
+  childTaxCreditPhaseOutStart: CTC_PHASE_OUT_START,
+  niitThreshold: NIIT_THRESHOLD,
 };
 
 // ── 2026 (IRS Rev. Proc. 2025-32; SSA wage base announcement Oct 2025) ───
@@ -186,13 +207,19 @@ const CONFIG_2026: TaxYearConfig = {
   standardDeduction: { single: 16100, married_filing_jointly: 32200, married_filing_separately: 16100, head_of_household: 24150 },
   ssWageBase: 184500,
   additionalMedicareThreshold: { single: 200000, married_filing_jointly: 250000, married_filing_separately: 125000, head_of_household: 200000 },
-  // §199A thresholds — Rev. Proc. 2025-32. MFS = MFJ ÷ 2. HOH = single.
+  // §199A — Rev. Proc. 2025-32 §4.26. OBBBA widened the phase-in range to
+  // $75k ($150k MFJ) from 2026. MFS threshold is $201,775; all others $201,750.
   qbiThresholds: {
-    single: { threshold: 201775, phaseIn: 50000 },
-    married_filing_jointly: { threshold: 403550, phaseIn: 100000 },
-    married_filing_separately: { threshold: 201775, phaseIn: 50000 },
-    head_of_household: { threshold: 201775, phaseIn: 50000 },
+    single: { threshold: 201750, phaseIn: 75000 },
+    married_filing_jointly: { threshold: 403500, phaseIn: 150000 },
+    married_filing_separately: { threshold: 201775, phaseIn: 75000 },
+    head_of_household: { threshold: 201750, phaseIn: 75000 },
   },
+  // Rev. Proc. 2025-32 §4.05: $2,200 maximum per child for 2026.
+  childTaxCreditPerChild: 2200,
+  otherDependentCredit: 500,
+  childTaxCreditPhaseOutStart: CTC_PHASE_OUT_START,
+  niitThreshold: NIIT_THRESHOLD,
 };
 
 const TAX_YEAR_CONFIGS: Record<number, TaxYearConfig> = {
@@ -216,6 +243,7 @@ export const STANDARD_DEDUCTION = ACTIVE.standardDeduction;
 export const SS_WAGE_BASE = ACTIVE.ssWageBase;
 export const ADDITIONAL_MEDICARE_THRESHOLD = ACTIVE.additionalMedicareThreshold;
 export const QBI_THRESHOLDS = ACTIVE.qbiThresholds;
+export const NIIT_RATE = 0.038;
 
 // ── Backward-compat aliases (kept so existing imports keep compiling).
 // These now point at the active year, so 2025 imports get 2026 numbers.
