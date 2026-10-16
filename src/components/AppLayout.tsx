@@ -45,6 +45,7 @@ const navItems: NavItem[] = [
   { to: "/investments", icon: BarChart3, label: "Investments", subtitle: "Stock and investment activity", module: "investment", pageFeatureKey: "pageInvestments" },
   { to: "/deductions", icon: Car, label: "Tax Savings", subtitle: "", pageFeatureKey: "pageTaxSavings" },
   { to: "/taxes", icon: Calculator, label: "Taxes", w2OnlyLabel: "Tax Overview", subtitle: "Current vs forecasted tax estimates", pageFeatureKey: "pageTaxes" },
+  { to: "/link-review", icon: ArrowLeftRight, label: "Link Review", subtitle: "Resolve missing or uncertain income links" },
   { to: "/reports", icon: BarChart3, label: "Reports", subtitle: "P&L and tax summaries", pageFeatureKey: "pageReports" },
   { to: "/student-loans", icon: GraduationCap, label: "Student Loans", subtitle: "Estimate payments and compare filing status", module: "student_loans" },
   { to: "/settings", icon: Settings, label: "Settings", subtitle: "", pageFeatureKey: "pageSettings" },

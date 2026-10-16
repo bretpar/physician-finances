@@ -17,6 +17,7 @@ import Settings from "@/pages/Settings";
 import Mileage from "@/pages/Mileage";
 import Taxes from "@/pages/Taxes";
 import Reports from "@/pages/Reports";
+import LinkReview from "./pages/LinkReview";
 // Accounts page removed — consolidated into Settings
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
@@ -132,6 +133,7 @@ function ProtectedRoutes() {
           <Route path="/deductions" element={<Mileage />} />
           <Route path="/taxes" element={<Taxes />} />
           <Route path="/reports" element={<Reports />} />
+          <Route path="/link-review" element={<LinkReview />} />
           <Route path="/student-loans" element={<StudentLoans />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/debug/transactions" element={<DebugTransactions />} />
