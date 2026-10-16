@@ -569,6 +569,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       businessW2Hsa,
       businessW2EmployerHsa,
       businessRetirement,
+      businessRetirementQbi,
       ownerHealthcare,
       businessStateEligibleGross,
       seEligibleGross,
@@ -1148,8 +1149,18 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         businessRetirement:
           businessRetirement + cu.business.retirement +
           standaloneRetirementRouting[incomeScope].selfEmployedEmployerDeduction,
+        // QBI slice: standalone self-employed employer plan money is
+        // business-classified, so it belongs here too; W-2 deferrals never do.
+        businessRetirementQbi:
+          canonicalBusiness.businessRetirementQbi +
+          standaloneRetirementRouting[incomeScope].selfEmployedEmployerDeduction,
         ownerHealthcare,
-        businessStateEligibleGross: businessStateEligibleGross + cuBizGross,
+        // Forecast: add active planned business receipts for state-tax-eligible
+        // companies only (company toggle + application mode + filing type).
+        businessStateEligibleGross: businessStateEligibleGross + cuBizGross +
+          (incomeScope === "actualPlusPlanned"
+            ? sumEligiblePlannedBusinessExpenses((projTotals as any).forecastBusinessGrossByCompany, companies as any, rates as any)
+            : 0),
         businessStateEligibleExpenses: canonicalBusiness.businessStateEligibleTxExpenses + businessStateEligibleHomeOfficeDeduction + // Planned + catch-up expenses attributed by their OWN company's
           // eligibility, so a replacement baseline with $0 income keeps them.
           (incomeScope === "actualPlusPlanned"
