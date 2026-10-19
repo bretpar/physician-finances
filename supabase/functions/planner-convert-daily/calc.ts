@@ -36,6 +36,7 @@ export function resolveOccurrence(s: Row, ov: Row | undefined, date: string) {
     ov!.healthcare_deduction, ov!.hsa_contribution, ov!.additional_tax_reserve,
   ].some((v) => num(v) > 0));
   const pick = (o: unknown, sv: unknown) => num(snapshot ? o : sv);
+  const wpick = (o: unknown, sv: unknown) => num(modified ? o : sv);
   const tax = modified ? splitOverrideTax(ov!) : splitStreamTax(s);
   return {
     date: modified && ov!.new_date ? ov!.new_date : date,
@@ -47,10 +48,11 @@ export function resolveOccurrence(s: Row, ov: Row | undefined, date: string) {
     preTaxDeductions: modified ? num(ov!.pre_tax_deductions) : num(s.pre_tax_deductions),
     healthcareDeduction: pick(ov?.healthcare_deduction, s.healthcare_deduction),
     hsaContribution: pick(ov?.hsa_contribution, s.hsa_contribution),
-    federalWithholding: pick(ov?.federal_withholding, s.federal_withholding),
-    stateWithholding: pick(ov?.state_withholding, s.state_withholding),
-    ssWithholding: pick(ov?.ss_withholding, s.ss_withholding),
-    medicareWithholding: pick(ov?.medicare_withholding, s.medicare_withholding),
+    // Withholding classifications come only from the edited occurrence (never inherited).
+    federalWithholding: wpick(ov?.federal_withholding, s.federal_withholding),
+    stateWithholding: wpick(ov?.state_withholding, s.state_withholding),
+    ssWithholding: wpick(ov?.ss_withholding, s.ss_withholding),
+    medicareWithholding: wpick(ov?.medicare_withholding, s.medicare_withholding),
     additionalTaxReserve: pick(ov?.additional_tax_reserve, s.additional_tax_reserve),
     hasDetailedBreakdown: detailed,
     isSkipped: ov?.action === "skip",

@@ -1657,6 +1657,7 @@ export function resolveOccurrenceDetail(
   ].some((v) => Number(v || 0) > 0));
   const pick = (o?: number | null, s?: number | null) => Number((snapshot ? o : s) || 0);
   const modified = !!override && override.action === "modify";
+  const wpick = (o?: number | null, s?: number | null) => Number((modified ? o : s) || 0);
   // Tax (federal + SS + Medicare) and whether state is deducted separately.
   // Edited occurrences own their total; unedited ones use the canonical split.
   const tax = modified
@@ -1667,10 +1668,13 @@ export function resolveOccurrenceDetail(
     isSnapshot: snapshot,
     taxesWithheld: tax.taxesWithheld,
     stateSeparate: tax.stateSeparate,
-    federalWithholding: pick(override?.federal_withholding, stream.federal_withholding),
-    stateWithholding: pick(override?.state_withholding, stream.state_withholding),
-    ssWithholding: pick(override?.ss_withholding, stream.ss_withholding),
-    medicareWithholding: pick(override?.medicare_withholding, stream.medicare_withholding),
+    // Withholding classifications come only from the edited occurrence: an
+    // aggregate-only override keeps its total unclassified (components 0),
+    // never inheriting parent-stream federal/state/SS/Medicare splits.
+    federalWithholding: wpick(override?.federal_withholding, stream.federal_withholding),
+    stateWithholding: wpick(override?.state_withholding, stream.state_withholding),
+    ssWithholding: wpick(override?.ss_withholding, stream.ss_withholding),
+    medicareWithholding: wpick(override?.medicare_withholding, stream.medicare_withholding),
     healthcareDeduction: pick(override?.healthcare_deduction, stream.healthcare_deduction),
     hsaContribution: pick(override?.hsa_contribution, stream.hsa_contribution),
     additionalTaxReserve: pick(override?.additional_tax_reserve, stream.additional_tax_reserve),
