@@ -38,6 +38,8 @@ export interface WithholdingFields {
   federal_withholding?: number | null;
   ss_withholding?: number | null;
   medicare_withholding?: number | null;
+  /** Provenance; 'planner_converted' rows carry explicit classifications. */
+  origin_type?: string | null;
 }
 
 export function getTotalFederalPaid(entry: WithholdingFields | null | undefined): number {
@@ -69,7 +71,8 @@ export function getTotalFederalPaid(entry: WithholdingFields | null | undefined)
  *   1. If either SS or Medicare is populated, the split fields exist, so
  *      `federal_withholding` is unambiguously income tax only.
  *   2. Otherwise, if `federal_withholding` is populated, use it.
- *   3. Otherwise fall back to `taxes_withheld` — a legacy row that stored a
+ *   3. Planner-converted rows with no classified component → 0 (unclassified).
+ *   4. Otherwise fall back to `taxes_withheld` — a legacy row that stored a
  *      single amount with no split available.
  */
 export function getFederalIncomeTaxWithheld(
@@ -82,6 +85,10 @@ export function getFederalIncomeTaxWithheld(
   const total = Number(entry.taxes_withheld || 0);
   if (ss > 0 || medicare > 0) return Math.max(0, fed);
   if (fed > 0) return fed;
+  // Planner conversions always write explicit components. A converted row
+  // whose components are all zero holds an UNCLASSIFIED aggregate (Planner
+  // "Tax" = federal + SS + Medicare), so it is never an income-tax credit.
+  if (entry.origin_type === "planner_converted") return 0;
   return Math.max(0, total);
 }
 
