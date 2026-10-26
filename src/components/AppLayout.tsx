@@ -26,30 +26,47 @@ import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useTaxSettings, type HouseholdIncomeStreams } from "@/hooks/useTaxSettings";
 import { type FeatureKey } from "@/lib/entitlements";
 
-type NavItem = {
-  to: string;
-  icon: typeof LayoutDashboard;
-  label: string;
-  w2OnlyLabel?: string;
-  subtitle: string;
-  module?: "business" | "investment" | "student_loans";
-  /** Page-level access key — independent from advanced features inside the page. */
-  pageFeatureKey?: FeatureKey;
+type NavGroup = {
+  heading: string;
+  items: NavItem[];
 };
 
-const navItems: NavItem[] = [
-  { to: "/", icon: LayoutDashboard, label: "Dashboard", subtitle: "", pageFeatureKey: "pageDashboard" },
-  { to: "/business-activity", icon: ArrowLeftRight, label: "Business Activity", subtitle: "Business income and expenses", module: "business", pageFeatureKey: "pageBusinessActivity" },
-  { to: "/personal-income", icon: Wallet, label: "Personal Income", w2OnlyLabel: "Paychecks", subtitle: "Actual income affecting taxes", pageFeatureKey: "pagePersonalIncome" },
-  { to: "/projected-income", icon: TrendingUp, label: "Income Planner", subtitle: "Future or hypothetical income", pageFeatureKey: "pageIncomePlanner" },
-  { to: "/investments", icon: BarChart3, label: "Investments", subtitle: "Stock and investment activity", module: "investment", pageFeatureKey: "pageInvestments" },
-  { to: "/deductions", icon: Car, label: "Tax Savings", subtitle: "", pageFeatureKey: "pageTaxSavings" },
-  { to: "/taxes", icon: Calculator, label: "Taxes", w2OnlyLabel: "Tax Overview", subtitle: "Current vs forecasted tax estimates", pageFeatureKey: "pageTaxes" },
-  { to: "/link-review", icon: ArrowLeftRight, label: "Link Review", subtitle: "Resolve missing or uncertain income links" },
-  { to: "/reports", icon: BarChart3, label: "Reports", subtitle: "P&L and tax summaries", pageFeatureKey: "pageReports" },
-  { to: "/student-loans", icon: GraduationCap, label: "Student Loans", subtitle: "Estimate payments and compare filing status", module: "student_loans" },
-  { to: "/settings", icon: Settings, label: "Settings", subtitle: "", pageFeatureKey: "pageSettings" },
+const navGroups: NavGroup[] = [
+  {
+    heading: "Overview",
+    items: [
+      { to: "/", icon: LayoutDashboard, label: "Dashboard", subtitle: "", pageFeatureKey: "pageDashboard" },
+      { to: "/reports", icon: BarChart3, label: "Reports", subtitle: "P&L and tax summaries", pageFeatureKey: "pageReports" },
+    ],
+  },
+  {
+    heading: "Your Money",
+    items: [
+      { to: "/personal-income", icon: Wallet, label: "Income", w2OnlyLabel: "Paychecks", subtitle: "Actual income affecting taxes", pageFeatureKey: "pagePersonalIncome" },
+      { to: "/business-activity", icon: ArrowLeftRight, label: "Business", subtitle: "Business income and expenses", module: "business", pageFeatureKey: "pageBusinessActivity" },
+      { to: "/investments", icon: BarChart3, label: "Investments", subtitle: "Stock and investment activity", module: "investment", pageFeatureKey: "pageInvestments" },
+    ],
+  },
+  {
+    heading: "Tax Planning",
+    items: [
+      { to: "/taxes", icon: Calculator, label: "Tax Overview", subtitle: "Current vs forecasted tax estimates", pageFeatureKey: "pageTaxes" },
+      { to: "/projected-income", icon: TrendingUp, label: "Income Planner", subtitle: "Future or hypothetical income", pageFeatureKey: "pageIncomePlanner" },
+      { to: "/deductions", icon: Car, label: "Tax Savings", subtitle: "", pageFeatureKey: "pageTaxSavings" },
+    ],
+  },
+  {
+    heading: "Utilities",
+    items: [
+      { to: "/link-review", icon: ArrowLeftRight, label: "Link Review", subtitle: "Resolve missing or uncertain income links" },
+      { to: "/student-loans", icon: GraduationCap, label: "Student Loans", subtitle: "Estimate payments and compare filing status", module: "student_loans" },
+      { to: "/settings", icon: Settings, label: "Settings", subtitle: "", pageFeatureKey: "pageSettings" },
+    ],
+  },
 ];
+
+// Flat list used for header-title lookup and visibility filtering.
+const navItems: NavItem[] = navGroups.flatMap((group) => group.items);
 
 function hasBusinessIncomeStream(streams?: HouseholdIncomeStreams) {
   if (!streams) return true;
