@@ -47,3 +47,73 @@ export function selectableForEntry<T extends { id: string }>(
     (c) => !closedIds.has(c.id) || opts.includeClosed || (opts.currentId != null && c.id === opts.currentId),
   );
 }
+
+// ── Stage 2: date-based eligibility for forward-looking inputs ─────────────
+//
+// Shared rule: `closed_on` is the first inactive date and `reopened_on` the
+// first active date again. An occurrence is ineligible when its own effective
+// date falls inside any closure period of its company. The same rule is
+// duplicated (byte-for-byte logic) in supabase/functions/planner-convert-daily.
+
+export interface ClosureLookup {
+  periods: ClosurePeriod[];
+  companies: Array<{ id: string; name: string }>;
+}
+
+const normName = (s: string | null | undefined) => String(s ?? "").trim().toLowerCase();
+
+/** Stream → company: `source_id` first, else a unique case-insensitive name match. */
+export function resolveClosureCompanyId(
+  stream: { source_id?: string | null; company?: string | null },
+  companies: Array<{ id: string; name: string }>,
+): string | null {
+  if (stream.source_id) return stream.source_id;
+  const n = normName(stream.company);
+  if (!n) return null;
+  const matches = companies.filter((c) => normName(c.name) === n);
+  return matches.length === 1 ? matches[0].id : null;
+}
+
+/** True when the planned occurrence on `date` belongs to a closed period. */
+export function isOccurrenceClosed(
+  lookup: ClosureLookup | null | undefined,
+  stream: { source_id?: string | null; company?: string | null } | null | undefined,
+  date: string,
+): boolean {
+  if (!lookup || !stream || lookup.periods.length === 0) return false;
+  const id = resolveClosureCompanyId(stream, lookup.companies);
+  return !!id && isClosedOn(lookup.periods, id, date);
+}
+
+/**
+ * Split [start, end] (inclusive YYYY-MM-DD) into the sub-ranges where the
+ * company is open. No periods → the original range unchanged.
+ */
+export function openSegments(
+  periods: ClosurePeriod[],
+  companyId: string | null | undefined,
+  start: string,
+  end: string,
+): Array<{ start: string; end: string }> {
+  const mine = companyId ? periods.filter((p) => p.companyId === companyId).sort((a, b) => a.closedOn.localeCompare(b.closedOn)) : [];
+  if (mine.length === 0) return [{ start, end }];
+  const out: Array<{ start: string; end: string }> = [];
+  let cursor = start;
+  for (const p of mine) {
+    if (p.closedOn > cursor) {
+      const segEnd = dayBefore(p.closedOn) < end ? dayBefore(p.closedOn) : end;
+      if (segEnd >= cursor) out.push({ start: cursor, end: segEnd });
+    }
+    if (p.reopenedOn == null) return out;
+    if (p.reopenedOn > cursor) cursor = p.reopenedOn;
+    if (cursor > end) return out;
+  }
+  if (cursor <= end) out.push({ start: cursor, end });
+  return out;
+}
+
+function dayBefore(d: string): string {
+  const [y, m, day] = d.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, day - 1));
+  return dt.toISOString().slice(0, 10);
+}
