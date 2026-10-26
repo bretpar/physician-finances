@@ -31,6 +31,10 @@ export interface OnboardingCompanyDraft {
    * is married_filing_jointly. Defaults to "primary" when not provided.
    */
   employeeRole?: "primary" | "spouse" | null;
+  /** Optional approximate income earned so far this year (gross / revenue / taxable). */
+  ytdIncome?: number | null;
+  /** 1099 only — optional estimated annual business expenses. */
+  annualExpenses?: number | null;
 }
 
 
