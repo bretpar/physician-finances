@@ -1,5 +1,4 @@
 /**
-import { useOptionalCompanies } from "@/contexts/CompanyContext";
  * Canonical builder for `buildQuarterRecommendation` inputs.
  *
  * Both the Dashboard Q-payment callout AND the Tax Overview QuarterlyTracker
@@ -17,6 +16,7 @@ import { useOptionalCompanies } from "@/contexts/CompanyContext";
  * feed `quarterTarget` in dynamic mode, producing different totals. Going
  * through this single builder removes that class of bug entirely.
  */
+import { useOptionalCompanies } from "@/contexts/CompanyContext";
 import { useMemo } from "react";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
