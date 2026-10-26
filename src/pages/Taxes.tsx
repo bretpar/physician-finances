@@ -76,7 +76,7 @@ export default function Taxes() {
   const { data: incomeEntries, isLoading: incLoading } = useIncomeEntries();
   const { data: personalEntries, isLoading: piLoading } = usePersonalIncomeEntries();
   const { data: investmentEntries, isLoading: investmentLoading } = useInvestmentIncomeEntries();
-  const { companies } = useCompanies();
+  const { companies, closureLookup } = useCompanies();
   const { data: streams } = useProjectedStreams();
   const { data: bonuses } = useProjectedBonuses();
 
@@ -206,11 +206,11 @@ export default function Taxes() {
   const remainingTax = debug?.remainingTaxDue ?? Math.max(0, estimatedOwed - totalCovered);
   const projectedPaychecks = useMemo(
     () =>
-      generateProjectedPaychecks(streams || [], bonuses || [], incomeEntries).map((p) => ({
+      generateProjectedPaychecks(streams || [], bonuses || [], incomeEntries, undefined, undefined, undefined, undefined, closureLookup).map((p) => ({
         date: p.date,
         grossAmount: Number(p.grossAmount || 0),
       })),
-    [streams, bonuses, incomeEntries],
+    [streams, bonuses, incomeEntries, closureLookup],
   );
   const method = rates?.withholdingMethod ?? "dynamic_planner";
   const trackerEstimate = method === "dynamic_planner" ? (forecastEstimate ?? actualEstimate) : (currentPaceEstimate ?? actualEstimate);

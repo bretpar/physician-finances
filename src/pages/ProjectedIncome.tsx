@@ -413,7 +413,7 @@ export default function ProjectedIncome() {
     amount: number;
     frequency: string;
   } | null>(null);
-  const { companies, closedCompanyIds } = useCompanies();
+  const { companies, closedCompanyIds, closureLookup } = useCompanies();
   const { data: streams, isLoading: streamsLoading } = useProjectedStreams();
   const { data: bonuses, isLoading: bonusesLoading } = useProjectedBonuses();
   const { data: overrides } = useStreamOverrides();
@@ -555,8 +555,8 @@ export default function ProjectedIncome() {
   const projectedPaychecks = useMemo(() => {
     if (!streams || !bonuses) return [];
     return generateProjectedPaychecks(streams, bonuses, incomeEntriesForMatching, overrides || [], plannerConversions || [], businessTxsForMatching,
-      employerRetirementReducesByStream(streams, companies));
-  }, [streams, bonuses, incomeEntriesForMatching, overrides, plannerConversions, businessTxsForMatching, companies]);
+      employerRetirementReducesByStream(streams, companies), closureLookup);
+  }, [streams, bonuses, incomeEntriesForMatching, overrides, plannerConversions, businessTxsForMatching, companies, closureLookup]);
 
   const projectedTotals = useMemo(() => getProjectedTotals(projectedPaychecks, streams || []), [projectedPaychecks, streams]);
 

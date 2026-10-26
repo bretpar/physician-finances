@@ -176,7 +176,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
   const { accessStatus: featureAccessStatus } = useFeatureAccess();
   const itemizedDeductionsAllowed = featureAccessStatus("itemizedDeductions") === "allowed";
   const { data: homeOfficeDeductions = [], isLoading: hoLoading } = useHomeOfficeDeductions(currentYear);
-  const { companies } = useCompanies();
+  const { companies, closureLookup, closedCompanyIds } = useCompanies();
   const { data: ytdCatchups } = useYtdCatchupEntries();
   const todayStr = new Date().toISOString().split("T")[0];
 
@@ -1018,6 +1018,8 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         overrides || [],
         plannerConversions || [],
         activeBusinessIncomeTransactions,
+        undefined,
+        closureLookup,
       );
       const projTotals = getProjectedTotals(projectedPaychecks, streams || [], companies || []);
       selection[incomeScope] = {

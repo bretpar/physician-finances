@@ -183,7 +183,7 @@ export default function Mileage() {
   // ─── Mileage state ───────────────────────────
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
-  const { companies, closedCompanyIds } = useCompanies();
+  const { companies, closedCompanyIds, closureLookup } = useCompanies();
   const { data: monthEntries = [], isLoading } = useMileageEntries(selectedMonth, selectedYear);
   const { data: ytdEntries = [] } = useMileageYTD(selectedYear);
   const addMileage = useAddMileageEntry();
@@ -322,11 +322,13 @@ export default function Mileage() {
         plannerOverrides || [],
         (plannerConversions || []) as any,
         [],
+        undefined,
+        closureLookup,
       );
     } catch {
       return [];
     }
-  }, [hasPlannerAccess, plannerStreams, plannerBonuses, incomeEntries, plannerOverrides, plannerConversions]);
+  }, [hasPlannerAccess, plannerStreams, plannerBonuses, incomeEntries, plannerOverrides, plannerConversions, closureLookup]);
 
   /**
    * Retirement room comes ENTIRELY from the canonical engine
