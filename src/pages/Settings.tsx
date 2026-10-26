@@ -21,7 +21,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   Plus, Trash2, Building2, Landmark, RefreshCw, Loader2,
   Shield, User, Crown, Calculator, CreditCard, Unplug, Settings2,
-  Lock, ChevronDown, ChevronRight, Users, UserCircle, Info, AlertTriangle,
+  Lock, ChevronDown, ChevronRight, ChevronLeft, Users, UserCircle, Info, AlertTriangle,
 } from "lucide-react";
 import { useCompanies, type Company } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1222,6 +1222,7 @@ function CompaniesSection() {
   const [advancedOpenIds, setAdvancedOpenIds] = useState<Set<string>>(new Set());
   const [w4OpenIds, setW4OpenIds] = useState<Set<string>>(new Set());
   const [confirmDiscardId, setConfirmDiscardId] = useState<string | null>(null);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
 
   const dirtyIds = Object.keys(drafts);
   const anyDirty = dirtyIds.length > 0;
@@ -1335,6 +1336,30 @@ function CompaniesSection() {
               const saving = savingId === company.id;
               const saved = !!savedFlash[company.id];
 
+              const isW2Like = (getValue(company, "companyType") as string) === "w2" || (getValue(company, "companyType") as string) === "scorp_w2";
+              const typeLabel = COMPANY_TYPES.find((t) => t.value === getValue(company, "companyType"))?.label ?? "";
+              if (selectedCompanyId !== company.id) {
+                if (selectedCompanyId) return null;
+                return (
+                  <button
+                    key={company.id}
+                    type="button"
+                    data-testid="settings-company-card"
+                    data-company-id={company.id}
+                    onClick={() => setSelectedCompanyId(company.id)}
+                    className={cn(
+                      "w-full min-h-14 flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors hover:bg-muted/40",
+                      dirty ? "border-warning/40 bg-warning/5" : "border-border",
+                    )}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{(getValue(company, "name") as string) || "Untitled company"}</p>
+                      <p className="text-xs text-muted-foreground truncate">{typeLabel}{dirty ? " · Unsaved changes" : ""}</p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                  </button>
+                );
+              }
               return (
                 <div
                   key={company.id}
@@ -1349,7 +1374,17 @@ function CompaniesSection() {
                   )}
                 >
 
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCompanyId(null)}
+                    className="-ml-2 inline-flex min-h-10 items-center gap-1 rounded-md px-2 text-sm font-medium text-primary hover:bg-muted"
+                    data-testid="settings-company-back"
+                  >
+                    <ChevronLeft className="h-4 w-4" /> All companies
+                  </button>
+
                   <div className="space-y-3">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Company Details</p>
                     <div className="flex items-start gap-2">
                       <div className="flex-1 min-w-0">
                         <Label className="text-xs text-muted-foreground mb-1.5 block">Company name</Label>
@@ -1360,22 +1395,10 @@ function CompaniesSection() {
                           placeholder="e.g. Vituity"
                         />
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-10 w-10 shrink-0 mt-6 text-muted-foreground hover:text-destructive"
-                        onClick={() => {
-                          if (dirty) { setConfirmDiscardId(company.id); return; }
-                          setDeleteCompanyId(company.id);
-                        }}
-                        aria-label="Delete company"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
                     </div>
                     <div>
                       <div className="flex items-center gap-1.5 mb-1.5">
-                        <Label className="text-xs text-muted-foreground">Filing type</Label>
+                        <Label className="text-xs text-muted-foreground">Income type</Label>
                         {filingTypeLocked && (
                           <Tooltip>
                             <TooltipTrigger asChild><Lock className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
@@ -1395,31 +1418,36 @@ function CompaniesSection() {
                           {companyTypeOptions.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
                         </SelectContent>
                       </Select>
-                      {(() => {
-                        const bucket = ledgerForIncomeType(getValue(company, "companyType"));
-                        return (
-                          <p className="mt-1.5 text-[11px] text-muted-foreground">
-                            Ledger:{" "}
-                            <span className={bucket === "business" ? "text-primary font-medium" : "text-foreground font-medium"}>
-                              {ledgerLabel(bucket)}
-                            </span>
-                          </p>
-                        );
-                      })()}
                     </div>
+                        {(() => {
+                          const ft = getValue(company, "companyType") as FilingType;
+                          if (ft !== "w2" && ft !== "scorp_w2") return null;
+                          const role = (getValue(company, "employeeRole") as "primary" | "spouse" | null) ?? null;
+                          return (
+                            <div>
+                              <Label className="text-xs text-muted-foreground mb-1.5 block">Income earner</Label>
+                              <Select
+                                value={role ?? "primary"}
+                                onValueChange={(v) => setField(company.id, "employeeRole", v as "primary" | "spouse")}
+                              >
+                                <SelectTrigger data-testid="settings-company-row-role-select"><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="primary" data-testid="company-employee-role-option-primary">You</SelectItem>
+                                  <SelectItem value="spouse" data-testid="company-employee-role-option-spouse">Spouse</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          );
+                        })()}
                   </div>
 
-                  <Collapsible open={advOpen} onOpenChange={() => toggleAdvanced(company.id)}>
-                    <CollapsibleTrigger asChild>
-                      <button type="button" className="flex min-h-10 items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full py-2">
-                        {advOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                        Advanced tax settings
-                      </button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="pt-3">
-                      <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-5">
+                  <div className="space-y-3 border-t border-border pt-4">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{isW2Like ? "Paycheck Settings" : "Income Entry Settings"}</p>
+                    <div className="rounded-lg border border-border bg-muted/20 p-4">
+                      <p className="text-xs font-semibold text-foreground">{isW2Like ? "Paycheck deductions & fields" : "Income fields"}</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">Choose which fields appear when adding income.</p>
                         <div className="space-y-2">
-                          <p className="text-xs font-semibold text-foreground">Show these fields when adding income</p>
+                          
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 pt-1">
                             {toggleOptions.map((opt) => {
                               const savedVisibility = (getValue(company, "advancedFieldVisibility") || {}) as Record<string, boolean>;
@@ -1490,7 +1518,142 @@ function CompaniesSection() {
                           </div>
 
                         </div>
+                    </div>
+                  {(() => {
+                    const ft = getValue(company, "companyType") as FilingType;
+                    if (ft !== "w2" && ft !== "scorp_w2") return null;
+                    const freq = (getValue(company, "payFrequency") as string | null) ?? "";
+                    const override = getValue(company, "remainingPaychecksOverride") as number | null;
+                    const projGross = getValue(company, "projectedAnnualGross") as number | null;
+                    const expFedWh = getValue(company, "expectedFederalWithholdingPerPaycheck") as number | null;
+                    const curExtraW4 = getValue(company, "currentExtraW4Withholding") as number | null;
+                    const isIrregular = freq === "irregular";
+                    const w4Open = w4OpenIds.has(company.id);
+                    return (
+                      <Collapsible open={w4Open} onOpenChange={() => toggleW4Fields(company.id)}>
+                        <CollapsibleTrigger asChild>
+                          <button
+                            type="button"
+                            className="flex min-h-10 items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full py-2"
+                            data-testid="settings-company-w4-settings-toggle"
+                          >
+                            {w4Open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                            Tax withholding
+                          </button>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="pt-3">
+                          <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div>
+                                <Label className="text-xs text-muted-foreground mb-1.5 block">Pay frequency</Label>
+                                <Select
+                                  value={freq || "unset"}
+                                  onValueChange={(v) => setField(company.id, "payFrequency", v === "unset" ? null : v)}
+                                >
+                                  <SelectTrigger data-testid="settings-company-row-frequency-select"><SelectValue placeholder="Not set" /></SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="unset">Not set</SelectItem>
+                                    <SelectItem value="weekly" data-testid="company-pay-frequency-option-weekly">Weekly</SelectItem>
+                                    <SelectItem value="biweekly" data-testid="company-pay-frequency-option-biweekly">Biweekly</SelectItem>
+                                    <SelectItem value="semimonthly" data-testid="company-pay-frequency-option-semimonthly">Semimonthly</SelectItem>
+                                    <SelectItem value="monthly" data-testid="company-pay-frequency-option-monthly">Monthly</SelectItem>
+                                    <SelectItem value="irregular" data-testid="company-pay-frequency-option-irregular">Irregular / Locums / Per-diem</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <p className="text-xs text-muted-foreground mt-1.5">
+                                  {isIrregular
+                                    ? "Use this for W-2 locums, moonlighting, per-diem, or shift-based jobs where paychecks are entered manually instead of on a fixed schedule. You can add actual paychecks as they come in or add optional planned paychecks in the Income Planner."
+                                    : "Fixed-schedule W-2 employers get automatic paycheck projections."}
+                                </p>
+                              </div>
 
+                              <div>
+                                <Label className="text-xs text-muted-foreground mb-1.5 block">Remaining paychecks this year</Label>
+                                <Input
+                                  data-testid="settings-company-row-remaining-paychecks-input"
+                                  type="number"
+                                  min={0}
+                                  inputMode="numeric"
+                                  placeholder="Auto"
+                                  value={override ?? ""}
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    setField(company.id, "remainingPaychecksOverride", v === "" ? null : Math.max(0, Math.floor(Number(v) || 0)));
+                                  }}
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs text-muted-foreground mb-1.5 block">Projected annual gross (optional)</Label>
+                                <Input
+                                  data-testid="settings-company-row-projected-annual-gross-input"
+                                  type="number"
+                                  min={0}
+                                  step="0.01"
+                                  inputMode="decimal"
+                                  placeholder="e.g. 250000"
+                                  value={projGross ?? ""}
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    setField(company.id, "projectedAnnualGross", v === "" ? null : Math.max(0, Number(v) || 0));
+                                  }}
+                                />
+                              </div>
+                              <div className="sm:col-span-2">
+                                <Label className="text-xs text-muted-foreground mb-1.5 block">Expected federal withholding per paycheck (optional)</Label>
+                                <Input
+                                  data-testid="settings-company-row-expected-federal-withholding-input"
+                                  type="number"
+                                  min={0}
+                                  step="0.01"
+                                  inputMode="decimal"
+                                  placeholder="e.g. 1200"
+                                  value={expFedWh ?? ""}
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    setField(company.id, "expectedFederalWithholdingPerPaycheck", v === "" ? null : Math.max(0, Number(v) || 0));
+                                  }}
+                                />
+                              </div>
+                              <div className="sm:col-span-2">
+                                <Label className="text-xs text-muted-foreground mb-1.5 block">Current extra W-4 withholding per paycheck (Step 4(c))</Label>
+                                <Input
+                                  data-testid="settings-company-row-current-extra-w4-input"
+                                  type="number"
+                                  min={0}
+                                  step="0.01"
+                                  inputMode="decimal"
+                                  placeholder="0.00"
+                                  value={curExtraW4 ?? ""}
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    setField(company.id, "currentExtraW4Withholding", v === "" ? 0 : Math.max(0, Number(v) || 0));
+                                  }}
+                                />
+                                <p className="text-xs text-muted-foreground mt-1.5">
+                                  What this employer already withholds beyond normal payroll. The W-4 Calculator subtracts it from this employer's target.
+                                </p>
+                              </div>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground">
+                              Used by the W-4 Paycheck Adjustment worksheet. Leave remaining paychecks blank to auto-detect from your paycheck history.
+                            </p>
+
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
+                    );
+                  })()}
+                  </div>
+                  <Collapsible open={advOpen} onOpenChange={() => toggleAdvanced(company.id)}>
+                    <CollapsibleTrigger asChild>
+                      <button type="button" className="flex min-h-10 items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:text-foreground transition-colors w-full py-2 border-t border-border pt-4">
+                        {advOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                        Advanced
+                      </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pt-3">
+                      <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-5">
+                        <p className="text-xs font-semibold text-foreground">Advanced tax options</p>
                         <div>
                           <Label className="text-xs text-muted-foreground mb-1.5 block">Nickname (optional)</Label>
                           <Input
@@ -1499,28 +1662,6 @@ function CompaniesSection() {
                             placeholder="Short label"
                           />
                         </div>
-
-                        {(() => {
-                          const ft = getValue(company, "companyType") as FilingType;
-                          if (ft !== "w2" && ft !== "scorp_w2") return null;
-                          const role = (getValue(company, "employeeRole") as "primary" | "spouse" | null) ?? null;
-                          return (
-                            <div>
-                              <Label className="text-xs text-muted-foreground mb-1.5 block">Income earner</Label>
-                              <Select
-                                value={role ?? "primary"}
-                                onValueChange={(v) => setField(company.id, "employeeRole", v as "primary" | "spouse")}
-                              >
-                                <SelectTrigger data-testid="settings-company-row-role-select"><SelectValue /></SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="primary" data-testid="company-employee-role-option-primary">You</SelectItem>
-                                  <SelectItem value="spouse" data-testid="company-employee-role-option-spouse">Spouse</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                          );
-                        })()}
-
                         <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-3 items-end">
                           <div>
                             <Label className="text-xs text-muted-foreground mb-1.5 block">Default tax set-aside method</Label>
@@ -1639,135 +1780,23 @@ function CompaniesSection() {
                             })()}
                           </div>
                         )}
+                        <div className="pt-2 border-t border-border">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full sm:w-auto min-h-10 gap-1.5 text-destructive hover:text-destructive"
+                            onClick={() => {
+                              if (dirty) { setConfirmDiscardId(company.id); return; }
+                              setDeleteCompanyId(company.id);
+                            }}
+                            aria-label="Delete company"
+                          >
+                            <Trash2 className="h-4 w-4" /> Delete company
+                          </Button>
+                        </div>
                       </div>
                     </CollapsibleContent>
                   </Collapsible>
-
-                  {(() => {
-                    const ft = getValue(company, "companyType") as FilingType;
-                    if (ft !== "w2" && ft !== "scorp_w2") return null;
-                    const freq = (getValue(company, "payFrequency") as string | null) ?? "";
-                    const override = getValue(company, "remainingPaychecksOverride") as number | null;
-                    const projGross = getValue(company, "projectedAnnualGross") as number | null;
-                    const expFedWh = getValue(company, "expectedFederalWithholdingPerPaycheck") as number | null;
-                    const curExtraW4 = getValue(company, "currentExtraW4Withholding") as number | null;
-                    const isIrregular = freq === "irregular";
-                    const w4Open = w4OpenIds.has(company.id);
-                    return (
-                      <Collapsible open={w4Open} onOpenChange={() => toggleW4Fields(company.id)}>
-                        <CollapsibleTrigger asChild>
-                          <button
-                            type="button"
-                            className="flex min-h-10 items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-full py-2"
-                            data-testid="settings-company-w4-settings-toggle"
-                          >
-                            {w4Open ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                            W-4 / paycheck settings
-                          </button>
-                        </CollapsibleTrigger>
-                        <CollapsibleContent className="pt-3">
-                          <div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <div>
-                                <Label className="text-xs text-muted-foreground mb-1.5 block">Pay frequency</Label>
-                                <Select
-                                  value={freq || "unset"}
-                                  onValueChange={(v) => setField(company.id, "payFrequency", v === "unset" ? null : v)}
-                                >
-                                  <SelectTrigger data-testid="settings-company-row-frequency-select"><SelectValue placeholder="Not set" /></SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="unset">Not set</SelectItem>
-                                    <SelectItem value="weekly" data-testid="company-pay-frequency-option-weekly">Weekly</SelectItem>
-                                    <SelectItem value="biweekly" data-testid="company-pay-frequency-option-biweekly">Biweekly</SelectItem>
-                                    <SelectItem value="semimonthly" data-testid="company-pay-frequency-option-semimonthly">Semimonthly</SelectItem>
-                                    <SelectItem value="monthly" data-testid="company-pay-frequency-option-monthly">Monthly</SelectItem>
-                                    <SelectItem value="irregular" data-testid="company-pay-frequency-option-irregular">Irregular / Locums / Per-diem</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                                <p className="text-xs text-muted-foreground mt-1.5">
-                                  {isIrregular
-                                    ? "Use this for W-2 locums, moonlighting, per-diem, or shift-based jobs where paychecks are entered manually instead of on a fixed schedule. You can add actual paychecks as they come in or add optional planned paychecks in the Income Planner."
-                                    : "Fixed-schedule W-2 employers get automatic paycheck projections."}
-                                </p>
-                              </div>
-
-                              <div>
-                                <Label className="text-xs text-muted-foreground mb-1.5 block">Remaining paychecks this year</Label>
-                                <Input
-                                  data-testid="settings-company-row-remaining-paychecks-input"
-                                  type="number"
-                                  min={0}
-                                  inputMode="numeric"
-                                  placeholder="Auto"
-                                  value={override ?? ""}
-                                  onChange={(e) => {
-                                    const v = e.target.value;
-                                    setField(company.id, "remainingPaychecksOverride", v === "" ? null : Math.max(0, Math.floor(Number(v) || 0)));
-                                  }}
-                                />
-                              </div>
-                              <div>
-                                <Label className="text-xs text-muted-foreground mb-1.5 block">Projected annual gross (optional)</Label>
-                                <Input
-                                  data-testid="settings-company-row-projected-annual-gross-input"
-                                  type="number"
-                                  min={0}
-                                  step="0.01"
-                                  inputMode="decimal"
-                                  placeholder="e.g. 250000"
-                                  value={projGross ?? ""}
-                                  onChange={(e) => {
-                                    const v = e.target.value;
-                                    setField(company.id, "projectedAnnualGross", v === "" ? null : Math.max(0, Number(v) || 0));
-                                  }}
-                                />
-                              </div>
-                              <div className="sm:col-span-2">
-                                <Label className="text-xs text-muted-foreground mb-1.5 block">Expected federal withholding per paycheck (optional)</Label>
-                                <Input
-                                  data-testid="settings-company-row-expected-federal-withholding-input"
-                                  type="number"
-                                  min={0}
-                                  step="0.01"
-                                  inputMode="decimal"
-                                  placeholder="e.g. 1200"
-                                  value={expFedWh ?? ""}
-                                  onChange={(e) => {
-                                    const v = e.target.value;
-                                    setField(company.id, "expectedFederalWithholdingPerPaycheck", v === "" ? null : Math.max(0, Number(v) || 0));
-                                  }}
-                                />
-                              </div>
-                              <div className="sm:col-span-2">
-                                <Label className="text-xs text-muted-foreground mb-1.5 block">Current extra W-4 withholding per paycheck (Step 4(c))</Label>
-                                <Input
-                                  data-testid="settings-company-row-current-extra-w4-input"
-                                  type="number"
-                                  min={0}
-                                  step="0.01"
-                                  inputMode="decimal"
-                                  placeholder="0.00"
-                                  value={curExtraW4 ?? ""}
-                                  onChange={(e) => {
-                                    const v = e.target.value;
-                                    setField(company.id, "currentExtraW4Withholding", v === "" ? 0 : Math.max(0, Number(v) || 0));
-                                  }}
-                                />
-                                <p className="text-xs text-muted-foreground mt-1.5">
-                                  What this employer already withholds beyond normal payroll. The W-4 Calculator subtracts it from this employer's target.
-                                </p>
-                              </div>
-                            </div>
-                            <p className="text-[11px] text-muted-foreground">
-                              Used by the W-4 Paycheck Adjustment worksheet. Leave remaining paychecks blank to auto-detect from your paycheck history.
-                            </p>
-
-                          </div>
-                        </CollapsibleContent>
-                      </Collapsible>
-                    );
-                  })()}
-
 
                   {(dirty || saved) && (
                     <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
