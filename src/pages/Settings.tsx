@@ -1361,7 +1361,6 @@ function CompaniesSection() {
                 );
               }
               return (
-              return (
                 <div
                   key={company.id}
                   data-testid="settings-company-row"
