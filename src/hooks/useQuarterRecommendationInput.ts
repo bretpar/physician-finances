@@ -1,4 +1,5 @@
 /**
+import { useOptionalCompanies } from "@/contexts/CompanyContext";
  * Canonical builder for `buildQuarterRecommendation` inputs.
  *
  * Both the Dashboard Q-payment callout AND the Tax Overview QuarterlyTracker
@@ -110,6 +111,7 @@ export function useQuarterRecommendationInput(
       }));
   }, [transactions]);
 
+  const closureLookup = useOptionalCompanies()?.closureLookup;
   const projectedPaychecks = useMemo(
     () =>
       generateProjectedPaychecks(
@@ -119,8 +121,10 @@ export function useQuarterRecommendationInput(
         overrides || [],
         plannerConversions || [],
         businessTxsForMatching,
+        undefined,
+        closureLookup,
       ),
-    [streams, bonuses, incomeEntries, overrides, plannerConversions, businessTxsForMatching],
+    [streams, bonuses, incomeEntries, overrides, plannerConversions, businessTxsForMatching, closureLookup],
   );
 
   const manualSavings = useMemo(

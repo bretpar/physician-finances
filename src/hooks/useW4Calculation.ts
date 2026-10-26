@@ -120,7 +120,7 @@ export function useW4Calculation(): W4CalculationResult {
   const { data: plannerConversions } = usePlannerConversions();
   const { data: incomeEntries } = useIncomeEntries();
   const { data: transactions } = useTransactions();
-  const { companies } = useCompanies();
+  const { companies, closureLookup, closedCompanyIds } = useCompanies();
 
   // The annual estimate selected by the user's withholding method. Single
   // source for BOTH the canonical allocation and every rate below.
@@ -185,8 +185,10 @@ export function useW4Calculation(): W4CalculationResult {
           status: t.status,
           transaction_type: t.transaction_type,
         })),
+        undefined,
+        closureLookup,
       ),
-    [streams, bonuses, incomeEntries, overrides, plannerConversions, transactions],
+    [streams, bonuses, incomeEntries, overrides, plannerConversions, transactions, closureLookup],
   );
 
   const detectionBySourceId = useMemo(() => {
