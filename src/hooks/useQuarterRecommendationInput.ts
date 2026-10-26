@@ -16,6 +16,7 @@
  * feed `quarterTarget` in dynamic mode, producing different totals. Going
  * through this single builder removes that class of bug entirely.
  */
+import { useOptionalCompanies } from "@/contexts/CompanyContext";
 import { useMemo } from "react";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
@@ -110,6 +111,7 @@ export function useQuarterRecommendationInput(
       }));
   }, [transactions]);
 
+  const closureLookup = useOptionalCompanies()?.closureLookup;
   const projectedPaychecks = useMemo(
     () =>
       generateProjectedPaychecks(
@@ -119,8 +121,10 @@ export function useQuarterRecommendationInput(
         overrides || [],
         plannerConversions || [],
         businessTxsForMatching,
+        undefined,
+        closureLookup,
       ),
-    [streams, bonuses, incomeEntries, overrides, plannerConversions, businessTxsForMatching],
+    [streams, bonuses, incomeEntries, overrides, plannerConversions, businessTxsForMatching, closureLookup],
   );
 
   const manualSavings = useMemo(

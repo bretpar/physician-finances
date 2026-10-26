@@ -13,6 +13,7 @@
  * `origin_type = 'planner_converted'` so the UI can badge / filter it.
  */
 
+import type { ClosureLookup } from "@/lib/companyClosure";
 import { supabase } from "@/integrations/supabase/client";
 import { syncIncomeEntryHsa } from "@/lib/incomeEntryHsaSync";
 import { ledgerForIncomeType, isBusinessIncomeType } from "@/lib/ledgerRouting";
@@ -372,7 +373,7 @@ export async function runPlannerConversionForCurrentUser(): Promise<ConversionRu
   // already-converted occurrences are tagged "converted" and skipped),
   // personal income_entries (W-2 matching), and active business income
   // transactions (1099/K-1 matching).
-  const [streamsRes, bonusesRes, overridesRes, incomeRes, conversionsRes, businessTxRes, settingsRes, companiesRes] =
+  const [streamsRes, bonusesRes, overridesRes, incomeRes, conversionsRes, businessTxRes, settingsRes, companiesRes, closuresRes] =
     await Promise.all([
       supabase.from("projected_income_streams").select("*"),
       supabase.from("projected_bonus_events").select("*"),
@@ -393,8 +394,19 @@ export async function runPlannerConversionForCurrentUser(): Promise<ConversionRu
         .select("auto_convert_future_income_to_ledger, organization_id, timezone")
         .limit(1)
         .maybeSingle(),
-      supabase.from("companies").select("id, company_type, advanced_field_visibility"),
+      supabase.from("companies").select("id, name, company_type, advanced_field_visibility"),
+      (supabase as any).from("company_closure_periods").select("id, company_id, closed_on, reopened_on"),
     ]);
+  // Fail closed: if closure periods can't be read, don't auto-convert at all
+  // rather than risk converting closed-period income.
+  if (closuresRes.error || companiesRes.error) {
+    persistLastRun(stats);
+    return stats;
+  }
+  const closureLookup: ClosureLookup = {
+    periods: ((closuresRes.data || []) as any[]).map((r) => ({ id: r.id, companyId: r.company_id, closedOn: r.closed_on, reopenedOn: r.reopened_on ?? null })),
+    companies: ((companiesRes.data || []) as any[]).map((c) => ({ id: c.id, name: c.name || "" })),
+  };
 
   const settings = settingsRes.data as { auto_convert_future_income_to_ledger?: boolean; organization_id?: string | null; timezone?: string | null } | null;
   if (!settings?.auto_convert_future_income_to_ledger) {
@@ -435,6 +447,8 @@ export async function runPlannerConversionForCurrentUser(): Promise<ConversionRu
     overrides,
     plannerConversions as any,
     businessTxs,
+    undefined,
+    closureLookup,
   );
   // Use the user's chosen timezone (Tax Profile → Timezone) so a paycheck
   // dated 5/16 doesn't get converted late on 5/15 just because UTC has

@@ -8,7 +8,7 @@ import type { FilingType, ToggleKey } from "@/lib/filingTypes";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { mergeCompanies as mergeCompaniesApi } from "@/lib/mergeCompanies";
 import type { K1TaxTreatment } from "@/lib/k1TaxTreatment";
-import { closedCompanyIdsOn, type ClosurePeriod } from "@/lib/companyClosure";
+import { closedCompanyIdsOn, type ClosurePeriod, type ClosureLookup } from "@/lib/companyClosure";
 import { getTodayLocalDateString } from "@/lib/localDate";
 
 export type SetasideMethod = "recommended" | "flat_percentage" | "none";
@@ -77,6 +77,8 @@ interface CompanyContextValue {
   closurePeriods: ClosurePeriod[];
   /** Ids of companies closed as of today. Closed companies remain in `companies`. */
   closedCompanyIds: Set<string>;
+  /** Periods + company names for date-based eligibility of planned occurrences. */
+  closureLookup: ClosureLookup;
   closeCompany: (id: string, closedOn: string) => Promise<boolean>;
   reopenCompany: (id: string, reopenedOn: string) => Promise<boolean>;
 }
@@ -167,6 +169,11 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     refreshIncomeCounts();
     loadClosures();
   }, [loadCompanies, refreshIncomeCounts, loadClosures]);
+
+  const closureLookup = useMemo<ClosureLookup>(
+    () => ({ periods: closurePeriods, companies: companies.map((c) => ({ id: c.id, name: c.name })) }),
+    [closurePeriods, companies],
+  );
 
   const addCompany = useCallback(async (company: Omit<Company, "id">) => {
     if (!user) return;
@@ -273,7 +280,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   }, [companies, loadCompanies, refreshIncomeCounts]);
 
   return (
-    <CompanyContext.Provider value={{ companies, incomeCountByCompanyName, addCompany, updateCompany, removeCompany, mergeCompanies, loading, refreshIncomeCounts, closurePeriods, closedCompanyIds, closeCompany, reopenCompany }}>
+    <CompanyContext.Provider value={{ companies, incomeCountByCompanyName, addCompany, updateCompany, removeCompany, mergeCompanies, loading, refreshIncomeCounts, closurePeriods, closedCompanyIds, closureLookup, closeCompany, reopenCompany }}>
       {children}
     </CompanyContext.Provider>
   );

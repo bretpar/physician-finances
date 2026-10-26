@@ -47,6 +47,11 @@ export interface ComputeSavedW2ProjectionArgs {
   ytdGrossByCompanyKey: Map<string, number>;
   /** Returns remaining paychecks for a given frequency. */
   remainingPaychecksFor: (frequency: string | null) => number;
+  /**
+   * Company closure: for companies with a closure period this year, returns
+   * { openRemainingDays, remainingDays, yearDays }. Absent → unchanged behavior.
+   */
+  closureWindowFor?: (companyId: string) => { openRemainingDays: number; remainingDays: number; yearDays: number } | null;
 }
 
 export function computeSavedW2CompanyProjectionAddon(
@@ -70,9 +75,17 @@ export function computeSavedW2CompanyProjectionAddon(
 
 
     const ytd = args.ytdGrossByCompanyKey.get(ytdCompanyKey(c.name)) || 0;
-    const grossAddon = annual != null ? Math.max(0, annual - ytd) : 0;
+    let grossAddon = annual != null ? Math.max(0, annual - ytd) : 0;
 
-    const remaining = args.remainingPaychecksFor(c.payFrequency);
+    let remaining = args.remainingPaychecksFor(c.payFrequency);
+    // Closure-aware: never fill closed-period income back in. Cap future gross
+    // at the annual pace for the open days left, and scale paychecks likewise.
+    const win = args.closureWindowFor?.(c.id);
+    if (win) {
+      const paceCap = annual != null && win.yearDays > 0 ? (annual * win.openRemainingDays) / win.yearDays : 0;
+      grossAddon = Math.min(grossAddon, Math.max(0, paceCap));
+      remaining = win.remainingDays > 0 ? Math.floor((remaining * win.openRemainingDays) / win.remainingDays) : 0;
+    }
     const fedAddon =
       perPaycheckFed != null && remaining > 0 ? perPaycheckFed * remaining : 0;
 

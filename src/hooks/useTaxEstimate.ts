@@ -1,4 +1,5 @@
 import type { FilingStatus } from "@/lib/taxBrackets";
+import { closureWindowForYear } from "@/lib/companyClosure";
 import { useMemo, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -176,7 +177,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
   const { accessStatus: featureAccessStatus } = useFeatureAccess();
   const itemizedDeductionsAllowed = featureAccessStatus("itemizedDeductions") === "allowed";
   const { data: homeOfficeDeductions = [], isLoading: hoLoading } = useHomeOfficeDeductions(currentYear);
-  const { companies } = useCompanies();
+  const { companies, closureLookup } = useCompanies();
   const { data: ytdCatchups } = useYtdCatchupEntries();
   const todayStr = new Date().toISOString().split("T")[0];
 
@@ -270,6 +271,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
     retirementContribs,
     new Date().getFullYear(),
     payFrequencyByCompany,
+    closureLookup.periods,
   );
 
   /**
@@ -332,6 +334,8 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
           {
             taxYear: year,
             payFrequency: (c.company_id && payFrequencyByCompany.get(c.company_id)) || null,
+            closurePeriods: closureLookup.periods,
+            companyId: c.company_id ?? null,
           },
         ).annual,
         contributionDate: c.contribution_date,
@@ -363,7 +367,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       actualOnly: routingFor("actualOnly"),
       actualPlusPlanned: routingFor("actualPlusPlanned"),
     };
-  }, [retirementContribs, reconciledIncomeEntries, companies, payFrequencyByCompany, todayStr, annualizedRetirement.traditionalIraTotal, annualizedRetirement.rothIraTotal]);
+  }, [retirementContribs, reconciledIncomeEntries, companies, payFrequencyByCompany, todayStr, closureLookup, annualizedRetirement.traditionalIraTotal, annualizedRetirement.rothIraTotal]);
 
   // ── Canonical business income (matches Business Ledger exactly) ──────────
   // The Business Ledger reads `transactions` where status='active'. Tax math
@@ -1018,6 +1022,8 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         overrides || [],
         plannerConversions || [],
         activeBusinessIncomeTransactions,
+        undefined,
+        closureLookup,
       );
       const projTotals = getProjectedTotals(projectedPaychecks, streams || [], companies || []);
       selection[incomeScope] = {
@@ -1138,6 +1144,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
               coveredCompanyIds: w2StreamSourceIds,
               ytdGrossByCompanyKey,
               remainingPaychecksFor: (f) => defaultRemainingPaychecks(f || "biweekly"),
+              closureWindowFor: (id) => closureWindowForYear(closureLookup.periods, id, todayStr, currentYear),
             })
           : { futureGross: 0, futureFederalWithheld: 0, perCompany: [] };
       const onboardingForecast = incomeScope === "actualPlusPlanned" ? buildOnboardingForecast({
@@ -1336,7 +1343,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
   // generateProjectedPaychecks inside buildInput. Omitting them froze the
   // headline Projected Income / Projected Taxes numbers after an occurrence
   // edit or a planner conversion.
-}, [rates, reconciledIncomeEntries, scopedTaxData, hsaRows, todayStr, mileageEntries, taxPayments, taxSavings, streams, bonuses, overrides, plannerConversions, companies, isHealthcarePretax, annualizedRetirement, standaloneRetirementRouting, homeOfficeDeductions, ytdCatchups, itemizedDeductionsAllowed]);
+}, [rates, reconciledIncomeEntries, scopedTaxData, hsaRows, todayStr, mileageEntries, taxPayments, taxSavings, streams, bonuses, overrides, plannerConversions, companies, isHealthcarePretax, annualizedRetirement, standaloneRetirementRouting, homeOfficeDeductions, ytdCatchups, itemizedDeductionsAllowed, closureLookup]);
 
   const actualResult = useMemo(() => {
     if (!scopedBaseInputs) return null;

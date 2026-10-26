@@ -183,7 +183,7 @@ export default function Mileage() {
   // ─── Mileage state ───────────────────────────
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
-  const { companies, closedCompanyIds } = useCompanies();
+  const { companies, closedCompanyIds, closureLookup } = useCompanies();
   const { data: monthEntries = [], isLoading } = useMileageEntries(selectedMonth, selectedYear);
   const { data: ytdEntries = [] } = useMileageYTD(selectedYear);
   const addMileage = useAddMileageEntry();
@@ -232,6 +232,7 @@ export default function Mileage() {
     contributions,
     now.getFullYear(),
     payFrequencyByCompany,
+    closureLookup.periods,
   );
   // Read-only: used for the collapsed HSA summary line.
   const { data: hsaContributions = [] } = useHsaContributions(now.getFullYear());
@@ -322,11 +323,13 @@ export default function Mileage() {
         plannerOverrides || [],
         (plannerConversions || []) as any,
         [],
+        undefined,
+        closureLookup,
       );
     } catch {
       return [];
     }
-  }, [hasPlannerAccess, plannerStreams, plannerBonuses, incomeEntries, plannerOverrides, plannerConversions]);
+  }, [hasPlannerAccess, plannerStreams, plannerBonuses, incomeEntries, plannerOverrides, plannerConversions, closureLookup]);
 
   /**
    * Retirement room comes ENTIRELY from the canonical engine
@@ -356,6 +359,8 @@ export default function Mileage() {
       annualAmount: annualizeContributionAmount(c, {
         taxYear: currentYear,
         payFrequency: (c.company_id && payFrequencyByCompany.get(c.company_id)) || null,
+        closurePeriods: closureLookup.periods,
+        companyId: c.company_id ?? null,
       }).annual,
       contributionDate: c.contribution_date,
     }));
@@ -1062,7 +1067,7 @@ export default function Mileage() {
             contributions={contributions || []}
             paycheckEntries={paycheckLinked.entries as never}
             companyName={(companyId) => companyId ? companies.find((company) => company.id === companyId)?.name || null : null}
-            annualAmount={(contribution) => annualizeContributionAmount(contribution, { taxYear: currentYear, payFrequency: contribution.company_id ? payFrequencyByCompany.get(contribution.company_id) ?? null : null }).annual}
+            annualAmount={(contribution) => annualizeContributionAmount(contribution, { taxYear: currentYear, payFrequency: contribution.company_id ? payFrequencyByCompany.get(contribution.company_id) ?? null : null, closurePeriods: closureLookup.periods, companyId: contribution.company_id ?? null }).annual}
             onEdit={startEditContrib}
             onDelete={setContribDeleteId}
           />

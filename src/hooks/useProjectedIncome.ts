@@ -1,4 +1,5 @@
 import { employerPaycheckReductions } from "@/lib/estimatedNet";
+import { isOccurrenceClosed, type ClosureLookup } from "@/lib/companyClosure";
 import { resolveEmployerPaycheckReduction, resolveHealthcarePretaxPayroll, normalizeFilingType } from "@/lib/filingTypes";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -1739,6 +1740,9 @@ export function generateProjectedPaychecks(
   businessTransactions?: MatchableBusinessTransaction[],
   /** streamId → company "Employer retirement reduces my paycheck" (net cash only). */
   employerRetirementReducesByStream?: Record<string, boolean>,
+  /** Company closure periods. Occurrences dated inside a closed period are dropped
+   *  unless already converted (history is preserved; nothing is backfilled). */
+  closure?: ClosureLookup | null,
 ): ProjectedPaycheck[] {
   const now = startOfDay(new Date());
   const yearStart = parseISO(`${now.getFullYear()}-01-01`);
@@ -1956,6 +1960,18 @@ export function generateProjectedPaychecks(
 
   // Sort by date for matching priority
   rawPaychecks.sort((a, b) => a.date.localeCompare(b.date));
+
+  // Company closure: drop planned occurrences whose own date is in a closed
+  // period. Already-converted occurrences stay (they are history).
+  if (closure && closure.periods.length > 0) {
+    const streamByIdForClosure = new Map(streams.map((s) => [s.id, s] as const));
+    for (let i = rawPaychecks.length - 1; i >= 0; i--) {
+      const r = rawPaychecks[i];
+      const converted = r.bonusEventId ? convertedBonusIds.has(r.bonusEventId) : convertedKeys.has(`${r.streamId}:${r.date}`);
+      if (converted) continue;
+      if (isOccurrenceClosed(closure, streamByIdForClosure.get(r.streamId), r.date)) rawPaychecks.splice(i, 1);
+    }
+  }
 
   // Now match each paycheck against actual ledger rows. Personal streams match
   // against income_entries; business streams match against transactions

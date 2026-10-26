@@ -52,7 +52,7 @@ export default function Dashboard() {
   const { data: payments = [] } = useTaxPayments();
   const { data: taxSavings = [] } = useTaxSavings();
   const { actualEstimate, currentPaceEstimate, forecastEstimate, actualDebug, forecastDebug, taxMode, isLoading: estLoading } = useTaxEstimate();
-  const { companies } = useCompanies();
+  const { companies, closureLookup } = useCompanies();
   const { data: streams } = useProjectedStreams();
   const { data: bonuses } = useProjectedBonuses();
   const { data: overrides } = useStreamOverrides();
@@ -140,8 +140,10 @@ export default function Dashboard() {
       overrides || [],
       plannerConversions || [],
       businessTxsForMatching,
+      undefined,
+      closureLookup,
     ),
-    [streams, bonuses, incomeEntries, overrides, plannerConversions, businessTxsForMatching],
+    [streams, bonuses, incomeEntries, overrides, plannerConversions, businessTxsForMatching, closureLookup],
   );
 
   const now = useMemo(() => new Date(), []);
