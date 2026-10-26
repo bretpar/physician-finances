@@ -67,7 +67,7 @@ export const FILING_TYPES: FilingTypeMeta[] = [
   },
   {
     value: "w2",
-    label: "W-2 Employment",
+    label: "W-2 Employee",
     shortLabel: "W-2",
     isW2: true,
     isSelfEmployed: false,
