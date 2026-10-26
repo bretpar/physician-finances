@@ -2,6 +2,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
+import { closedCompanyIdsOn } from "@/lib/companyClosure";
+import { getTodayLocalDateString } from "@/lib/localDate";
 
 export type SourceKind =
   | "w2_employer"
@@ -30,6 +32,8 @@ export interface IncomeSource {
   nickname: string;
   source_kind: SourceKind;
   company_type: string;
+  /** Closed as of today (company_closure_periods). Hidden from pickers by default. */
+  closed?: boolean;
 }
 
 export function isPersonalKind(kind: SourceKind | string | null | undefined): boolean {
@@ -59,6 +63,14 @@ export function useIncomeSources() {
         .is("archived_at", null)
         .order("name");
       if (error) throw error;
+      const { data: closures } = await (supabase as any)
+        .from("company_closure_periods")
+        .select("company_id, closed_on, reopened_on");
+      const today = getTodayLocalDateString();
+      const closedIds = closedCompanyIdsOn(
+        ((closures || []) as any[]).map((r) => ({ id: "", companyId: r.company_id, closedOn: r.closed_on, reopenedOn: r.reopened_on ?? null })),
+        today,
+      );
       const rows = (data || []) as any[];
       // Keep only rows with a usable display name (name OR nickname after trim).
       const named = rows.filter(
@@ -79,6 +91,7 @@ export function useIncomeSources() {
         nickname: c.nickname || "",
         source_kind: (c.source_kind as SourceKind) || deriveSourceKind(c.company_type),
         company_type: c.company_type,
+        closed: closedIds.has(c.id),
       })) as IncomeSource[];
       if (typeof window !== "undefined") {
         // eslint-disable-next-line no-console

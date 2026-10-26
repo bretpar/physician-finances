@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, useCallback, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,6 +8,8 @@ import type { FilingType, ToggleKey } from "@/lib/filingTypes";
 import { normalizeFilingType } from "@/lib/filingTypes";
 import { mergeCompanies as mergeCompaniesApi } from "@/lib/mergeCompanies";
 import type { K1TaxTreatment } from "@/lib/k1TaxTreatment";
+import { closedCompanyIdsOn, type ClosurePeriod } from "@/lib/companyClosure";
+import { getTodayLocalDateString } from "@/lib/localDate";
 
 export type SetasideMethod = "recommended" | "flat_percentage" | "none";
 
@@ -71,6 +73,12 @@ interface CompanyContextValue {
   mergeCompanies: (primaryId: string, duplicateIds: string[]) => Promise<void>;
   loading: boolean;
   refreshIncomeCounts: () => Promise<void>;
+  /** All closure periods for visible companies (history included). */
+  closurePeriods: ClosurePeriod[];
+  /** Ids of companies closed as of today. Closed companies remain in `companies`. */
+  closedCompanyIds: Set<string>;
+  closeCompany: (id: string, closedOn: string) => Promise<boolean>;
+  reopenCompany: (id: string, reopenedOn: string) => Promise<boolean>;
 }
 
 const CompanyContext = createContext<CompanyContextValue | null>(null);
@@ -81,6 +89,24 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [incomeCountByCompanyName, setIncomeCountByCompanyName] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
+  const [closurePeriods, setClosurePeriods] = useState<ClosurePeriod[]>([]);
+
+  const loadClosures = useCallback(async () => {
+    if (!user) return;
+    const { data, error } = await (supabase as any)
+      .from("company_closure_periods")
+      .select("id, company_id, closed_on, reopened_on")
+      .order("closed_on");
+    if (error) { console.error("Failed to load company closures", error); return; }
+    setClosurePeriods((data || []).map((r: any) => ({
+      id: r.id, companyId: r.company_id, closedOn: r.closed_on, reopenedOn: r.reopened_on ?? null,
+    })));
+  }, [user]);
+
+  const closedCompanyIds = useMemo(
+    () => closedCompanyIdsOn(closurePeriods, getTodayLocalDateString()),
+    [closurePeriods],
+  );
 
   const loadCompanies = useCallback(async () => {
     if (!user) return;
@@ -139,7 +165,8 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     loadCompanies();
     refreshIncomeCounts();
-  }, [loadCompanies, refreshIncomeCounts]);
+    loadClosures();
+  }, [loadCompanies, refreshIncomeCounts, loadClosures]);
 
   const addCompany = useCallback(async (company: Omit<Company, "id">) => {
     if (!user) return;
@@ -172,6 +199,10 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   }, [user, loadCompanies]);
 
   const updateCompany = useCallback(async (id: string, updates: Partial<Company>) => {
+    if (closedCompanyIds.has(id)) {
+      toast.error("This company is closed. Reopen it to change its settings.");
+      return;
+    }
     const dbUpdates: Record<string, any> = {};
     if (updates.name !== undefined) dbUpdates.name = updates.name;
     if (updates.nickname !== undefined) dbUpdates.nickname = updates.nickname;
@@ -197,7 +228,25 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.from("companies").update(dbUpdates as any).eq("id", id);
     if (error) { toast.error(error.message); return; }
     loadCompanies();
-  }, [loadCompanies]);
+  }, [loadCompanies, closedCompanyIds]);
+
+  const closeCompany = useCallback(async (id: string, closedOn: string) => {
+    const { error } = await (supabase as any).rpc("close_company", { _company_id: id, _closed_on: closedOn });
+    if (error) { toast.error(error.message); return false; }
+    toast.success("Company closed");
+    await loadClosures();
+    qc.invalidateQueries({ queryKey: ["income_sources"] });
+    return true;
+  }, [loadClosures, qc]);
+
+  const reopenCompany = useCallback(async (id: string, reopenedOn: string) => {
+    const { error } = await (supabase as any).rpc("reopen_company", { _company_id: id, _reopened_on: reopenedOn });
+    if (error) { toast.error(error.message); return false; }
+    toast.success("Company reopened");
+    await loadClosures();
+    qc.invalidateQueries({ queryKey: ["income_sources"] });
+    return true;
+  }, [loadClosures, qc]);
 
   const removeCompany = useCallback(async (id: string) => {
     const { error } = await supabase.from("companies").delete().eq("id", id);
@@ -224,7 +273,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   }, [companies, loadCompanies, refreshIncomeCounts]);
 
   return (
-    <CompanyContext.Provider value={{ companies, incomeCountByCompanyName, addCompany, updateCompany, removeCompany, mergeCompanies, loading, refreshIncomeCounts }}>
+    <CompanyContext.Provider value={{ companies, incomeCountByCompanyName, addCompany, updateCompany, removeCompany, mergeCompanies, loading, refreshIncomeCounts, closurePeriods, closedCompanyIds, closeCompany, reopenCompany }}>
       {children}
     </CompanyContext.Provider>
   );
