@@ -1,4 +1,6 @@
 import { buildTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
+import { readOnboardingPlanMeta, summarizeOnboardingEstimate } from "@/lib/onboardingIncomePlan";
+import { Info } from "lucide-react";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
@@ -558,6 +560,37 @@ export default function ProjectedIncome() {
   }, [streams, bonuses, incomeEntriesForMatching, overrides, plannerConversions, businessTxsForMatching, companies]);
 
   const projectedTotals = useMemo(() => getProjectedTotals(projectedPaychecks, streams || []), [projectedPaychecks, streams]);
+
+  // Presentation-only: annual plans seeded during onboarding. Earlier-in-year
+  // income is an estimate (never a ledger row); recorded actuals replace it.
+  const onboardingEstimate = useMemo(() => {
+    const year = new Date().getFullYear();
+    const yearStr = String(year);
+    const norm = (s: string) => String(s || "").trim().toLowerCase();
+    let annual = 0, recorded = 0, planned = 0, anyUserYtd = false;
+    for (const c of companies || []) {
+      const meta = readOnboardingPlanMeta((c as any).advancedFieldVisibility);
+      if (!meta || meta.taxYear !== year) continue;
+      const streamIds = new Set((streams || []).filter((s) => s.is_active && (s.source_id === c.id)).map((s) => s.id));
+      if (streamIds.size === 0) continue;
+      annual += meta.annual;
+      if (meta.ytdEntered != null) anyUserYtd = true;
+      planned += projectedPaychecks
+        .filter((p) => streamIds.has(p.streamId) && !p.isSkipped && p.matchStatus !== "matched" && p.matchStatus !== "converted" && p.date.startsWith(yearStr))
+        .reduce((s, p) => s + Number(p.grossAmount || 0), 0);
+      recorded += (incomeEntries || [])
+        .filter((e: any) => e.income_date?.startsWith(yearStr) && norm(e.company) === norm(c.name))
+        .reduce((s: number, e: any) => s + Number(e.paycheck_amount || 0), 0);
+      recorded += ((businessTransactions || []) as any[])
+        .filter((t) => t.source_id === c.id && t.transaction_type === "income" && String(t.transaction_date || "").startsWith(yearStr))
+        .reduce((s, t) => s + Math.abs(Number(t.amount || 0)), 0);
+    }
+    if (annual <= 0) return null;
+    const summary = summarizeOnboardingEstimate({ annual, recorded, planned });
+    // Only for users with little or no recorded income.
+    if (summary.recorded > annual * 0.1) return null;
+    return { ...summary, anyUserYtd };
+  }, [companies, streams, projectedPaychecks, incomeEntries, businessTransactions]);
   const federalWithholdingBreakdown = useMemo(
     () => getProjectedFederalWithholdingBreakdown(projectedPaychecks, streams || []),
     [projectedPaychecks, streams],
