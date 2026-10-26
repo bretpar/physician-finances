@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { Input } from "@/components/ui/input";
 import { DateField } from "@/components/DateField";
@@ -1223,6 +1224,23 @@ function CompaniesSection() {
   const [w4OpenIds, setW4OpenIds] = useState<Set<string>>(new Set());
   const [confirmDiscardId, setConfirmDiscardId] = useState<string | null>(null);
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
+
+  // Deep link from warnings: /settings?company=<id>[&open=withholding] or ?section=companies
+  const [deepLinkParams] = useSearchParams();
+  useEffect(() => {
+    const cid = deepLinkParams.get("company");
+    const wantsSection = cid || deepLinkParams.get("section") === "companies";
+    if (cid && companies.some((c) => c.id === cid)) {
+      setSelectedCompanyId(cid);
+      if (deepLinkParams.get("open") === "withholding") {
+        setW4OpenIds((p) => new Set(p).add(cid));
+      }
+    }
+    if (wantsSection) {
+      setTimeout(() => document.querySelector('[data-testid="settings-companies-section"]')?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLinkParams, companies.length]);
 
   const dirtyIds = Object.keys(drafts);
   const anyDirty = dirtyIds.length > 0;

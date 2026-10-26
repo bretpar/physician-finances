@@ -728,6 +728,22 @@ export default function W4PaycheckAdjustmentCard() {
     change: rec.change,
   }));
 
+  // Per-employer breakdown, reusing the same row flags as anyPartialEmployer.
+  const incompleteEmployers = effectiveRows
+    .filter((r: any) => !r.hasYtdData || !r.hasFutureProjection)
+    .map((r: any, i: number) => {
+      const missing: string[] = [];
+      if (!r.hasYtdData) missing.push("no paychecks with gross pay and withholding recorded this year");
+      if (!r.hasFutureProjection) missing.push("no expected paycheck amount or planned W-2 income for the rest of the year");
+      return {
+        key: String(r.companyId ?? r.company ?? i),
+        companyId: (r.companyId as string | null) ?? null,
+        name: String(r.company || "W-2 employer"),
+        missing,
+        needsFuture: !r.hasFutureProjection,
+      };
+    });
+
   const hasAnyDataWarning =
     dataCompleteness.missingYtdAggregate ||
     dataCompleteness.missingFutureAggregate ||
@@ -994,14 +1010,29 @@ export default function W4PaycheckAdjustmentCard() {
               data-testid="w4-data-warning"
             >
               <AlertCircle className="h-4 w-4 mt-0.5 shrink-0 text-warning" />
-              <p>
-                Some W-2 employer data is missing — this estimate may be
-                inaccurate.{" "}
-                <Link to="/settings" className="font-medium underline underline-offset-2">
-                  Open Settings → W-2 Employers
-                </Link>
-                .
-              </p>
+              <div className="space-y-1">
+                <p>Some W-2 employer data is missing — this estimate may be inaccurate.</p>
+                {incompleteEmployers.length > 0 && (
+                  <ul className="space-y-1" data-testid="w4-data-warning-employers">
+                    {incompleteEmployers.map((e) => (
+                      <li key={e.key}>
+                        <span className="font-medium">{e.name}:</span> {e.missing.join(" and ")}.{" "}
+                        <Link
+                          to={e.companyId ? `/settings?company=${encodeURIComponent(e.companyId)}${e.needsFuture ? "&open=withholding" : ""}` : "/settings?section=companies"}
+                          className="font-medium underline underline-offset-2"
+                        >
+                          Open in Settings → Companies
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {incompleteEmployers.length === 0 && (
+                  <Link to="/settings?section=companies" className="font-medium underline underline-offset-2">
+                    Open Settings → Companies
+                  </Link>
+                )}
+              </div>
             </div>
           )}
 
