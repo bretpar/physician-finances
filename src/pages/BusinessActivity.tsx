@@ -22,7 +22,7 @@ import {
   useMatchGroups,
 } from "@/hooks/useTransactionMatching";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
@@ -185,7 +185,7 @@ const emptyExpenseForm: ExpenseFormState = {
 
 export default function Transactions() {
   const navigate = useNavigate();
-  const { companies } = useCompanies();
+  const { companies, closedCompanyIds } = useCompanies();
   const queryClient = useQueryClient();
   const { data: rawTransactions = [], isLoading } = useTransactions();
   // CANONICAL: collapse duplicate YTD catch-up mirror transactions so each
@@ -347,10 +347,19 @@ export default function Transactions() {
   // form doesn't break if the type set ever narrows in the future.
   const businessCompanies = useMemo(() =>
     companies.filter((c) => {
+      const isCurrent = c.id === incomeForm.company || c.id === expenseForm.company;
+      // Closed companies only appear when already on the record being edited;
+      // late payments pick them from the separate "Closed" group below.
+      if (closedCompanyIds.has(c.id) && !isCurrent) return false;
       if (BUSINESS_COMPANY_TYPES.has(normalizeFilingType(c.companyType))) return true;
       return c.id === incomeForm.company;
     }),
-  [companies, incomeForm.company]);
+  [companies, incomeForm.company, expenseForm.company, closedCompanyIds]);
+  const closedBusinessCompanies = useMemo(() =>
+    companies.filter((c) =>
+      closedCompanyIds.has(c.id) && BUSINESS_COMPANY_TYPES.has(normalizeFilingType(c.companyType))
+      && !businessCompanies.some((b) => b.id === c.id)),
+  [companies, closedCompanyIds, businessCompanies]);
 
   const companyById = useMemo(() =>
     new Map(companies.map((c) => [c.id, c] as const)),
@@ -2201,6 +2210,14 @@ export default function Transactions() {
                     {businessCompanies.map((c) => (
                       <SelectItem key={c.id} value={c.id}>{c.name} ({getFilingMeta(c.companyType).shortLabel})</SelectItem>
                     ))}
+                    {closedBusinessCompanies.length > 0 && (
+                      <SelectGroup>
+                        <SelectLabel className="text-xs text-muted-foreground">Closed — late payments</SelectLabel>
+                        {closedBusinessCompanies.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>{c.name} (closed)</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
                   </SelectContent>
                 </Select>
                 {incomeNeedsCompanyReview && (
@@ -2555,6 +2572,14 @@ export default function Transactions() {
                     {businessCompanies.map((c) => (
                       <SelectItem key={c.id} value={c.id}>{c.name} ({getFilingMeta(c.companyType).shortLabel})</SelectItem>
                     ))}
+                    {closedBusinessCompanies.length > 0 && (
+                      <SelectGroup>
+                        <SelectLabel className="text-xs text-muted-foreground">Closed — late payments</SelectLabel>
+                        {closedBusinessCompanies.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>{c.name} (closed)</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
