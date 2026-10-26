@@ -27,6 +27,8 @@ import { isSETaxableEntity } from "@/lib/k1TaxTreatment";
 import { normalizeFilingType, isSelfEmployedFilingType, resolveHealthcarePretaxPayroll, resolveHealthcareTreatment } from "@/lib/filingTypes";
 import { aggregateByCategory, classifyPersonalIncome } from "@/lib/incomeClassification";
 import { getFederalIncomeTaxWithheld } from "@/lib/federalWithholding";
+import { buildOnboardingForecast, type OnboardingForecastRow } from "@/lib/onboardingForecast";
+import { readOnboardingPlanMeta } from "@/lib/onboardingIncomePlan";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import {
   buildMatchableBusinessIncomeTransactions,
@@ -126,6 +128,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
   mergeLineageFindings: MergeLineageFinding[];
   linkIssues: LinkIssue[];
   healthcareTreatmentUnsure: string[];
+  onboardingForecast: OnboardingForecastRow[];
 } {
   const [taxMode, setTaxModeRaw] = useTaxModeStore();
 
@@ -712,6 +715,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       return "other";
     };
     const overlapDebug: Array<Record<string, number | string>> = [];
+    const countedCatchups: Array<{ companyId: string; date: string; gross: number }> = [];
     const allTxsForOverlap = transactions || [];
     const catchupBuckets = (ytdCatchups || [])
       .filter((c: YtdCatchupEntry) => c.tax_year === currentYr)
@@ -761,6 +765,12 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
           }
 
           const cGross = Math.max(0, (Number(c.gross_income) || 0) - overlapGross - overlapTxGross);
+          const catchupCompany = c.company_id
+            ? companies.find((co) => co.id === c.company_id)
+            : companies.filter((co) => co.name.trim().toLowerCase() === String(c.company_name || "").trim().toLowerCase());
+          const resolvedCompany = Array.isArray(catchupCompany)
+            ? (catchupCompany.length === 1 ? catchupCompany[0] : undefined) : catchupCompany;
+          if (resolvedCompany) countedCatchups.push({ companyId: resolvedCompany.id, date: c.period_end, gross: cGross });
           const cFedW = Math.max(0, (Number(c.federal_withholding) || 0) - overlapFedW);
           const cStateW = Math.max(0, (Number(c.state_withholding) || 0) - overlapStateW);
           // Payroll pre-tax (Section 125 — health/dental/other). HSA is tracked
@@ -856,7 +866,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
     const buildInput = (
       scope: typeof scopedTaxData.actualOnlyTaxInputs,
       incomeScope: "actualOnly" | "actualPlusPlanned",
-    ): Omit<UnifiedTaxInput, "includeProjectedIncome"> => {
+    ): Omit<UnifiedTaxInput, "includeProjectedIncome"> & { onboardingForecast: OnboardingForecastRow[] } => {
       const incomeEntriesClean = scope.incomeEntries;
       const personal = scope.personalEntries;
 
@@ -1114,7 +1124,9 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       const savedW2Addon =
         incomeScope === "actualPlusPlanned"
           ? computeSavedW2CompanyProjectionAddon({
-              companies: companies.map((c) => ({
+              // Onboarding history has its own bounded forecast path. Do not
+              // restore deleted/stopped plans via the ordinary annual addon.
+              companies: companies.filter((c) => readOnboardingPlanMeta(c.advancedFieldVisibility)?.taxYear !== currentYear).map((c) => ({
                 id: c.id,
                 name: c.name,
                 companyType: c.companyType,
@@ -1128,8 +1140,15 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
               remainingPaychecksFor: (f) => defaultRemainingPaychecks(f || "biweekly"),
             })
           : { futureGross: 0, futureFederalWithheld: 0, perCompany: [] };
-
-
+      const onboardingForecast = incomeScope === "actualPlusPlanned" ? buildOnboardingForecast({
+        companies, streams: streams || [], paychecks: projectedPaychecks, taxYear: currentYear,
+        countedIncome: [
+          ...personal.map((e) => ({ source_id: e.source_id, company: e.company, date: e.income_date, gross: Number(e.paycheck_amount || 0) })),
+          ...selection[incomeScope]?.businessIncomeTransactions.map((t) => ({ source_id: t.source_id, vendor: t.vendor, date: t.transaction_date, gross: Math.abs(Number(t.amount) || 0) })) || [],
+        ],
+        catchups: countedCatchups,
+      }) : [];
+      const onboardingW2Gross = onboardingForecast.reduce((sum, row) => sum + row.historical, 0);
 
       // ─── HSA annual-limit cap ────────────────────────────────────────────
       // Cap the above-the-line HSA deduction so (payroll W-2 HSA + employer +
@@ -1196,8 +1215,11 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       const netInvestmentIncome = Math.max(0, netStockGain + longTermCapitalGains + personalCapGains + personalRental);
 
       return {
+        onboardingForecast,
         spouseW2FicaWages,
-        projectedSpouseW2FicaWages,
+        projectedSpouseW2FicaWages: projectedSpouseW2FicaWages + onboardingForecast.filter((row) =>
+          resolveIncomeEarnerFor({ sourceId: row.companyId, companyName: row.companyName }, earnerCompanies) === "spouse"
+        ).reduce((sum, row) => sum + row.historical, 0),
         netInvestmentIncome,
         businessIncome: businessIncome + cuBizGross,
         seEligibleBusinessIncome: seEligibleBusinessIncome + cu.business.seEligibleGross,
@@ -1261,7 +1283,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         actualEstimatedPaymentsMade: quarterlyPaid,
         taxSavingsSetAside: savingsTotal,
         remainingPayPeriods,
-        projectedW2Income: projTotals.w2Income + savedW2Addon.futureGross,
+        projectedW2Income: projTotals.w2Income + savedW2Addon.futureGross + onboardingW2Gross,
         projectedSEIncome,
         projectedOtherIncome: projTotals.otherIncome + Math.max(0, projTotals.seIncome - projectedSEIncome),
         projectedFederalWithheld: projTotals.federalWithheld + savedW2Addon.futureFederalWithheld,
@@ -1410,5 +1432,6 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
      *  premiums present — the estimate excludes any exemption and needs
      *  the user to confirm the treatment in Settings. */
     healthcareTreatmentUnsure,
+    onboardingForecast: scopedBaseInputs?.includePlannedTaxInputs.onboardingForecast ?? [],
   };
 }
