@@ -113,6 +113,7 @@ export interface OnboardingPlanMeta {
   taxYear: number;
   annual: number;
   ytdEntered: number | null;
+  originalPlan?: { streamId: string; startDate: string; historicalGross: number };
 }
 
 export function readOnboardingPlanMeta(visibility: unknown): OnboardingPlanMeta | null {
@@ -124,6 +125,7 @@ export function readOnboardingPlanMeta(visibility: unknown): OnboardingPlanMeta 
     taxYear: Number(raw.taxYear) || 0,
     annual,
     ytdEntered: raw.ytdEntered == null ? null : Number(raw.ytdEntered),
+    originalPlan: raw.originalPlan,
   };
 }
 
