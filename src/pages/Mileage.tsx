@@ -43,6 +43,7 @@ import {
   annualizeContributionAmount,
   type RetirementContribution,
 } from "@/hooks/useRetirementContributions";
+import { selectableForEntry } from "@/lib/companyClosure";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { useTaxSettings, useUpdateTaxSettings } from "@/hooks/useTaxSettings";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
@@ -182,7 +183,7 @@ export default function Mileage() {
   // ─── Mileage state ───────────────────────────
   const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());
-  const { companies } = useCompanies();
+  const { companies, closedCompanyIds } = useCompanies();
   const { data: monthEntries = [], isLoading } = useMileageEntries(selectedMonth, selectedYear);
   const { data: ytdEntries = [] } = useMileageYTD(selectedYear);
   const addMileage = useAddMileageEntry();
@@ -976,7 +977,7 @@ export default function Mileage() {
                     <Select value={contribForm.company_id} onValueChange={(v) => setContribField("company_id", v)}>
                       <SelectTrigger><SelectValue placeholder="Select company" /></SelectTrigger>
                       <SelectContent>
-                        {companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                        {selectableForEntry(companies, closedCompanyIds, { currentId: contribForm.company_id }).map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                     {contribRequiresCompany && !contribForm.company_id && (
@@ -1515,7 +1516,7 @@ export default function Mileage() {
               <Select value={addCompanyId} onValueChange={setAddCompanyId}>
                 <SelectTrigger><SelectValue placeholder="Select a company" /></SelectTrigger>
                 <SelectContent>
-                  {companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  {selectableForEntry(companies, closedCompanyIds, { currentId: addCompanyId }).map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                   <SelectItem value={UNASSIGNED_COMPANY_VALUE}>Unassigned (no company)</SelectItem>
                 </SelectContent>
               </Select>
@@ -1576,7 +1577,7 @@ export default function Mileage() {
               <Select value={editCompanyId} onValueChange={setEditCompanyId}>
                 <SelectTrigger><SelectValue placeholder="Select a company" /></SelectTrigger>
                 <SelectContent>
-                  {companies.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  {selectableForEntry(companies, closedCompanyIds, { currentId: editCompanyId }).map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                   <SelectItem value={UNASSIGNED_COMPANY_VALUE}>Unassigned (no company)</SelectItem>
                 </SelectContent>
               </Select>

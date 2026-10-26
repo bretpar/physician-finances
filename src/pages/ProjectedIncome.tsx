@@ -413,7 +413,7 @@ export default function ProjectedIncome() {
     amount: number;
     frequency: string;
   } | null>(null);
-  const { companies } = useCompanies();
+  const { companies, closedCompanyIds } = useCompanies();
   const { data: streams, isLoading: streamsLoading } = useProjectedStreams();
   const { data: bonuses, isLoading: bonusesLoading } = useProjectedBonuses();
   const { data: overrides } = useStreamOverrides();
@@ -489,7 +489,7 @@ export default function ProjectedIncome() {
   // Delete flow for occurrences already converted/sent to a ledger.
 
   const num = (v: string) => parseFloat(v) || 0;
-  const companyNames = useMemo(() => companies.map((c) => c.name).sort(), [companies]);
+  const companyNames = useMemo(() => companies.filter((c) => !closedCompanyIds.has(c.id)).map((c) => c.name).sort(), [companies, closedCompanyIds]);
   const userType = deriveUserTypeFromIncomeStreams(taxSettings?.householdIncomeStreams);
   const isW2Only = userType === "W2_ONLY";
   const { featureAccess, can: canFeature } = useFeatureAccess(userType);
