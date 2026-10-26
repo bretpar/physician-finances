@@ -334,6 +334,8 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
           {
             taxYear: year,
             payFrequency: (c.company_id && payFrequencyByCompany.get(c.company_id)) || null,
+            closurePeriods: closureLookup.periods,
+            companyId: c.company_id ?? null,
           },
         ).annual,
         contributionDate: c.contribution_date,
@@ -365,7 +367,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       actualOnly: routingFor("actualOnly"),
       actualPlusPlanned: routingFor("actualPlusPlanned"),
     };
-  }, [retirementContribs, reconciledIncomeEntries, companies, payFrequencyByCompany, todayStr, annualizedRetirement.traditionalIraTotal, annualizedRetirement.rothIraTotal]);
+  }, [retirementContribs, reconciledIncomeEntries, companies, payFrequencyByCompany, todayStr, closureLookup, annualizedRetirement.traditionalIraTotal, annualizedRetirement.rothIraTotal]);
 
   // ── Canonical business income (matches Business Ledger exactly) ──────────
   // The Business Ledger reads `transactions` where status='active'. Tax math

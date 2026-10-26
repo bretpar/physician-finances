@@ -359,6 +359,8 @@ export default function Mileage() {
       annualAmount: annualizeContributionAmount(c, {
         taxYear: currentYear,
         payFrequency: (c.company_id && payFrequencyByCompany.get(c.company_id)) || null,
+        closurePeriods: closureLookup.periods,
+        companyId: c.company_id ?? null,
       }).annual,
       contributionDate: c.contribution_date,
     }));
