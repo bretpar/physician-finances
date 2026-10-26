@@ -1,5 +1,5 @@
 import { isDeveloper } from "@/lib/roles";
-import { getTodayLocalDateString, formatDate } from "@/lib/localDate";
+import { getTodayLocalDateString } from "@/lib/localDate";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -1879,7 +1879,7 @@ function CompaniesSection() {
                     <div key={c.id} className="flex items-center gap-3 px-4 py-3" data-testid="settings-closed-company-row">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-foreground truncate">{c.name}</p>
-                        <p className="text-xs text-muted-foreground">Closed {period ? formatDate(period.closedOn) : ""}</p>
+                        <p className="text-xs text-muted-foreground">Closed {period ? formatDateDisplay(period.closedOn) : ""}</p>
                       </div>
                       <Button
                         variant="outline"
