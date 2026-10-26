@@ -33,6 +33,9 @@ import {
   type IncomeProfileType,
   type UserOnboardingSettings,
 } from "@/lib/onboarding";
+import { buildOnboardingIncomePlan, plannerScheduleFor, ONBOARDING_PLAN_KEY, type OnboardingPlanMeta } from "@/lib/onboardingIncomePlan";
+import { buildProjectedIncomeStreamInsert } from "@/hooks/useProjectedIncome";
+import { getTodayLocalDateString } from "@/lib/localDate";
 
 // Step 3 is the required Free vs Premium plan-selection step.
 const TOTAL_STEPS = 3;
@@ -150,6 +153,19 @@ export default function Onboarding() {
   const [localSavedCatchups, setLocalSavedCatchups] = useState(0);
   const catchupFormRef = useRef<HTMLDivElement | null>(null);
   const filingStatusRef = useRef<UserOnboardingSettings["filingStatus"]>("single");
+  const [planReady, setPlanReady] = useState(false);
+  const planCreatedRef = useRef(false);
+  const [incomeKinds, setIncomeKinds] = useState<{ w2: boolean; form1099: boolean; k1: boolean; other: boolean }>({ w2: true, form1099: true, k1: false, other: false });
+  // Reflect the saved profile once, so resumed sessions show the right picks.
+  const kindsHydratedRef = useRef(false);
+  useEffect(() => {
+    if (kindsHydratedRef.current || !taxSettings) return;
+    kindsHydratedRef.current = true;
+    const p = taxSettings.incomeProfileType;
+    if (!p) return;
+    const other = (taxSettings.enabledPersonalIncomeTypes || []).includes("other");
+    setIncomeKinds({ w2: p !== "business_only", form1099: p !== "w2_only", k1: p === "business_only", other });
+  }, [taxSettings]);
 
   const settingsId = taxSettings?.id;
   const merged = useMemo(() => taxSettings ? {
@@ -256,8 +272,14 @@ export default function Onboarding() {
       for (const c of fromCompanies) byName.set(c.name.trim().toLowerCase(), c);
       const hydrated = Array.from(byName.values());
       if (hydrated.length > 0) return hydrated;
-      // No saved sources anywhere — only now is it safe to seed a blank row.
-      return [{ name: "", type: allowed[0], description: "" }];
+      // No saved sources anywhere — only now is it safe to seed blank rows,
+      // one per income type picked on screen 1.
+      const picked: OnboardingCompanyType[] = [];
+      if (incomeKinds.w2 && allowed.includes("w2")) picked.push("w2");
+      if (incomeKinds.form1099 && allowed.includes("1099")) picked.push("1099");
+      if (incomeKinds.k1 && allowed.includes("k1")) picked.push("k1");
+      const types = picked.length > 0 ? picked : [allowed[0]];
+      return types.map((type) => ({ name: "", type, description: "" }));
     });
   }, [step, catchupSubStep, merged.incomeProfileType, existingCatchups, existingCompanies, catchupsLoading, companiesLoading, user]);
 
@@ -287,7 +309,7 @@ export default function Onboarding() {
   // onboarding_complete=true). Keep the user on the onboarding screen until
   // the orchestrated submit finishes and explicitly navigates.
   if (!authLoading && !user && !saving) return <Navigate to="/login" replace />;
-  if (user && !saving && taxSettings?.onboardingComplete === true) return <Navigate to="/" replace />;
+  if (user && !saving && !planReady && taxSettings?.onboardingComplete === true) return <Navigate to="/" replace />;
 
 
   const patch = (updates: Partial<UserOnboardingSettings>) => setDraft((current) => ({ ...current, ...updates }));
@@ -356,16 +378,25 @@ export default function Onboarding() {
     if (settingsId) await persist({ onboardingStep: nextStep }, "goBack");
   };
 
-  const selectIncomeProfile = (incomeProfileType: IncomeProfileType) => {
+  const selectIncomeProfile = (incomeProfileType: IncomeProfileType, otherIncome = incomeKinds.other) => {
     const allowed = getAllowedCompanyTypes(incomeProfileType);
     patch({
       incomeProfileType,
       enabledIncomeSources: incomeProfileToSources(incomeProfileType),
       taxRecommendationMethod: "dynamic_actual",
       deductionStrategy: "standard",
-      enabledPersonalIncomeTypes: [],
+      enabledPersonalIncomeTypes: otherIncome ? ["other"] : [],
     });
     setCompanyDrafts((current) => current.map((company) => allowed.includes(company.type) ? company : { ...company, type: allowed[0] }));
+  };
+
+  // Screen 1 multi-select → existing income profile (W-2 / business / both).
+  const toggleIncomeKind = (kind: keyof typeof incomeKinds) => {
+    const next = { ...incomeKinds, [kind]: !incomeKinds[kind] };
+    setIncomeKinds(next);
+    const hasBiz = next.form1099 || next.k1;
+    const profile: IncomeProfileType = next.w2 && hasBiz ? "w2_plus_business" : hasBiz ? "business_only" : "w2_only";
+    selectIncomeProfile(profile, next.other);
   };
 
   const selectFilingStatus = async (filingStatus: UserOnboardingSettings["filingStatus"]) => {
@@ -513,6 +544,9 @@ export default function Onboarding() {
           // reflects what the UI shows (the selector defaults to You).
           patch.employee_role = company.employeeRole || "primary";
         }
+        if (Number(company.projectedAnnualGross) > 0) {
+          patch.projected_annual_gross = Number(company.projectedAnnualGross);
+        }
         if (Object.keys(patch).length > 0) toUpdate.push({ id: existingRow.id, patch });
       } else {
         toInsert.push(row);
@@ -532,6 +566,83 @@ export default function Onboarding() {
     // unambiguously and propagates the K-1 company_type onto the mirrors).
     try { await backfillYtdCatchupCompanies(); } catch (e) { console.warn("[onboarding] backfill ytd catch-up failed", e); }
   }
+
+  /**
+   * Create one Income Planner stream per company that has an expected annual
+   * amount, starting today. Skips companies that already have an active
+   * Planner stream (explicit plans win). Never writes ledger rows,
+   * paychecks, or withholding. Returns true when at least one plan exists.
+   */
+  async function createOnboardingIncomePlan(): Promise<boolean> {
+    if (!user) return false;
+    const drafts = companyDrafts.filter((c) => c.name.trim() && Number(c.projectedAnnualGross) > 0);
+    if (drafts.length === 0) return false;
+    const today = getTodayLocalDateString();
+    const taxYear = Number(today.slice(0, 4));
+    const orgId = await getUserOrgId();
+    const { data: comps, error } = await supabase
+      .from("companies")
+      .select("id, name, company_type, pay_frequency, employee_role, advanced_field_visibility")
+      .eq("user_id", user.id)
+      .is("archived_at", null);
+    if (error) throw error;
+    const { data: existingStreams } = await supabase
+      .from("projected_income_streams")
+      .select("id, source_id, company, is_active")
+      .eq("user_id", user.id);
+    const norm = (s: string) => String(s || "").trim().toLowerCase();
+    let any = false;
+    for (const d of drafts) {
+      const comp = ((comps || []) as any[]).find((c) => norm(c.name) === norm(d.name));
+      if (!comp) continue;
+      const covered = ((existingStreams || []) as any[]).some(
+        (s) => s.is_active && (s.source_id === comp.id || norm(s.company) === norm(d.name)),
+      );
+      if (covered) { any = true; continue; }
+      const plan = buildOnboardingIncomePlan({
+        annual: Number(d.projectedAnnualGross),
+        ytd: d.ytdIncome ?? null,
+        payFrequency: d.type === "w2" ? (d.payFrequency || comp.pay_frequency) : null,
+        today,
+      });
+      if (!plan || plan.occurrences === 0) continue;
+      const companyType = d.type === "w2" ? "w2" : d.type === "k1" ? "k1" : "1099";
+      const subtype = d.type === "w2"
+        ? ((d.employeeRole || comp.employee_role) === "spouse" ? "w2_partner" : "w2_user")
+        : d.type === "k1" ? "k1_partnership" : "1099_schedule_c";
+      const periods = plannerScheduleFor(d.type === "w2" ? (d.payFrequency || comp.pay_frequency) : null).periodsPerYear;
+      const expensePerPeriod = d.type === "1099" && Number(d.annualExpenses) > 0
+        ? Math.round((Number(d.annualExpenses) / periods) * 100) / 100
+        : 0;
+      const { error: insErr } = await supabase.from("projected_income_streams").insert(
+        buildProjectedIncomeStreamInsert({
+          company: comp.name,
+          company_type: companyType,
+          source_id: comp.id,
+          ui_income_subtype: subtype,
+          pay_frequency: plan.plannerFrequency,
+          custom_interval_days: plan.customIntervalDays,
+          start_date: plan.startDate,
+          end_date: plan.endDate,
+          paycheck_amount: plan.perOccurrence,
+          forecast_expense_per_period: expensePerPeriod,
+          forecast_expense_notes: expensePerPeriod > 0 ? "Estimated from onboarding" : "",
+          notes: "Estimated from your expected annual income during setup.",
+        }, user.id, orgId) as any,
+      );
+      if (insErr) { console.warn("[onboarding] plan stream insert failed", insErr); continue; }
+      const meta: OnboardingPlanMeta = { taxYear, annual: Number(d.projectedAnnualGross), ytdEntered: d.ytdIncome ?? null };
+      await supabase.from("companies").update({
+        projected_annual_gross: Number(d.projectedAnnualGross),
+        advanced_field_visibility: { ...((comp.advanced_field_visibility as any) || {}), [ONBOARDING_PLAN_KEY]: meta },
+      } as any).eq("id", comp.id);
+      any = true;
+    }
+    if (any) qc.invalidateQueries({ queryKey: ["projected_income_streams"] });
+    return any;
+  }
+
+
 
 
   async function persist(partial: Partial<UserOnboardingSettings> = {}, context = "onboarding") {
@@ -639,15 +750,13 @@ export default function Onboarding() {
         return;
       }
       if (catchupSubStep === "ask") {
-        if (!catchupChoice) {
-          toast.error("Pick an option to continue.");
-          return;
+        // YTD amounts are optional; blank = estimate from the time of year.
+        const anyYtd = companyDrafts.some((c) => c.name.trim() && c.ytdIncome != null);
+        const choice = anyYtd ? "yes" : "skip";
+        patch({ ytdCatchupChoice: choice });
+        if (settingsId) {
+          try { await persist({ ytdCatchupChoice: choice }, "ytd-simple-continue"); } catch (e) { console.warn("[onboarding] could not persist ytd choice", e); }
         }
-        if (catchupChoice === "yes") {
-          setCatchupSubStep("form");
-          return;
-        }
-        // "no" or "skip" → continue to the required plan-selection step.
         await goToPlanStep();
         return;
       }
@@ -761,13 +870,17 @@ export default function Onboarding() {
     sessionStorage.removeItem(CATCHUP_SUBSTEP_KEY);
     sessionStorage.removeItem(PLAN_CHOICE_KEY);
     console.info("[onboarding] completion:success", { settingsId: id, selectedPlan });
-    toast.success("Onboarding complete!");
     let destination = "/";
     try {
       destination = sessionStorage.getItem(PENDING_DESTINATION_KEY) || "/";
       sessionStorage.removeItem(PENDING_DESTINATION_KEY);
       sessionStorage.removeItem("paycheckmd-onboarding-start");
     } catch { /* non-fatal */ }
+    if (planCreatedRef.current) {
+      setPlanReady(true);
+      return;
+    }
+    toast.success("Onboarding complete!");
     navigate(destination, { replace: true });
   }
 
@@ -853,6 +966,13 @@ export default function Onboarding() {
           );
           return;
         }
+      }
+
+      // 2b. Seed the Income Planner from annual estimates (non-blocking).
+      try {
+        planCreatedRef.current = await createOnboardingIncomePlan();
+      } catch (planErr) {
+        console.warn("[onboarding] income plan seeding failed", planErr);
       }
 
       // 3. Persist the Household Income Profile + onboarding flag as the
@@ -1051,6 +1171,26 @@ export default function Onboarding() {
     );
   }
 
+  if (planReady) {
+    return (
+      <main data-testid="onboarding-plan-ready" className="min-h-screen bg-background px-4 py-6 sm:py-10">
+        <Card className="mx-auto w-full max-w-lg">
+          <CardContent className="space-y-5 p-5 sm:p-8">
+            <BrandLogo className="h-10 w-10 rounded-xl" />
+            <div>
+              <h1 className="text-2xl font-semibold text-foreground">Your income plan is ready.</h1>
+              <p className="mt-2 text-sm text-muted-foreground">Based on your expected annual income, we've estimated your monthly earnings. Add a paycheck or year-to-date tax withholding anytime to improve accuracy.</p>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button className="flex-1" data-testid="onboarding-go-planner" onClick={() => navigate("/projected-income", { replace: true })}>Go to Income Planner</Button>
+              <Button className="flex-1" variant="outline" data-testid="onboarding-add-paycheck" onClick={() => navigate("/personal-income", { replace: true })}>Add a Paycheck</Button>
+            </div>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
   return (
     <main data-testid="onboarding-root" className="min-h-screen bg-background px-4 py-6 sm:py-10">
 
@@ -1084,10 +1224,15 @@ export default function Onboarding() {
                 <Label htmlFor="onboarding-first-name">First name <span className="text-xs text-muted-foreground">(optional)</span></Label>
                 <Input id="onboarding-first-name" data-testid="onboarding-first-name-input" autoComplete="given-name" value={merged.firstName} onChange={(e) => patch({ firstName: e.target.value })} placeholder="Alex" />
               </div>
-              <div className="grid gap-3">
-                <div data-testid="onboarding-income-type-w2"><SelectCard selected={merged.incomeProfileType === "w2_only"} title="W-2 only" description="Employee paycheck income with taxes withheld by payroll." onClick={() => selectIncomeProfile("w2_only")} /></div>
-                <div data-testid="onboarding-income-type-w2-1099"><SelectCard selected={merged.incomeProfileType === "w2_plus_business"} title="W-2 + business income" description="Paychecks plus 1099, K-1, contractor, partnership, or side income." onClick={() => selectIncomeProfile("w2_plus_business")} /></div>
-                <div data-testid="onboarding-income-type-1099"><SelectCard selected={merged.incomeProfileType === "business_only"} title="Business income only" description="1099, K-1, contractor, partnership, or self-employed income." onClick={() => selectIncomeProfile("business_only")} /></div>
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-foreground">How do you earn your income?</p>
+                <p className="text-xs text-muted-foreground">Select all that apply.</p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div data-testid="onboarding-income-type-w2"><SelectCard selected={incomeKinds.w2} title="W-2 Employment" description="Employee paychecks with taxes withheld by payroll." onClick={() => toggleIncomeKind("w2")} /></div>
+                  <div data-testid="onboarding-income-type-1099"><SelectCard selected={incomeKinds.form1099} title="1099 / Self-Employed" description="Contractor, locums, or self-employed income." onClick={() => toggleIncomeKind("form1099")} /></div>
+                  <div data-testid="onboarding-income-type-k1"><SelectCard selected={incomeKinds.k1} title="K-1 / Partnership" description="Partnership or practice-owner income." onClick={() => toggleIncomeKind("k1")} /></div>
+                  <div data-testid="onboarding-income-type-other"><SelectCard selected={incomeKinds.other} title="Other Income" description="Investments, rental, or other income." onClick={() => toggleIncomeKind("other")} /></div>
+                </div>
               </div>
               <div data-testid="onboarding-filing-status">
                 <Label htmlFor="onboarding-filing-status-select">Filing status</Label>
@@ -1111,16 +1256,41 @@ export default function Onboarding() {
           )}
 
           {step === 2 && catchupSubStep === "ask" && (
-            <div className="space-y-5">
+            <div className="space-y-5" data-testid="onboarding-ytd-simple">
               <div>
-                <h1 className="text-2xl font-semibold text-foreground">Have you already earned income this year?</h1>
-                <p className="mt-1 text-sm text-muted-foreground">If you started using PaycheckMD partway through the year, add your year-to-date paystub so recommendations stay accurate.</p>
+                <h1 className="text-2xl font-semibold text-foreground">Approximately how much have you earned so far this year?</h1>
+                <p className="mt-1 text-sm text-muted-foreground">This helps us improve your income and tax estimates. Don't know? Skip this and we'll estimate based on the time of year.</p>
               </div>
-              <div className="grid gap-3">
-                <div data-testid="onboarding-ytd-yes"><SelectCard selected={catchupChoice === "yes"} title="Catch up my year-to-date income" description="Enter year-to-date income and withholdings from your most recent paystub or business records." onClick={async () => { patch({ ytdCatchupChoice: "yes" }); if (settingsId) await persist({ ytdCatchupChoice: "yes" }); }} /></div>
-                <div data-testid="onboarding-ytd-no"><SelectCard selected={catchupChoice === "no"} title="Start fresh from today" description="I haven’t earned income this year yet, or I’ll only track from now on." onClick={async () => { patch({ ytdCatchupChoice: "no" }); if (settingsId) await persist({ ytdCatchupChoice: "no" }); }} /></div>
-                <div data-testid="onboarding-ytd-skip"><SelectCard selected={catchupChoice === "skip"} title="Skip for now" description="I’ll add this later from the Income tab." onClick={async () => { patch({ ytdCatchupChoice: "skip" }); if (settingsId) await persist({ ytdCatchupChoice: "skip" }); }} /></div>
+              <div className="space-y-3">
+                {companyDrafts.filter((c) => c.name.trim()).map((company) => {
+                  const index = companyDrafts.indexOf(company);
+                  const label = company.type === "w2" ? "Gross pay so far" : company.type === "k1" ? "Taxable income so far" : "Gross revenue so far";
+                  return (
+                    <div key={index} className="grid gap-2 rounded-lg border border-border p-3 sm:grid-cols-[1fr_200px] sm:items-center">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-foreground">{company.name}</p>
+                        <p className="text-xs text-muted-foreground">{label} <span>(optional)</span></p>
+                      </div>
+                      <Input
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        aria-label={`${company.name} ${label}`}
+                        data-testid={`onboarding-ytd-amount-${index}`}
+                        placeholder="Leave blank to estimate"
+                        value={company.ytdIncome ?? ""}
+                        onChange={(e) => updateCompanyDraft(index, { ytdIncome: e.target.value === "" ? null : Math.max(0, Number(e.target.value) || 0) })}
+                      />
+                    </div>
+                  );
+                })}
               </div>
+              <p className="text-xs text-muted-foreground">
+                No pay stubs or withholding needed. Have a paystub handy?{" "}
+                <button type="button" className="font-medium text-primary underline-offset-2 hover:underline" onClick={async () => { patch({ ytdCatchupChoice: "yes" }); if (settingsId) await persist({ ytdCatchupChoice: "yes" }); setCatchupSubStep("form"); }}>
+                  Enter detailed year-to-date totals instead
+                </button>
+              </p>
             </div>
           )}
 
@@ -1294,9 +1464,6 @@ export default function Onboarding() {
                             </Select>
                           </div>
                         )}
-                        <p className="mt-2 text-xs text-muted-foreground">
-                          You can add projected annual income, expected paycheck amount, and expected federal withholding in Settings → W-2 Employers.
-                        </p>
                       </>
                     )}
                     {company.type === "k1" && (
@@ -1324,6 +1491,37 @@ export default function Onboarding() {
                         </Select>
                       </div>
                     )}
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <Label htmlFor={`company-annual-${index}`}>
+                          {company.type === "w2" ? "Expected annual gross income" : company.type === "k1" ? "Estimated annual taxable partnership income" : "Expected annual gross revenue"}
+                        </Label>
+                        <Input
+                          id={`company-annual-${index}`}
+                          data-testid={`onboarding-annual-income-${index}`}
+                          type="number"
+                          inputMode="decimal"
+                          min={0}
+                          placeholder="e.g. 300000"
+                          value={company.projectedAnnualGross ?? ""}
+                          onChange={(e) => updateCompanyDraft(index, { projectedAnnualGross: e.target.value === "" ? null : Math.max(0, Number(e.target.value) || 0) })}
+                        />
+                      </div>
+                      {company.type === "1099" && (
+                        <div>
+                          <Label htmlFor={`company-expenses-${index}`}>Estimated annual business expenses <span className="text-xs text-muted-foreground">(optional)</span></Label>
+                          <Input
+                            id={`company-expenses-${index}`}
+                            data-testid={`onboarding-annual-expenses-${index}`}
+                            type="number"
+                            inputMode="decimal"
+                            min={0}
+                            value={company.annualExpenses ?? ""}
+                            onChange={(e) => updateCompanyDraft(index, { annualExpenses: e.target.value === "" ? null : Math.max(0, Number(e.target.value) || 0) })}
+                          />
+                        </div>
+                      )}
+                    </div>
                     <div className="mt-3 flex justify-end"><Button type="button" variant="ghost" size="sm" onClick={() => removeCompanyDraft(index)}>Remove</Button></div>
 
                   </div>
