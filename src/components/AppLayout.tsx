@@ -114,12 +114,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   // Entitlement controls visibility. The user preference only configures the
   // planner after an eligible user opens it; it must not hide the entry point.
   const showStudentLoansNav = can("studentLoanPlanner");
-  const visibleNavItems = navItems.filter((item) => {
-    if (item.module === "business") return showBusinessNav;
-    if (item.module === "investment") return showInvestmentNav;
-    if (item.module === "student_loans") return showStudentLoansNav;
-    return true;
-  });
 
   useEffect(() => {
     const el = scrollRef.current;
