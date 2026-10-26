@@ -12,6 +12,7 @@ import {
   useUpdatePlaidAccount,
   useBulkApplyAccountBusiness,
 } from "@/hooks/usePlaid";
+import { selectableForEntry } from "@/lib/companyClosure";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { formatDateTime } from "@/lib/localDate";
 import {
@@ -43,7 +44,7 @@ import {
 export default function Accounts() {
   const { data: plaidItems = [], isLoading } = usePlaidItems();
   const { data: plaidAccounts = [] } = usePlaidAccounts();
-  const { companies } = useCompanies();
+  const { companies, closedCompanyIds } = useCompanies();
   const syncMutation = useSyncTransactions();
   const disconnectMutation = useDisconnectPlaidItem();
   const updateAccountMutation = useUpdatePlaidAccount();
@@ -557,7 +558,7 @@ export default function Accounts() {
                     <SelectValue placeholder="Select a business..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {companies.map((c) => (
+                    {selectableForEntry(companies, closedCompanyIds, { currentId: editCompanyId }).map((c) => (
                       <SelectItem key={c.id} value={c.id}>
                         {c.name}
                       </SelectItem>

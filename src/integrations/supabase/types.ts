@@ -106,6 +106,54 @@ export type Database = {
           },
         ]
       }
+      company_closure_periods: {
+        Row: {
+          closed_on: string
+          company_id: string
+          created_at: string
+          id: string
+          organization_id: string | null
+          reopened_on: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          closed_on: string
+          company_id: string
+          created_at?: string
+          id?: string
+          organization_id?: string | null
+          reopened_on?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          closed_on?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          organization_id?: string | null
+          reopened_on?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_closure_periods_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_closure_periods_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       feature_access_overrides: {
         Row: {
           access_level: string
@@ -2587,9 +2635,14 @@ export type Database = {
         Args: { _user_id?: string }
         Returns: Json
       }
+      can_access_company: { Args: { _company_id: string }; Returns: boolean }
       cleanup_conflicting_transaction_links: {
         Args: { _user_id?: string }
         Returns: Json
+      }
+      close_company: {
+        Args: { _closed_on: string; _company_id: string }
+        Returns: string
       }
       get_feature_access_overrides: {
         Args: never
@@ -2633,6 +2686,10 @@ export type Database = {
         Returns: boolean
       }
       link_group_is_active: { Args: { _group_id: string }; Returns: boolean }
+      reopen_company: {
+        Args: { _company_id: string; _reopened_on: string }
+        Returns: string
+      }
       repair_stale_link_group: { Args: { _group_id: string }; Returns: boolean }
       repair_stale_links_for_transactions: {
         Args: { _tx_ids: string[] }

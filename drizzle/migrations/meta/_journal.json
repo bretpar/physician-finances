@@ -15,6 +15,13 @@
       "when": 1792125589437,
       "tag": "0001_link_review_dismissals",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793016785773,
+      "tag": "0002_company_closure_periods",
+      "breakpoints": true
     }
   ]
 }

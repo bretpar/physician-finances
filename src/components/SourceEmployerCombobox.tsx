@@ -63,6 +63,10 @@ export function SourceEmployerCombobox({
 
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  // Closed companies are hidden unless deliberately requested (late payments)
+  // or already linked to the entry being edited.
+  const [showClosed, setShowClosed] = useState(false);
+  const hasClosed = sources.some((s) => s.closed && s.id !== sourceId);
   const [otherMode, setOtherMode] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const otherInputRef = useRef<HTMLInputElement>(null);
@@ -103,6 +107,7 @@ export function SourceEmployerCombobox({
       return n.length > 0 || nick.length > 0;
     });
     const filtered = named.filter((s) => {
+      if (s.closed && !showClosed && s.id !== sourceId) return false;
       if (!q) return true;
       const n = (s.name || "").toLowerCase();
       const nick = (s.nickname || "").toLowerCase();
@@ -125,7 +130,7 @@ export function SourceEmployerCombobox({
       });
     }
     return { personalSources: personal, businessSources: business };
-  }, [sources, search]);
+  }, [sources, search, showClosed, sourceId]);
 
   useEffect(() => {
     if (open) {
@@ -332,7 +337,7 @@ export function SourceEmployerCombobox({
                       )}
                     </span>
                     <span className="text-[10px] text-muted-foreground shrink-0">
-                      {SOURCE_KIND_LABEL[s.source_kind] || s.source_kind}
+                      {s.closed ? "Closed · " : ""}{SOURCE_KIND_LABEL[s.source_kind] || s.source_kind}
                     </span>
                   </button>
                 ))}
@@ -364,11 +369,21 @@ export function SourceEmployerCombobox({
                       )}
                     </span>
                     <span className="text-[10px] text-muted-foreground shrink-0">
-                      {SOURCE_KIND_LABEL[s.source_kind] || s.source_kind}
+                      {s.closed ? "Closed · " : ""}{SOURCE_KIND_LABEL[s.source_kind] || s.source_kind}
                     </span>
                   </button>
                 ))}
               </>
+            )}
+            {hasClosed && (
+              <button
+                type="button"
+                data-testid="paycheck-employer-show-closed"
+                onClick={() => setShowClosed((v) => !v)}
+                className="w-full rounded-md px-2 py-1.5 text-left text-xs text-primary hover:bg-muted/60"
+              >
+                {showClosed ? "Hide closed companies" : "Show closed companies (late payment)"}
+              </button>
             )}
             <div className="my-1 border-t border-border" />
             <button
