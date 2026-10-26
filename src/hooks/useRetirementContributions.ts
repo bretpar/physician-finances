@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
+import { openSegments, type ClosurePeriod } from "@/lib/companyClosure";
 import { useMemo } from "react";
 import { annualizeRetirementContribution } from "@/lib/retirementOpportunityEngine";
 
@@ -237,8 +238,29 @@ export function annualizeContributionAmount(
     end_date?: string | null;
     contribution_date?: string | null;
   },
-  opts?: { taxYear?: number; payFrequency?: string | null },
+  opts?: { taxYear?: number; payFrequency?: string | null; closurePeriods?: ClosurePeriod[]; companyId?: string | null },
 ): { annual: number; perPaycheck: number; occurrences: number; usedFallback: boolean } {
+  // Company closure: a recurring schedule only runs on the company's open
+  // segments of the tax year. Saved schedule itself is never changed.
+  const year = opts?.taxYear ?? new Date().getFullYear();
+  const closures = opts?.closurePeriods;
+  if (c.frequency !== "one_time" && opts?.companyId && closures?.some((p) => p.companyId === opts.companyId)) {
+    const yStart = `${year}-01-01`, yEnd = `${year}-12-31`;
+    const from = c.start_date && c.start_date > yStart ? c.start_date : yStart;
+    const to = c.end_date && c.end_date < yEnd ? c.end_date : yEnd;
+    let annual = 0, occurrences = 0, perPaycheck = 0, usedFallback = false;
+    if (from <= to) {
+      for (const seg of openSegments(closures, opts.companyId, from, to)) {
+        const r = annualizeRetirementContribution({
+          amount: c.contribution_amount, frequency: c.frequency, taxYear: year,
+          payFrequency: opts?.payFrequency ?? null, startDate: seg.start, endDate: seg.end,
+          contributionDate: c.contribution_date ?? null,
+        });
+        annual += r.annual; occurrences += r.occurrences; perPaycheck = r.perPeriod; usedFallback = usedFallback || r.usedFallback;
+      }
+    }
+    return { annual, perPaycheck, occurrences, usedFallback };
+  }
   const r = annualizeRetirementContribution({
     amount: c.contribution_amount,
     frequency: c.frequency,
@@ -262,6 +284,8 @@ export function useAnnualizedContributions(
   taxYear?: number,
   /** company_id → pay frequency, so per-paycheck rows use the real schedule. */
   payFrequencyByCompany?: Map<string, string | null>,
+  /** Company closure periods; recurring rows skip closed segments. */
+  closurePeriods?: ClosurePeriod[],
 ): AnnualizedContributions {
   return useMemo(() => {
     const empty: AnnualizedContributions = {
@@ -290,6 +314,8 @@ export function useAnnualizedContributions(
       const { annual, perPaycheck } = annualizeContributionAmount(c, {
         taxYear: year,
         payFrequency: (c.company_id && payFrequencyByCompany?.get(c.company_id)) || null,
+        closurePeriods,
+        companyId: c.company_id ?? null,
       });
       if (annual <= 0) continue;
       const type = c.contribution_type || "employee";
