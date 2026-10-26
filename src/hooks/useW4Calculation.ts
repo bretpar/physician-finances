@@ -525,7 +525,7 @@ export function useW4Calculation(): W4CalculationResult {
           ytd.paycheckCount > 0 && ytd.gross > 0 ? ytd.gross / ytd.paycheckCount : null,
       };
     });
-  }, [sourceRows, companyByEmployerKey, ytdByEmployerKey]);
+  }, [sourceRows, companyByEmployerKey, ytdByEmployerKey, closureLookup]);
 
   const totalRemainingW2Gross = effectiveRows.reduce((s, r) => s + r.remainingGross, 0);
 
