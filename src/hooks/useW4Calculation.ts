@@ -1,6 +1,4 @@
 /**
-import { closureWindowForYear } from "@/lib/companyClosure";
-import { getTodayLocalDateString } from "@/lib/localDate";
  * useW4Calculation
  *
  * Shared W-4 annual gap calculation. Extracted from W4PaycheckAdjustmentCard
@@ -13,6 +11,8 @@ import { getTodayLocalDateString } from "@/lib/localDate";
  * `remainingW4Gap` (= floored at 0), and `totalExtraThroughYearEnd` that the
  * W-4 card already shows; PersonalIncome only consumes the summary fields.
  */
+import { closureWindowForYear } from "@/lib/companyClosure";
+import { getTodayLocalDateString } from "@/lib/localDate";
 import { useEffect, useMemo, useState } from "react";
 import { useTaxEstimate } from "@/hooks/useTaxEstimate";
 import { useTaxSettings } from "@/hooks/useTaxSettings";
