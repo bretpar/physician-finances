@@ -1,4 +1,6 @@
 /**
+import { closureWindowForYear } from "@/lib/companyClosure";
+import { getTodayLocalDateString } from "@/lib/localDate";
  * useW4Calculation
  *
  * Shared W-4 annual gap calculation. Extracted from W4PaycheckAdjustmentCard
@@ -120,7 +122,7 @@ export function useW4Calculation(): W4CalculationResult {
   const { data: plannerConversions } = usePlannerConversions();
   const { data: incomeEntries } = useIncomeEntries();
   const { data: transactions } = useTransactions();
-  const { companies, closureLookup, closedCompanyIds } = useCompanies();
+  const { companies, closureLookup } = useCompanies();
 
   // The annual estimate selected by the user's withholding method. Single
   // source for BOTH the canonical allocation and every rate below.
@@ -418,9 +420,18 @@ export function useW4Calculation(): W4CalculationResult {
       else if (detectedPaychecks > 0 && !settings?.payFrequency) autoPaychecks = detectedPaychecks;
       else autoPaychecks = defaultRemainingPaychecks(frequency);
 
-      const remainingPaychecks = settings?.remainingOverride != null
+      // Company closure: saved-target / YTD-average projections only cover the
+      // company's open days left this year (stream-based ones are already
+      // closure-filtered by the generator).
+      const closureWin = settings?.id && !hasRecurringPlannerStream
+        ? closureWindowForYear(closureLookup.periods, settings.id, getTodayLocalDateString(), new Date().getFullYear())
+        : null;
+      const baseRemainingPaychecks = settings?.remainingOverride != null
         ? Math.max(0, Math.floor(settings.remainingOverride))
         : autoPaychecks;
+      const remainingPaychecks = closureWin
+        ? (closureWin.remainingDays > 0 ? Math.floor((baseRemainingPaychecks * closureWin.openRemainingDays) / closureWin.remainingDays) : 0)
+        : baseRemainingPaychecks;
 
       const savedAnnualGross = hasRecurringPlannerStream ? null : (settings?.projectedAnnualGross ?? null);
       const savedFedPerPaycheck = hasRecurringPlannerStream ? null : (settings?.expectedFederalWithholdingPerPaycheck ?? null);
@@ -436,7 +447,10 @@ export function useW4Calculation(): W4CalculationResult {
       let remainingGross: number;
       let expectedNormalWithholding: number;
 
-      if (savedAnnualGross != null) remainingGross = Math.max(0, savedAnnualGross - ytd.gross);
+      if (savedAnnualGross != null) {
+        remainingGross = Math.max(0, savedAnnualGross - ytd.gross);
+        if (closureWin) remainingGross = Math.min(remainingGross, (savedAnnualGross * closureWin.openRemainingDays) / Math.max(1, closureWin.yearDays));
+      }
       else if (isYtdFallback) remainingGross = ((r as any).__ytdAvgGross || 0) * remainingPaychecks;
       else {
         const ratio = detectedPaychecks > 0 ? remainingPaychecks / detectedPaychecks : 0;
