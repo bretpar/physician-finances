@@ -4,6 +4,6 @@
 - [x] Resolve both monitoring findings after verification.
 
 # Simplified onboarding forecast
-- [ ] Integrate historical estimates into shared forecast with edit-safe provenance.
-- [ ] Recognize detailed YTD before creating plans and reuse shared Planner breakdown.
+- [x] Integrate W-2 historical estimates into shared forecast with edit-safe provenance; business history deliberately deferred without expense provenance.
+- [x] Recognize detailed YTD before creating plans and reuse shared Planner breakdown.
 - [ ] Run focused onboarding forecast tests; no browser QA or publishing.

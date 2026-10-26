@@ -81,12 +81,27 @@ describe("shared onboarding forecast inputs", () => {
       txActualWithholding: 0, actualEstimatedPaymentsMade: 0, taxSavingsSetAside: 0, remainingPayPeriods: 3,
       projectedW2Income: row.planned + row.historical, projectedSEIncome: 0, projectedOtherIncome: 0,
       projectedFederalWithheld: 0, projectedStateWithheld: 0, projectedPreTax: 0, projectedRetirement: 0,
-      projectedHealthInsuranceDeduction: 0, filingStatus: "single", includeProjectedIncome: true,
+      projectedHealthInsuranceDeduction: 0, filingStatus: "single", lastYearTax: 0, ssWageCap: 184500, includeProjectedIncome: true,
     };
     const result = computeUnifiedTaxEstimate(input);
     expect(result.debug.totalGrossIncome).toBe(120000);
     expect(result.debug.countedCreditsTotal).toBe(0);
     expect(result.debug.totalEstimatedTax).toBeGreaterThan(computeUnifiedTaxEstimate({ ...input, projectedW2Income: 30000 }).debug.totalEstimatedTax);
     expect(computeUnifiedTaxEstimate({ ...input, includeProjectedIncome: false }).debug.totalGrossIncome).toBe(0);
+  });
+  it("recognizes an intact legacy plan but never fills a modified legacy plan", () => {
+    const legacyCompany = { ...company, payFrequency: "monthly", advancedFieldVisibility: { onboarding_income_plan: { taxYear: 2026, annual: 120000, ytdEntered: null } } };
+    const original = { ...stream, notes: "Estimated from your expected annual income during setup." };
+    const run = (s: ProjectedIncomeStream) => buildOnboardingForecast({ companies: [legacyCompany], streams: [s], paychecks: generateProjectedPaychecks([s], []), countedIncome: [], catchups: [], taxYear: 2026 });
+    expect(run(original)[0].total).toBe(120000);
+    expect(run({ ...original, paycheck_amount: 5000 })).toEqual([]);
+  });
+  it("does not change non-onboarding, wrong-year, or deferred business forecasts", () => {
+    for (const c of [
+      { ...company, advancedFieldVisibility: {} },
+      { ...company, companyType: "1099_schedule_c" },
+      { ...company, companyType: "k1_partnership" },
+      { ...company, advancedFieldVisibility: { onboarding_income_plan: { taxYear: 2025, annual: 120000 } } },
+    ]) expect(buildOnboardingForecast({ companies: [c], streams: [stream], paychecks: generateProjectedPaychecks([stream], []), countedIncome: [], catchups: [], taxYear: 2026 })).toEqual([]);
   });
 });

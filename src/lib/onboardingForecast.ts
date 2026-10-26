@@ -5,7 +5,6 @@ import type { ProjectedIncomeStream, ProjectedPaycheck } from "@/hooks/useProjec
 interface Company {
   id: string; name: string; companyType: string; projectedAnnualGross?: number | null;
   payFrequency?: string | null; advancedFieldVisibility?: unknown; includeInTax?: boolean;
-  k1TaxTreatment?: string | null; includeSETaxInRecommendation?: boolean;
 }
 interface CountedIncome { source_id?: string | null; company?: string | null; vendor?: string | null; date: string; gross: number }
 export interface OnboardingForecastRow {
@@ -47,7 +46,7 @@ export function buildOnboardingForecast(args: {
       if (!plan || s.start_date !== plan.startDate || s.end_date !== plan.endDate || s.pay_frequency !== plan.plannerFrequency || s.custom_interval_days !== plan.customIntervalDays || Number(s.paycheck_amount) !== plan.perOccurrence) continue;
       provenance = { streamId: s.id, startDate: plan.startDate, historicalGross: Math.max(0, meta.annual - plan.plannedRemaining) };
     }
-    if (!Number.isFinite(provenance.historicalGross) || !provenance.startDate.startsWith(String(args.taxYear))) continue;
+    if (!Number.isFinite(provenance.historicalGross) || typeof provenance.startDate !== "string" || !provenance.startDate.startsWith(String(args.taxYear))) continue;
     const named = args.companies.filter((co) => norm(co.name) === norm(c.name)).length === 1;
     const actuals = args.countedIncome.filter((e) => e.date.startsWith(String(args.taxYear)) &&
       (e.source_id ? e.source_id === c.id : named && norm(e.company || e.vendor) === norm(c.name)));
