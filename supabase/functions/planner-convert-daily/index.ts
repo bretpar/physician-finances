@@ -262,10 +262,14 @@ Deno.serve(async (req) => {
     // Company closure (same rule as src/lib/companyClosure.ts): an occurrence
     // dated in [closed_on, reopened_on) is never auto-converted, including by a
     // delayed run after reopening. Fail closed if closures can't be read.
-    const [coRes, clRes] = await Promise.all([
-      admin.from("companies").select("id, name").eq("user_id", userId),
-      admin.from("company_closure_periods").select("company_id, closed_on, reopened_on").eq("user_id", userId),
-    ]);
+    const coRes = await admin.from("companies").select("id, name").eq("user_id", userId);
+    const coIds = Array.from(new Set([
+      ...((coRes.data || []) as any[]).map((c) => c.id),
+      ...streams.map((st: any) => st.source_id).filter(Boolean),
+    ]));
+    const clRes = coIds.length
+      ? await admin.from("company_closure_periods").select("company_id, closed_on, reopened_on").in("company_id", coIds)
+      : { data: [], error: null };
     if (coRes.error || clRes.error) {
       console.error("planner-convert-daily closure load error", coRes.error || clRes.error);
       userStats.errors++;
