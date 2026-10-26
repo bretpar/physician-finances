@@ -162,25 +162,45 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </button>
         </div>
 
-        <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {visibleNavItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              onClick={() => setMobileOpen(false)}
-              className={`sidebar-link ${
-                location.pathname === item.to ? "sidebar-link-active" : "sidebar-link-inactive"
-              }`}
-            >
-              <item.icon className="h-5 w-5 shrink-0" />
-              <span className="min-w-0 flex-1 truncate">{useW2OnlyLabels && item.w2OnlyLabel ? item.w2OnlyLabel : item.label}</span>
-              {!!item.pageFeatureKey && isLocked(item.pageFeatureKey) && (
-                <span className="rounded-sm border border-sidebar-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-normal text-sidebar-foreground">
-                  Premium
-                </span>
-              )}
-            </NavLink>
-          ))}
+        <nav className="flex-1 px-3 py-4 overflow-y-auto">
+          {navGroups
+            .map((group) => ({
+              heading: group.heading,
+              items: group.items.filter((item) => {
+                if (item.module === "business") return showBusinessNav;
+                if (item.module === "investment") return showInvestmentNav;
+                if (item.module === "student_loans") return showStudentLoansNav;
+                return true;
+              }),
+            }))
+            .filter((group) => group.items.length > 0)
+            .map((group) => (
+              <div key={group.heading} className="mb-4 last:mb-0">
+                <p className="px-2 pb-1 pt-1 text-[11px] font-medium uppercase tracking-wider text-sidebar-foreground/70 select-none">
+                  {group.heading}
+                </p>
+                <div className="space-y-1">
+                  {group.items.map((item) => (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      onClick={() => setMobileOpen(false)}
+                      className={`sidebar-link ${
+                        location.pathname === item.to ? "sidebar-link-active" : "sidebar-link-inactive"
+                      }`}
+                    >
+                      <item.icon className="h-5 w-5 shrink-0" />
+                      <span className="min-w-0 flex-1 truncate">{useW2OnlyLabels && item.w2OnlyLabel ? item.w2OnlyLabel : item.label}</span>
+                      {!!item.pageFeatureKey && isLocked(item.pageFeatureKey) && (
+                        <span className="rounded-sm border border-sidebar-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-normal text-sidebar-foreground">
+                          Premium
+                        </span>
+                      )}
+                    </NavLink>
+                  ))}
+                </div>
+              </div>
+            ))}
         </nav>
 
         <div className="px-4 py-4 border-t border-sidebar-border space-y-3">
