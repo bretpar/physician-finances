@@ -271,6 +271,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
     retirementContribs,
     new Date().getFullYear(),
     payFrequencyByCompany,
+    closureLookup.periods,
   );
 
   /**

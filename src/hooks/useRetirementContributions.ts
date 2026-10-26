@@ -365,5 +365,5 @@ export function useAnnualizedContributions(
     }
 
     return out;
-  }, [contributions, taxYear, payFrequencyByCompany]);
+  }, [contributions, taxYear, payFrequencyByCompany, closurePeriods]);
 }

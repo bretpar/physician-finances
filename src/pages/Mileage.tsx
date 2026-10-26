@@ -232,6 +232,7 @@ export default function Mileage() {
     contributions,
     now.getFullYear(),
     payFrequencyByCompany,
+    closureLookup.periods,
   );
   // Read-only: used for the collapsed HSA summary line.
   const { data: hsaContributions = [] } = useHsaContributions(now.getFullYear());
@@ -1064,7 +1065,7 @@ export default function Mileage() {
             contributions={contributions || []}
             paycheckEntries={paycheckLinked.entries as never}
             companyName={(companyId) => companyId ? companies.find((company) => company.id === companyId)?.name || null : null}
-            annualAmount={(contribution) => annualizeContributionAmount(contribution, { taxYear: currentYear, payFrequency: contribution.company_id ? payFrequencyByCompany.get(contribution.company_id) ?? null : null }).annual}
+            annualAmount={(contribution) => annualizeContributionAmount(contribution, { taxYear: currentYear, payFrequency: contribution.company_id ? payFrequencyByCompany.get(contribution.company_id) ?? null : null, closurePeriods: closureLookup.periods, companyId: contribution.company_id ?? null }).annual}
             onEdit={startEditContrib}
             onDelete={setContribDeleteId}
           />
