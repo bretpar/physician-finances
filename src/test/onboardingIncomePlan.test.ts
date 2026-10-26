@@ -14,7 +14,7 @@ describe("onboarding income plan", () => {
 
   it("YTD provided spreads the remainder over remaining paychecks", () => {
     const p = buildOnboardingIncomePlan({ annual: 120000, ytd: 100000, payFrequency: "monthly", today: "2026-10-26" })!;
-    expect(p.plannedRemaining).toBe(20000);
+    expect(Math.abs(p.plannedRemaining - 20000)).toBeLessThanOrEqual(0.03); // per-paycheck cents rounding
     expect(p.earlierInYear).toBe(100000);
   });
 
