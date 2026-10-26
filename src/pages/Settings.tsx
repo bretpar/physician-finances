@@ -1,3 +1,5 @@
+import { isDeveloper } from "@/lib/roles";
+import { getTodayLocalDateString, formatDate } from "@/lib/localDate";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -1212,8 +1214,16 @@ function TaxProfileSection() {
 /*  Companies section                                            */
 /* ──────────────────────────────────────────────────────────── */
 function CompaniesSection() {
-  const { companies, incomeCountByCompanyName, addCompany, updateCompany, removeCompany } = useCompanies();
+  const { companies, incomeCountByCompanyName, addCompany, updateCompany, removeCompany, closurePeriods, closedCompanyIds, closeCompany, reopenCompany } = useCompanies();
   const { data: taxSettings } = useTaxSettings();
+  // Stage 1 of reversible closure: Close action is developer-only until Stage 2 ships.
+  const { resolvedRole } = useAccountRole();
+  const closureEnabled = isDeveloper(resolvedRole);
+  const [closeTarget, setCloseTarget] = useState<{ id: string; date: string } | null>(null);
+  const [reopenTarget, setReopenTarget] = useState<{ id: string; date: string } | null>(null);
+  const [closedListOpen, setClosedListOpen] = useState(false);
+  const closedCompanies = companies.filter((c) => closedCompanyIds.has(c.id));
+  const openCompanies = companies.filter((c) => !closedCompanyIds.has(c.id));
   const [deleteCompanyId, setDeleteCompanyId] = useState<string | null>(null);
 
   // Single page-wide draft keyed by company id, so each company gets local edit state.
@@ -1230,7 +1240,7 @@ function CompaniesSection() {
   useEffect(() => {
     const cid = deepLinkParams.get("company");
     const wantsSection = cid || deepLinkParams.get("section") === "companies";
-    if (cid && companies.some((c) => c.id === cid)) {
+    if (cid && companies.some((c) => c.id === cid) && !closedCompanyIds.has(cid)) {
       setSelectedCompanyId(cid);
       if (deepLinkParams.get("open") === "withholding") {
         setW4OpenIds((p) => new Set(p).add(cid));
@@ -1314,7 +1324,7 @@ function CompaniesSection() {
       <SectionCard
         title="Companies"
         icon={<Building2 className="h-5 w-5" />}
-        summary={`(${companies.length})`}
+        summary={`(${openCompanies.length})`}
         headerTestId="settings-companies-trigger"
         defaultOpen={false}
         headerAction={
@@ -1330,7 +1340,7 @@ function CompaniesSection() {
         // Section-level save bar is hidden — each company has its own.
         hideActionBar
       >
-        {companies.length === 0 && (
+        {openCompanies.length === 0 && (
           <div className="text-center py-8">
             <Building2 className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
             <p className="text-sm text-muted-foreground">No companies added yet.</p>
@@ -1340,7 +1350,7 @@ function CompaniesSection() {
 
         <TooltipProvider delayDuration={150}>
           <div className="space-y-3">
-            {companies.map((company) => {
+            {openCompanies.map((company) => {
               const incomeCount = incomeCountByCompanyName[company.name] || 0;
               const filingTypeLocked = incomeCount > 0;
               const companyTypeOptions = company.name.trim() ? COMPANY_TYPES : COMPANY_TYPES.filter((type) => allowedNewCompanyTypes.includes(type.value));
@@ -1798,7 +1808,19 @@ function CompaniesSection() {
                             })()}
                           </div>
                         )}
-                        <div className="pt-2 border-t border-border">
+                        <div className="pt-2 border-t border-border flex flex-col sm:flex-row gap-2">
+                          {closureEnabled && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full sm:w-auto min-h-10"
+                              data-testid="settings-company-close-button"
+                              disabled={dirty}
+                              onClick={() => setCloseTarget({ id: company.id, date: getTodayLocalDateString() })}
+                            >
+                              Close company
+                            </Button>
+                          )}
                           <Button
                             variant="outline"
                             size="sm"
@@ -1837,8 +1859,100 @@ function CompaniesSection() {
             })}
           </div>
         </TooltipProvider>
+
+        {closedCompanies.length > 0 && !selectedCompanyId && (
+          <div className="rounded-lg border border-border" data-testid="settings-closed-companies">
+            <button
+              type="button"
+              onClick={() => setClosedListOpen((o) => !o)}
+              aria-expanded={closedListOpen}
+              className="w-full min-h-12 flex items-center justify-between px-4 text-sm font-medium text-foreground"
+            >
+              <span>Closed Companies ({closedCompanies.length})</span>
+              <ChevronRight className={cn("h-4 w-4 text-muted-foreground transition-transform", closedListOpen && "rotate-90")} />
+            </button>
+            {closedListOpen && (
+              <div className="border-t border-border divide-y divide-border">
+                {closedCompanies.map((c) => {
+                  const period = closurePeriods.find((p) => p.companyId === c.id && p.reopenedOn == null);
+                  return (
+                    <div key={c.id} className="flex items-center gap-3 px-4 py-3" data-testid="settings-closed-company-row">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{c.name}</p>
+                        <p className="text-xs text-muted-foreground">Closed {period ? formatDate(period.closedOn) : ""}</p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="min-h-10"
+                        onClick={() => setReopenTarget({ id: c.id, date: getTodayLocalDateString() })}
+                      >
+                        Reopen Company
+                      </Button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </SectionCard>
       </div>
+
+      <AlertDialog open={!!closeTarget} onOpenChange={(o) => !o && setCloseTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Close company?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Its past income, expenses and settings are kept and still count in your tax totals. It just won't be offered for new entries. You can reopen it anytime.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="company-close-date">Closed as of</Label>
+            <Input id="company-close-date" type="date" value={closeTarget?.date ?? ""} onChange={(e) => setCloseTarget((t) => t && { ...t, date: e.target.value })} />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!closeTarget?.date}
+              onClick={async () => {
+                if (!closeTarget) return;
+                const ok = await closeCompany(closeTarget.id, closeTarget.date);
+                if (ok) setSelectedCompanyId(null);
+                setCloseTarget(null);
+              }}
+            >
+              Close company
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!reopenTarget} onOpenChange={(o) => !o && setReopenTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reopen company?</AlertDialogTitle>
+            <AlertDialogDescription>All of its existing settings come back exactly as they were.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-1.5">
+            <Label htmlFor="company-reopen-date">Reopened as of</Label>
+            <Input id="company-reopen-date" type="date" value={reopenTarget?.date ?? ""} onChange={(e) => setReopenTarget((t) => t && { ...t, date: e.target.value })} />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!reopenTarget?.date}
+              onClick={async () => {
+                if (!reopenTarget) return;
+                await reopenCompany(reopenTarget.id, reopenTarget.date);
+                setReopenTarget(null);
+              }}
+            >
+              Reopen Company
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
 
       <AlertDialog open={!!deleteCompanyId} onOpenChange={(open) => !open && setDeleteCompanyId(null)}>
