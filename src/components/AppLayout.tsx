@@ -26,6 +26,17 @@ import { useFeatureAccess } from "@/hooks/useFeatureAccess";
 import { useTaxSettings, type HouseholdIncomeStreams } from "@/hooks/useTaxSettings";
 import { type FeatureKey } from "@/lib/entitlements";
 
+type NavItem = {
+  to: string;
+  icon: typeof LayoutDashboard;
+  label: string;
+  w2OnlyLabel?: string;
+  subtitle: string;
+  module?: "business" | "investment" | "student_loans";
+  /** Page-level access key — independent from advanced features inside the page. */
+  pageFeatureKey?: FeatureKey;
+};
+
 type NavGroup = {
   heading: string;
   items: NavItem[];
