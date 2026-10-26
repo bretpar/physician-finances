@@ -259,11 +259,39 @@ Deno.serve(async (req) => {
     const overrides = (overridesRes.data || []) as Override[];
     const occurrences = generateOccurrences(streams, bonuses, overrides, today);
 
+    // Company closure (same rule as src/lib/companyClosure.ts): an occurrence
+    // dated in [closed_on, reopened_on) is never auto-converted, including by a
+    // delayed run after reopening. Fail closed if closures can't be read.
+    const [coRes, clRes] = await Promise.all([
+      admin.from("companies").select("id, name").eq("user_id", userId),
+      admin.from("company_closure_periods").select("company_id, closed_on, reopened_on").eq("user_id", userId),
+    ]);
+    if (coRes.error || clRes.error) {
+      console.error("planner-convert-daily closure load error", coRes.error || clRes.error);
+      userStats.errors++;
+      summary.push(userStats);
+      continue;
+    }
+    const closureCompanies = (coRes.data || []) as Array<{ id: string; name: string | null }>;
+    const closurePeriods = (clRes.data || []) as Array<{ company_id: string; closed_on: string; reopened_on: string | null }>;
+    const isClosedOccurrence = (st: Stream, date: string): boolean => {
+      if (closurePeriods.length === 0) return false;
+      let cid: string | null = (st as any).source_id ?? null;
+      if (!cid) {
+        const n = String((st as any).company ?? "").trim().toLowerCase();
+        const m = n ? closureCompanies.filter((c) => String(c.name ?? "").trim().toLowerCase() === n) : [];
+        cid = m.length === 1 ? m[0].id : null;
+      }
+      if (!cid) return false;
+      return closurePeriods.some((p) => p.company_id === cid && p.closed_on <= date && (p.reopened_on == null || date < p.reopened_on));
+    };
+
     const streamById = new Map(streams.map((s) => [s.id, s] as const));
     for (const occ of occurrences) {
       if (occ.isSkipped) continue;
       const stream = streamById.get(occ.streamId);
       if (!stream) continue;
+      if (isClosedOccurrence(stream, occ.date)) continue;
       userStats.attempted++;
 
       // Idempotency check
