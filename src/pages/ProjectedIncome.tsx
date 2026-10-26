@@ -1244,6 +1244,22 @@ export default function ProjectedIncome() {
         </p>
       </div>
 
+      {onboardingEstimate && (
+        <div data-testid="planner-onboarding-estimate" className="flex gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
+          <Info className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+          <div className="min-w-0 space-y-1">
+            <p className="font-medium text-foreground">Your income estimate is based on your annual earnings.</p>
+            <p className="text-xs text-muted-foreground">Add your latest paycheck or year-to-date totals for a more accurate tax and take-home projection.</p>
+            <p className="text-xs text-muted-foreground">
+              Annual plan {fmt(onboardingEstimate.annual)} · Earlier this year {fmt(onboardingEstimate.earlierEstimate)} ({onboardingEstimate.anyUserYtd ? "your estimate" : "estimated"}, not recorded)
+              {onboardingEstimate.recorded > 0 && <> · Recorded {fmt(onboardingEstimate.recorded)}</>}
+              {" "}· Planned rest of year {fmt(onboardingEstimate.planned)}
+            </p>
+          </div>
+        </div>
+      )}
+
+
       {/* Year at a glance */}
       <div className="space-y-3">
         {/* Mobile: single expandable summary card */}
