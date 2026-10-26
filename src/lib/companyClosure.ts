@@ -117,3 +117,25 @@ function dayBefore(d: string): string {
   const dt = new Date(Date.UTC(y, m - 1, day - 1));
   return dt.toISOString().slice(0, 10);
 }
+
+/**
+ * Rest-of-year open-day window for a company with closure periods touching
+ * `taxYear`; null when the company has none (callers keep existing behavior).
+ */
+export function closureWindowForYear(
+  periods: ClosurePeriod[],
+  companyId: string,
+  today: string,
+  taxYear: number,
+): { openRemainingDays: number; remainingDays: number; yearDays: number } | null {
+  const yStart = `${taxYear}-01-01`;
+  const yEnd = `${taxYear}-12-31`;
+  const touches = periods.some((p) => p.companyId === companyId && p.closedOn <= yEnd && (p.reopenedOn == null || p.reopenedOn > yStart));
+  if (!touches) return null;
+  const from = today > yStart ? today : yStart;
+  const days = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000) + 1;
+  const yearDays = days(yStart, yEnd);
+  if (from > yEnd) return { openRemainingDays: 0, remainingDays: 0, yearDays };
+  const openRemainingDays = openSegments(periods, companyId, from, yEnd).reduce((s, g) => s + days(g.start, g.end), 0);
+  return { openRemainingDays, remainingDays: days(from, yEnd), yearDays };
+}
