@@ -34,6 +34,7 @@ import {
   type UserOnboardingSettings,
 } from "@/lib/onboarding";
 import { buildOnboardingIncomePlan, plannerScheduleFor, ONBOARDING_PLAN_KEY, type OnboardingPlanMeta } from "@/lib/onboardingIncomePlan";
+import { onboardingYtdBaseline } from "@/lib/onboardingForecast";
 import { buildProjectedIncomeStreamInsert } from "@/hooks/useProjectedIncome";
 import { getTodayLocalDateString } from "@/lib/localDate";
 
@@ -591,6 +592,12 @@ export default function Onboarding() {
       .select("id, source_id, company, is_active")
       .eq("user_id", user.id);
     const norm = (s: string) => String(s || "").trim().toLowerCase();
+    // Fresh read after company backfill: detailed paystub YTD wins over an
+    // overlapping simplified estimate, without creating any actual income.
+    const { data: detailedYtd, error: ytdError } = await supabase.from("ytd_catchup_entries")
+      .select("company_id, company_name, tax_year, gross_income, period_end")
+      .eq("user_id", user.id).eq("tax_year", taxYear);
+    if (ytdError) throw ytdError;
     let any = false;
     for (const d of drafts) {
       const comp = ((comps || []) as any[]).find((c) => norm(c.name) === norm(d.name));
@@ -601,7 +608,9 @@ export default function Onboarding() {
       if (covered) { any = true; continue; }
       const plan = buildOnboardingIncomePlan({
         annual: Number(d.projectedAnnualGross),
-        ytd: d.ytdIncome ?? null,
+        ytd: onboardingYtdBaseline(d.ytdIncome, (detailedYtd || [])
+          .filter((e) => e.period_end < today && (e.company_id ? e.company_id === comp.id : norm(e.company_name) === norm(comp.name)))
+          .map((e) => Number(e.gross_income) || 0)),
         payFrequency: d.type === "w2" ? (d.payFrequency || comp.pay_frequency) : null,
         today,
       });
@@ -614,7 +623,7 @@ export default function Onboarding() {
       const expensePerPeriod = d.type === "1099" && Number(d.annualExpenses) > 0
         ? Math.round((Number(d.annualExpenses) / periods) * 100) / 100
         : 0;
-      const { error: insErr } = await supabase.from("projected_income_streams").insert(
+      const { data: insertedStream, error: insErr } = await supabase.from("projected_income_streams").insert(
         buildProjectedIncomeStreamInsert({
           company: comp.name,
           company_type: companyType,
@@ -629,9 +638,11 @@ export default function Onboarding() {
           forecast_expense_notes: expensePerPeriod > 0 ? "Estimated from onboarding" : "",
           notes: "Estimated from your expected annual income during setup.",
         }, user.id, orgId) as any,
-      );
+      ).select("id").single();
       if (insErr) { console.warn("[onboarding] plan stream insert failed", insErr); continue; }
-      const meta: OnboardingPlanMeta = { taxYear, annual: Number(d.projectedAnnualGross), ytdEntered: d.ytdIncome ?? null };
+      if (!insertedStream) continue;
+      const meta: OnboardingPlanMeta = { taxYear, annual: Number(d.projectedAnnualGross), ytdEntered: d.ytdIncome ?? null,
+        originalPlan: { streamId: insertedStream.id, startDate: plan.startDate, historicalGross: Math.max(0, Number(d.projectedAnnualGross) - plan.plannedRemaining) } };
       await supabase.from("companies").update({
         projected_annual_gross: Number(d.projectedAnnualGross),
         advanced_field_visibility: { ...((comp.advanced_field_visibility as any) || {}), [ONBOARDING_PLAN_KEY]: meta },

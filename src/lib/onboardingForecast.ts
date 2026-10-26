@@ -1,6 +1,5 @@
 import { buildOnboardingIncomePlan, readOnboardingPlanMeta } from "@/lib/onboardingIncomePlan";
 import { normalizeFilingType } from "@/lib/filingTypes";
-import { isSETaxableEntity } from "@/lib/k1TaxTreatment";
 import type { ProjectedIncomeStream, ProjectedPaycheck } from "@/hooks/useProjectedIncome";
 
 interface Company {
@@ -34,10 +33,9 @@ export function buildOnboardingForecast(args: {
     if (!meta || meta.taxYear !== args.taxYear || annual <= 0 || c.includeInTax === false) continue;
     const filing = normalizeFilingType(c.companyType);
     const w2 = filing === "w2" || filing === "scorp_w2";
-    // Passive/non-SE K-1 is deliberately deferred: projectedOtherIncome does
-    // not provide a separate, safe business-only residual bucket.
-    if (!w2 && !isSETaxableEntity({ filingType: filing, k1TaxTreatment: c.k1TaxTreatment as any, includeSETaxInRecommendation: c.includeSETaxInRecommendation })) continue;
-    if (!w2 && filing !== "1099_schedule_c" && filing !== "k1_partnership") continue;
+    // Business history needs historical expense provenance, which existing
+    // metadata does not supply. Leave 1099/K-1 forecasts unchanged.
+    if (!w2) continue;
     let provenance = meta.originalPlan;
     if (!provenance) {
       // Legacy onboarding metadata: prove the original schedule and amount.
