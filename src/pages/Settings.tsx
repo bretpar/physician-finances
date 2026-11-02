@@ -1239,20 +1239,28 @@ function CompaniesSection() {
 
   // Deep link from warnings: /settings?company=<id>[&open=withholding] or ?section=companies
   const [deepLinkParams] = useSearchParams();
+  const deepLink = useMemo(
+    () => resolveSettingsDeepLink(deepLinkParams, companies, closedCompanyIds),
+    [deepLinkParams, companies, closedCompanyIds],
+  );
+  // The Companies section starts collapsed, so the link itself has to reveal
+  // it. A header click afterwards wins over the URL.
+  const [sectionToggled, setSectionToggled] = useState<boolean | null>(null);
+  const companiesSectionOpen = sectionToggled ?? deepLink.openSection;
+
   useEffect(() => {
-    const cid = deepLinkParams.get("company");
-    const wantsSection = cid || deepLinkParams.get("section") === "companies";
-    if (cid && companies.some((c) => c.id === cid) && !closedCompanyIds.has(cid)) {
-      setSelectedCompanyId(cid);
-      if (deepLinkParams.get("open") === "withholding") {
+    if (deepLink.companyId) {
+      setSelectedCompanyId(deepLink.companyId);
+      if (deepLink.openWithholding) {
+        const cid = deepLink.companyId;
         setW4OpenIds((p) => new Set(p).add(cid));
       }
     }
-    if (wantsSection) {
+    if (deepLink.openSection) {
       setTimeout(() => document.querySelector('[data-testid="settings-companies-section"]')?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deepLinkParams, companies.length]);
+  }, [deepLink.companyId, deepLink.openWithholding, deepLink.openSection]);
 
   const dirtyIds = Object.keys(drafts);
   const anyDirty = dirtyIds.length > 0;
