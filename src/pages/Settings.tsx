@@ -1336,7 +1336,8 @@ function CompaniesSection() {
         icon={<Building2 className="h-5 w-5" />}
         summary={`(${openCompanies.length})`}
         headerTestId="settings-companies-trigger"
-        defaultOpen={false}
+        open={companiesSectionOpen}
+        onOpenChange={setSectionToggled}
         headerAction={
           <div className="flex items-center gap-2">
             {/* Merge duplicates UI hidden — keep logic in MergeCompaniesDialog for future re-enable. */}
