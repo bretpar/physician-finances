@@ -1336,7 +1336,7 @@ export function CompaniesSection() {
         icon={<Building2 className="h-5 w-5" />}
         summary={`(${openCompanies.length})`}
         headerTestId="settings-companies-trigger"
-        open={false} /* TEMP */
+        open={companiesSectionOpen} /* TEMP */
         onOpenChange={setSectionToggled}
         headerAction={
           <div className="flex items-center gap-2">
