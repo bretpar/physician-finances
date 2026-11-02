@@ -139,8 +139,8 @@ describe("Companies section reveal", () => {
     try {
       renderSettings("?company=va-1&open=withholding");
       expect(screen.queryByTestId("settings-company-row")).toBeNull();
-      // Section is open, so the closed-companies list is reachable.
-      expect(screen.getByTestId("settings-companies-trigger")).toBeInTheDocument();
+      // Section is open, so the empty list and the closed-companies entry point show.
+      expect(screen.getByTestId("settings-companies-add-button-empty")).toBeInTheDocument();
       expect(screen.queryByTestId("settings-company-card")).toBeNull();
     } finally {
       closureState.closedCompanyIds = new Set();
