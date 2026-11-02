@@ -32,6 +32,14 @@ interface SectionCardProps {
   collapsible?: boolean;
   /** Initial open state. Defaults false so sections start collapsed. */
   defaultOpen?: boolean;
+  /**
+   * Controlled open state. When provided it wins over `defaultOpen`, and the
+   * header toggle reports through `onOpenChange` instead of internal state —
+   * used by deep links that must reveal a section from a URL.
+   */
+  open?: boolean;
+  /** Reports header toggles while `open` is controlled. */
+  onOpenChange?: (open: boolean) => void;
   /** Whether the section currently has unsaved edits. */
   isDirty?: boolean;
   /** Whether a save is in flight. */
@@ -59,6 +67,8 @@ export function SectionCard({
   headerTestId,
   collapsible = true,
   defaultOpen = false,
+  open: openProp,
+  onOpenChange,
   isDirty = false,
   isSaving = false,
   justSaved = false,
@@ -68,7 +78,14 @@ export function SectionCard({
   bare = false,
   children,
 }: SectionCardProps) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [openState, setOpenState] = useState(defaultOpen);
+  const controlled = openProp !== undefined;
+  const open = controlled ? !!openProp : openState;
+  const setOpen = (updater: boolean | ((prev: boolean) => boolean)) => {
+    const next = typeof updater === "function" ? updater(open) : updater;
+    if (controlled) onOpenChange?.(next);
+    else setOpenState(next);
+  };
   // For `bare` mode: collapsed by default on mobile, always open on desktop.
   const [bareOpen, setBareOpen] = useState(() => {
     if (typeof window === "undefined") return true;

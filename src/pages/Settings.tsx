@@ -60,6 +60,7 @@ import {
   useReviewAccounts,
 } from "@/hooks/usePlaid";
 import { SectionCard } from "@/components/settings/SectionCard";
+import { resolveSettingsDeepLink } from "@/lib/settingsDeepLink";
 import { HsaSettingsSection } from "@/components/settings/HsaSection";
 import { ForecastingAutomationGate } from "@/components/settings/ForecastingAutomationGate";
 import { StudentLoanSettingsGate } from "@/components/settings/StudentLoanSettingsGate";
@@ -1214,7 +1215,7 @@ function TaxProfileSection() {
 /* ──────────────────────────────────────────────────────────── */
 /*  Companies section                                            */
 /* ──────────────────────────────────────────────────────────── */
-function CompaniesSection() {
+export function CompaniesSection() {
   const { companies, incomeCountByCompanyName, addCompany, updateCompany, removeCompany, closurePeriods, closedCompanyIds, closeCompany, reopenCompany } = useCompanies();
   const { data: taxSettings } = useTaxSettings();
   // Stage 1 of reversible closure: Close action is developer-only until Stage 2 ships.
@@ -1238,20 +1239,28 @@ function CompaniesSection() {
 
   // Deep link from warnings: /settings?company=<id>[&open=withholding] or ?section=companies
   const [deepLinkParams] = useSearchParams();
+  const deepLink = useMemo(
+    () => resolveSettingsDeepLink(deepLinkParams, companies, closedCompanyIds),
+    [deepLinkParams, companies, closedCompanyIds],
+  );
+  // The Companies section starts collapsed, so the link itself has to reveal
+  // it. A header click afterwards wins over the URL.
+  const [sectionToggled, setSectionToggled] = useState<boolean | null>(null);
+  const companiesSectionOpen = sectionToggled ?? deepLink.openSection;
+
   useEffect(() => {
-    const cid = deepLinkParams.get("company");
-    const wantsSection = cid || deepLinkParams.get("section") === "companies";
-    if (cid && companies.some((c) => c.id === cid) && !closedCompanyIds.has(cid)) {
-      setSelectedCompanyId(cid);
-      if (deepLinkParams.get("open") === "withholding") {
+    if (deepLink.companyId) {
+      setSelectedCompanyId(deepLink.companyId);
+      if (deepLink.openWithholding) {
+        const cid = deepLink.companyId;
         setW4OpenIds((p) => new Set(p).add(cid));
       }
     }
-    if (wantsSection) {
+    if (deepLink.openSection) {
       setTimeout(() => document.querySelector('[data-testid="settings-companies-section"]')?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [deepLinkParams, companies.length]);
+  }, [deepLink.companyId, deepLink.openWithholding, deepLink.openSection]);
 
   const dirtyIds = Object.keys(drafts);
   const anyDirty = dirtyIds.length > 0;
@@ -1327,7 +1336,8 @@ function CompaniesSection() {
         icon={<Building2 className="h-5 w-5" />}
         summary={`(${openCompanies.length})`}
         headerTestId="settings-companies-trigger"
-        defaultOpen={false}
+        open={companiesSectionOpen}
+        onOpenChange={setSectionToggled}
         headerAction={
           <div className="flex items-center gap-2">
             {/* Merge duplicates UI hidden — keep logic in MergeCompaniesDialog for future re-enable. */}
