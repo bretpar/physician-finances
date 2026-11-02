@@ -32,6 +32,14 @@ interface SectionCardProps {
   collapsible?: boolean;
   /** Initial open state. Defaults false so sections start collapsed. */
   defaultOpen?: boolean;
+  /**
+   * Controlled open state. When provided it wins over `defaultOpen`, and the
+   * header toggle reports through `onOpenChange` instead of internal state —
+   * used by deep links that must reveal a section from a URL.
+   */
+  open?: boolean;
+  /** Reports header toggles while `open` is controlled. */
+  onOpenChange?: (open: boolean) => void;
   /** Whether the section currently has unsaved edits. */
   isDirty?: boolean;
   /** Whether a save is in flight. */
