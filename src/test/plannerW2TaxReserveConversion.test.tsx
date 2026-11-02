@@ -34,6 +34,7 @@ vi.mock("@/integrations/supabase/client", () => ({
         const chain: any = {
           eq: () => chain,
           limit: () => chain,
+          then: (resolve: any) => Promise.resolve({ data: [], error: null }).then(resolve),
           maybeSingle: async () => ({
             data: table === "income_entries" ? mirrorRow : null,
             error: null,

@@ -976,6 +976,7 @@ export function countContributionOccurrences(input: {
   payFrequency: ContributionPayFrequency;
   startDate?: string | null;
   endDate?: string | null;
+  isEligibleDate?: (date: string) => boolean;
 }): number {
   const yearStart = new Date(input.taxYear, 0, 1);
   const yearEnd = new Date(input.taxYear, 11, 31);
@@ -995,7 +996,7 @@ export function countContributionOccurrences(input: {
       const lastDay = new Date(input.taxYear, month + 1, 0).getDate();
       for (const day of [15, lastDay]) {
         const d = new Date(input.taxYear, month, day);
-        if (d >= windowStart && d <= windowEnd && d >= start && d <= end) count++;
+        if (d >= windowStart && d <= windowEnd && d >= start && d <= end && (input.isEligibleDate?.(toISO(d)) ?? true)) count++;
       }
     }
     return count;
@@ -1005,7 +1006,7 @@ export function countContributionOccurrences(input: {
   // Walk the schedule from its own start date so alignment is preserved.
   for (let i = 0; i < 400; i++) {
     if (cursor > windowEnd) break;
-    if (cursor >= windowStart) count++;
+    if (cursor >= windowStart && (input.isEligibleDate?.(toISO(cursor)) ?? true)) count++;
     if (freq === "weekly") cursor.setDate(cursor.getDate() + 7);
     else if (freq === "biweekly") cursor.setDate(cursor.getDate() + 14);
     else if (freq === "monthly") cursor.setMonth(cursor.getMonth() + 1);
@@ -1036,6 +1037,7 @@ export function annualizeRetirementContribution(input: {
   startDate?: string | null;
   endDate?: string | null;
   contributionDate?: string | null;
+  isEligibleDate?: (date: string) => boolean;
 }): AnnualizedContributionResult {
   const amount = Number(input.amount) || 0;
   const taxYear = Number(input.taxYear);
@@ -1056,6 +1058,7 @@ export function annualizeRetirementContribution(input: {
     const occurrences = countContributionOccurrences({
       taxYear,
       payFrequency: "annually",
+      isEligibleDate: input.isEligibleDate,
       startDate: input.startDate,
       endDate: input.endDate,
     });
@@ -1066,6 +1069,7 @@ export function annualizeRetirementContribution(input: {
     const occurrences = countContributionOccurrences({
       taxYear,
       payFrequency: "monthly",
+      isEligibleDate: input.isEligibleDate,
       startDate: input.startDate,
       endDate: input.endDate,
     });
@@ -1078,6 +1082,7 @@ export function annualizeRetirementContribution(input: {
   const occurrences = countContributionOccurrences({
     taxYear,
     payFrequency,
+    isEligibleDate: input.isEligibleDate,
     startDate: input.startDate,
     endDate: input.endDate,
   });

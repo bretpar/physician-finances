@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getUserOrgId } from "@/hooks/useOrgId";
-import { openSegments, type ClosurePeriod } from "@/lib/companyClosure";
+import { isClosedOn, type ClosurePeriod } from "@/lib/companyClosure";
 import { useMemo } from "react";
 import { annualizeRetirementContribution } from "@/lib/retirementOpportunityEngine";
 
@@ -240,27 +240,8 @@ export function annualizeContributionAmount(
   },
   opts?: { taxYear?: number; payFrequency?: string | null; closurePeriods?: ClosurePeriod[]; companyId?: string | null },
 ): { annual: number; perPaycheck: number; occurrences: number; usedFallback: boolean } {
-  // Company closure: a recurring schedule only runs on the company's open
-  // segments of the tax year. Saved schedule itself is never changed.
-  const year = opts?.taxYear ?? new Date().getFullYear();
-  const closures = opts?.closurePeriods;
-  if (c.frequency !== "one_time" && opts?.companyId && closures?.some((p) => p.companyId === opts.companyId)) {
-    const yStart = `${year}-01-01`, yEnd = `${year}-12-31`;
-    const from = c.start_date && c.start_date > yStart ? c.start_date : yStart;
-    const to = c.end_date && c.end_date < yEnd ? c.end_date : yEnd;
-    let annual = 0, occurrences = 0, perPaycheck = 0, usedFallback = false;
-    if (from <= to) {
-      for (const seg of openSegments(closures, opts.companyId, from, to)) {
-        const r = annualizeRetirementContribution({
-          amount: c.contribution_amount, frequency: c.frequency, taxYear: year,
-          payFrequency: opts?.payFrequency ?? null, startDate: seg.start, endDate: seg.end,
-          contributionDate: c.contribution_date ?? null,
-        });
-        annual += r.annual; occurrences += r.occurrences; perPaycheck = r.perPeriod; usedFallback = usedFallback || r.usedFallback;
-      }
-    }
-    return { annual, perPaycheck, occurrences, usedFallback };
-  }
+  // Keep the saved recurrence anchor; skip closed dates, never restart at reopening.
+  const companyId = opts?.companyId;
   const r = annualizeRetirementContribution({
     amount: c.contribution_amount,
     frequency: c.frequency,
@@ -269,6 +250,9 @@ export function annualizeContributionAmount(
     startDate: c.start_date ?? null,
     endDate: c.end_date ?? null,
     contributionDate: c.contribution_date ?? null,
+    isEligibleDate: companyId && opts?.closurePeriods
+      ? (date) => !isClosedOn(opts.closurePeriods ?? [], companyId, date)
+      : undefined,
   });
   return {
     annual: r.annual,
