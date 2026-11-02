@@ -100,4 +100,15 @@ describe("manual conversion closure guard on the real mutation", () => {
     await expect(setup().current.mutateAsync({ ...input, sourceId: null })).rejects.toThrow("Nothing was converted");
     expect(db.writes).toEqual([]);
   });
+  it("also rejects business conversion onto an existing deposit before any write", async () => {
+    await expect(setup().current.mutateAsync({ ...input, ledgerBucket: "business", existingTransactionId: "historical-deposit" })).rejects.toThrow("company closure period");
+    expect(db.writes).toEqual([]);
+    expect(db.income).toEqual([{ id: "historical", paycheck_amount: 1234 }]);
+  });
+  it("returns an existing closed-period conversion without rewriting history", async () => {
+    db.conversions = [{ id: "historical-conversion", stream_id: input.streamId, occurrence_date: input.occurrenceDate }];
+    expect(await setup().current.mutateAsync(input)).toEqual({ conversionId: "historical-conversion", alreadyExisted: true });
+    expect(db.writes).toEqual([]);
+    expect(db.conversions).toHaveLength(1);
+  });
 });

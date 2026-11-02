@@ -1051,10 +1051,10 @@ export function useManualPlannerConvert() {
       // any ledger row. Reopening never makes earlier closed dates eligible.
       const [closureResult, companyResult] = await Promise.all([
         supabase.from("company_closure_periods")
-          .select("id, company_id, closed_on, reopened_on").eq("user_id", user.id),
+          .select("id, company_id, closed_on, reopened_on"),
         input.sourceId
           ? Promise.resolve({ data: [], error: null })
-          : supabase.from("companies").select("id, name").eq("user_id", user.id),
+          : supabase.from("companies").select("id, name"),
       ]);
       if (closureResult.error || companyResult.error) {
         throw new Error("Could not check company closure dates. Nothing was converted. Please try again.");
