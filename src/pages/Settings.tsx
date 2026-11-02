@@ -1215,7 +1215,7 @@ function TaxProfileSection() {
 /* ──────────────────────────────────────────────────────────── */
 /*  Companies section                                            */
 /* ──────────────────────────────────────────────────────────── */
-function CompaniesSection() {
+export function CompaniesSection() {
   const { companies, incomeCountByCompanyName, addCompany, updateCompany, removeCompany, closurePeriods, closedCompanyIds, closeCompany, reopenCompany } = useCompanies();
   const { data: taxSettings } = useTaxSettings();
   // Stage 1 of reversible closure: Close action is developer-only until Stage 2 ships.
