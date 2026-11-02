@@ -60,6 +60,7 @@ import {
   useReviewAccounts,
 } from "@/hooks/usePlaid";
 import { SectionCard } from "@/components/settings/SectionCard";
+import { resolveSettingsDeepLink } from "@/lib/settingsDeepLink";
 import { HsaSettingsSection } from "@/components/settings/HsaSection";
 import { ForecastingAutomationGate } from "@/components/settings/ForecastingAutomationGate";
 import { StudentLoanSettingsGate } from "@/components/settings/StudentLoanSettingsGate";
