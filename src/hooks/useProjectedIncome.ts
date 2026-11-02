@@ -1047,6 +1047,27 @@ export function useManualPlannerConvert() {
       }
       if (existingId) return { conversionId: existingId, alreadyExisted: true };
 
+      // Read fresh closure history before acquiring a conversion slot or writing
+      // any ledger row. Reopening never makes earlier closed dates eligible.
+      const [closureResult, companyResult] = await Promise.all([
+        supabase.from("company_closure_periods")
+          .select("id, company_id, closed_on, reopened_on").eq("user_id", user.id),
+        input.sourceId
+          ? Promise.resolve({ data: [], error: null })
+          : supabase.from("companies").select("id, name").eq("user_id", user.id),
+      ]);
+      if (closureResult.error || companyResult.error) {
+        throw new Error("Could not check company closure dates. Nothing was converted. Please try again.");
+      }
+      if (isOccurrenceClosed({
+        periods: (closureResult.data ?? []).map((p) => ({
+          id: p.id, companyId: p.company_id, closedOn: p.closed_on, reopenedOn: p.reopened_on,
+        })),
+        companies: companyResult.data ?? [],
+      }, { source_id: input.sourceId, company: input.label }, input.occurrenceDate)) {
+        throw new Error("This paycheck falls within a company closure period and cannot be converted. Nothing was changed.");
+      }
+
       // 1. Insert planner_conversions
       const { data: conv, error: convErr } = await supabase
         .from("planner_conversions")
