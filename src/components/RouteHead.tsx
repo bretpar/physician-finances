@@ -3,7 +3,7 @@ import { useLocation, matchPath } from "react-router-dom";
 
 const BASE = "https://app.paycheckmd.com";
 
-import { ROUTE_META, type Meta } from "@/lib/routeMeta";
+import { ROUTE_META, DEFAULT_META, type Meta } from "@/lib/routeMeta";
 function resolveMeta(pathname: string): Meta {
   for (const entry of ROUTE_META) {
     if (matchPath({ path: entry.pattern, end: true }, pathname)) return entry.meta;
