@@ -278,8 +278,9 @@ export default function Dashboard() {
     (projection ? (forecastDebug?.totalGrossIncome ?? 0) : summary.totalIncome);
   const investmentsValue = (() => {
     const entries = (investmentEntries || []).filter((e) => {
-      if (projection) return new Date(e.entry_date).getFullYear() === currentYear;
-      const d = new Date(e.entry_date);
+      const d = parseLocalDate(e.entry_date);
+      if (!d) return false;
+      if (projection) return d.getFullYear() === currentYear;
       return d.getFullYear() === currentYear && d <= now;
     });
     return aggregateInvestmentTaxBuckets(entries).totalTaxableIncome;
