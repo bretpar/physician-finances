@@ -30,6 +30,7 @@ import { buildQuarterRecommendation } from "@/lib/quarterRecommendation";
 import { getCurrentQuarter } from "@/lib/quarters";
 import { useQuarterRecommendationInput } from "@/hooks/useQuarterRecommendationInput";
 import { normalizeFilingType } from "@/lib/filingTypes";
+import { parseLocalDate } from "@/lib/localDate";
 
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { computeBusinessSummary } from "@/lib/businessSummary";
@@ -153,8 +154,10 @@ export default function Dashboard() {
   // "+ this month" — sum of business income (transactions) + personal income entries dated in current month.
   const earnedThisMonth = useMemo(() => {
     const inMonth = (iso: string) => {
-      const d = new Date(iso);
-      return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+      // Date-only strings must be read as local calendar dates: `new Date
+      // ("2026-11-01")` is UTC midnight, i.e. Oct 31 in Pacific time.
+      const d = parseLocalDate(iso);
+      return !!d && d.getFullYear() === currentYear && d.getMonth() === currentMonth;
     };
     const business = (transactions || [])
       .filter((t) => t.transaction_type === "income" && !isExcludedFromBusiness(t as any) && inMonth(t.transaction_date))
@@ -176,12 +179,12 @@ export default function Dashboard() {
     for (const t of transactions || []) {
       if (t.transaction_type !== "income") continue;
       if (isExcludedFromBusiness(t as any)) continue;
-      const d = new Date(t.transaction_date);
-      if (d.getFullYear() === currentYear) seen.add(d.getMonth());
+      const d = parseLocalDate(t.transaction_date);
+      if (d && d.getFullYear() === currentYear) seen.add(d.getMonth());
     }
     for (const e of personalEntries || []) {
-      const d = new Date(e.income_date);
-      if (d.getFullYear() === currentYear) seen.add(d.getMonth());
+      const d = parseLocalDate(e.income_date);
+      if (d && d.getFullYear() === currentYear) seen.add(d.getMonth());
     }
     return { monthsWithIncome: seen.size, monthsElapsed: elapsed };
   }, [transactions, personalEntries, currentMonth, currentYear]);
@@ -310,9 +313,11 @@ export default function Dashboard() {
       actual: 0,
       planned: 0,
     }));
-    const inYear = (iso: string) => new Date(iso).getFullYear() === currentYear;
-    const monthOf = (iso: string) => new Date(iso).getMonth();
-    const isPastOrCurrent = (iso: string) => new Date(iso).getTime() <= now.getTime();
+    // Date-only strings (YYYY-MM-DD) are parsed as local calendar dates so a
+    // Nov 1 paycheck is November in the user's timezone, not October.
+    const inYear = (iso: string) => parseLocalDate(iso)?.getFullYear() === currentYear;
+    const monthOf = (iso: string) => parseLocalDate(iso)?.getMonth() ?? -1;
+    const isPastOrCurrent = (iso: string) => (parseLocalDate(iso)?.getTime() ?? Infinity) <= now.getTime();
 
     for (const t of transactions || []) {
       if (t.transaction_type !== "income") continue;
