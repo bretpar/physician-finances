@@ -887,7 +887,10 @@ function applySharedEmployerLimits(plans: PlanOpportunity[], rates: Map<PlanOppo
     const override = overrides.length ? Math.min(...overrides) : null;
     if (group.length < 2 && override == null) continue;
     group.sort((a, b) => String(a.planId).localeCompare(String(b.planId)));
-    const used = group.reduce((s, p) => s + p.employeeTowardAnnualAdditions + p.employerContribution, 0);
+    const used = group.reduce(
+      (s, p) => s + p.employeeTowardAnnualAdditions + p.employerContribution + p.estimatedEmployerContribution,
+      0,
+    );
     /* One limit per employer (min of its plans), then combined across related
        employers: never above the largest single limit (one dollar ceiling) nor
        above the sum of compensation-capped limits; recorded cap wins if lower. */
@@ -912,7 +915,10 @@ function applySharedEmployerLimits(plans: PlanOpportunity[], rates: Map<PlanOppo
     for (const p of group) p.additionsHeadroom = headroom;
     const withCapacity = group.filter((p) => p.employerCapacityRemaining != null);
     if (withCapacity.length === 0) continue;
-    const employerUsed = group.reduce((s, p) => s + p.employerContribution, 0);
+    const employerUsed = group.reduce(
+      (s, p) => s + p.employerContribution + p.estimatedEmployerContribution,
+      0,
+    );
     /* Same employer: one formula from the same earnings (max). Different
        related employers: each has its own earnings, so formulas add up. */
     let formula: number | null = null;
