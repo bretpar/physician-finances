@@ -60,6 +60,22 @@ export interface RetirementRoomViewArgs {
    * deductible half before the reduced employer contribution rate applies.
    */
   deductibleHalfSeTaxByCompany?: Map<string, number>;
+  /**
+   * Same-earner W-2 (FICA) wages, actual and projected, so the deductible half
+   * of SE tax honours the shared per-person Social Security wage base.
+   */
+  w2WagesByEarner?: { actual: Map<string, number>; projected?: Map<string, number> };
+}
+
+export interface RetirementHeadline {
+  /** Opportunity that is safe to add together (never past shared limits). */
+  verifiedTotal: number;
+  employeeRoom: number;
+  iraRoom: number;
+  employerVerified: number;
+  /** Plans whose employer capacity is excluded pending verification. */
+  needsVerificationPlanIds: string[];
+  unknownEmployerCount: number;
 }
 
 export interface RetirementRoomView {
@@ -72,6 +88,65 @@ export interface RetirementRoomView {
   /** Records that may describe the same contribution — flagged, not merged. */
   ambiguousDuplicates: AmbiguousRetirementPair[];
   zeroContributionCompanyIds: string[];
+  /** Future scheduled contributions (projected run minus actual), by bucket. */
+  scheduledEmployeeTotal: number;
+  scheduledEmployerTotal: number;
+  /** True when duplicate attribution / classification needs reconciliation. */
+  needsReconciliation: boolean;
+  headline: RetirementHeadline;
+}
+
+/**
+ * Headline "additional opportunity". Employee room, IRA room and employer
+ * capacity are only summed where that cannot exceed a shared limit:
+ *  - employer capacity in a group is clipped to the group's remaining §415(c)
+ *    headroom after the earner's remaining employee room (conservative);
+ *  - capacity flagged unverified (possibly related employers) is excluded.
+ */
+export function computeRetirementHeadline(
+  engine: RetirementOpportunityResult,
+  projected: RetirementOpportunityResult | null,
+): RetirementHeadline {
+  const projectedById = new Map((projected?.plans ?? []).map((p) => [p.planId, p]));
+  const plans = engine.plans.filter((p) => p.deferralBucket !== "governmental_457b");
+  const primary402g = engine.plans.some((p) => p.deferralBucket === "402g" && p.earner !== "spouse");
+  const roomFor = (earner: string) =>
+    earner === "spouse"
+      ? (engine.spouseEmployee402g?.remaining ?? 0)
+      : primary402g
+        ? engine.employee402g.remaining
+        : (engine.simple?.remaining ?? 0);
+  const employeeRoom = roomFor("primary") + (engine.spouseEmployee402g?.remaining ?? 0);
+  const iraRoom = engine.ira.remainingContributionRoom ?? 0;
+  let employerVerified = 0;
+  const needsVerificationPlanIds: string[] = [];
+  let unknownEmployerCount = 0;
+  for (const plan of plans) {
+    const view = projectedById.get(plan.planId) ?? plan;
+    const cap = view.employerCapacityRemaining;
+    if (cap == null) {
+      if (view.reasons.includes("unknown_plan_data")) unknownEmployerCount++;
+      continue;
+    }
+    if (view.capacityUnverified) {
+      if (plan.planId) needsVerificationPlanIds.push(plan.planId);
+      continue;
+    }
+    const selfEmployed = view.entityKind === "schedule_c" || view.entityKind === "partnership_k1";
+    const clip =
+      selfEmployed && view.deferralBucket === "402g" && view.additionsHeadroom != null
+        ? Math.max(0, view.additionsHeadroom - roomFor(view.earner))
+        : Infinity;
+    employerVerified += Math.min(cap, clip);
+  }
+  return {
+    verifiedTotal: employeeRoom + (engine.governmental457b?.remaining ?? 0) + iraRoom + employerVerified,
+    employeeRoom,
+    iraRoom,
+    employerVerified,
+    needsVerificationPlanIds,
+    unknownEmployerCount,
+  };
 }
 
 function basisFor(plan: PlanOpportunity, capacity: number | null): CapacityBasis {
@@ -106,19 +181,28 @@ export function computeRetirementRoomView(args: RetirementRoomViewArgs): Retirem
      is reused here — no SE formula is duplicated, and the employer retirement
      deduction never feeds back into the SE-tax base. */
   const seFilingStatus = (args.filingStatus ?? "single") as FilingStatus;
-  const halfSeTax = (profit: number | undefined) =>
-    profit == null || profit <= 0 ? 0 : calculateSETax(profit, seFilingStatus).deductibleHalf;
+  const earnerOf = (id: string) =>
+    args.companies.find((c) => c.id === id)?.employeeRole === "spouse" ? "spouse" : "primary";
+  const halfSeTax = (profit: number | undefined, companyId: string, projected: boolean) => {
+    if (profit == null || profit <= 0) return 0;
+    const wages =
+      (projected ? args.w2WagesByEarner?.projected : undefined)?.get(earnerOf(companyId)) ??
+      args.w2WagesByEarner?.actual.get(earnerOf(companyId)) ??
+      0;
+    return calculateSETax(profit, seFilingStatus, undefined, wages, wages, undefined, undefined, wages)
+      .deductibleHalf;
+  };
   const deductibleHalfSeTaxByCompany = new Map<string, number>();
   const projectedDeductibleHalfSeTaxByCompany = new Map<string, number>();
   for (const c of args.companies) {
     const override = args.deductibleHalfSeTaxByCompany?.get(c.id);
     deductibleHalfSeTaxByCompany.set(
       c.id,
-      override ?? halfSeTax(args.actualNetProfitByCompany?.get(c.id)),
+      override ?? halfSeTax(args.actualNetProfitByCompany?.get(c.id), c.id, false),
     );
     projectedDeductibleHalfSeTaxByCompany.set(
       c.id,
-      halfSeTax(projectedNetProfitByCompany.get(c.id)),
+      halfSeTax(projectedNetProfitByCompany.get(c.id), c.id, true),
     );
   }
 
@@ -201,9 +285,29 @@ export function computeRetirementRoomView(args: RetirementRoomViewArgs): Retirem
     remainingRoom: engine.ira.remainingContributionRoom ?? 0,
   };
 
+  const sumProjected = (key: "employeeContribution" | "employerContribution") =>
+    engineProjected ? engineProjected.plans.reduce((s, p) => s + p[key], 0) : 0;
+  const sumActual = (key: "employeeContribution" | "employerContribution") =>
+    engine.plans.reduce((s, p) => s + p[key], 0);
+  const scheduledEmployeeTotal = engineProjected
+    ? Math.max(0, sumProjected("employeeContribution") - sumActual("employeeContribution"))
+    : 0;
+  const scheduledEmployerTotal = engineProjected
+    ? Math.max(0, sumProjected("employerContribution") - sumActual("employerContribution"))
+    : 0;
+  const needsReconciliation =
+    sources.ambiguous.length > 0 ||
+    [...engine.plans, ...(engineProjected?.plans ?? [])].some(
+      (p) => p.capacityUnverified || p.reasons.includes("sep_employee_deferral_not_allowed"),
+    );
+
   return {
     engine,
     engineProjected,
+    scheduledEmployeeTotal,
+    scheduledEmployerTotal,
+    needsReconciliation,
+    headline: computeRetirementHeadline(engine, engineProjected),
     employeeRoom,
     plans,
     employerContributionTotal,
