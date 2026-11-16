@@ -1,3 +1,4 @@
+import type { BusinessRelationship } from "./businessRelationships";
 import { resolveIncomeEarner } from "@/lib/incomeEarner";
 /**
  * Canonical retirement normalization boundary.
@@ -45,6 +46,8 @@ export interface CanonicalCompany {
   employeeRole?: "primary" | "spouse" | null;
   /** K-1 only: saved K-1 tax treatment (active / guaranteed / passive / S-corp). */
   k1TaxTreatment?: string | null;
+  /** User-recorded related-business setting (retirement shared limits). */
+  retirementRelationship?: BusinessRelationship | null;
 }
 
 /** Retirement money recorded on a paycheck / income entry. */
@@ -383,6 +386,13 @@ export function buildRetirementOpportunityInput(
         : null,
       employerContributionRate: isSelfEmployed ? 0.25 : null,
       employerFormulaKnown: false,
+      businessRelationship: company?.retirementRelationship?.status ?? null,
+      relatedGroupId:
+        company?.retirementRelationship?.status === "related" ? company.retirementRelationship.groupId : null,
+      sharedAnnualLimit:
+        company?.retirementRelationship?.status === "related"
+          ? company.retirementRelationship.sharedAnnualLimit
+          : null,
     });
   }
 

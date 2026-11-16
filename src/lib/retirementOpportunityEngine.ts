@@ -320,6 +320,14 @@ export interface PlanOpportunityInput {
   sourceRecordIds?: string[];
   /** Payroll money whose plan could not be resolved (company has several plans). */
   payrollPlanUnresolved?: boolean;
+  /**
+   * User-recorded relationship of this plan's business to the user's other
+   * businesses. "related" plans with the same `relatedGroupId` share ONE
+   * combined annual-additions limit (optionally capped by `sharedAnnualLimit`).
+   */
+  businessRelationship?: "related" | "unrelated" | null;
+  relatedGroupId?: string | null;
+  sharedAnnualLimit?: number | null;
 }
 
 export interface RetirementOpportunityInput {
@@ -423,6 +431,11 @@ export interface PlanOpportunity {
   /** True when combined capacity across possibly-related employers is unverified. */
   capacityUnverified: boolean;
   employerGroupKey: string;
+  /** Set when the business is in a user-recorded related group (shared limit). */
+  relatedGroupKey: string | null;
+  businessRelationship: "related" | "unrelated" | "unknown";
+  /** User-recorded combined annual limit for the related group, when any. */
+  sharedAnnualLimit: number | null;
   sourceRecordIds: string[];
   reasons: RetirementReasonCode[];
 }
@@ -802,6 +815,18 @@ function computePlanOpportunity(
     employerGroupKey:
       plan.employerGroupKey ||
       `${plan.earner === "spouse" ? "spouse" : "primary"}:${plan.companyId ?? plan.planId ?? "plan"}`,
+    relatedGroupKey:
+      plan.businessRelationship === "related" && plan.relatedGroupId
+        ? `${plan.earner === "spouse" ? "spouse" : "primary"}:group:${plan.relatedGroupId}`
+        : null,
+    businessRelationship:
+      plan.businessRelationship === "related" && plan.relatedGroupId
+        ? "related"
+        : plan.businessRelationship === "unrelated"
+          ? "unrelated"
+          : "unknown",
+    sharedAnnualLimit:
+      plan.sharedAnnualLimit != null && Number(plan.sharedAnnualLimit) > 0 ? Number(plan.sharedAnnualLimit) : null,
     sourceRecordIds: plan.sourceRecordIds ?? [],
     reasons: Array.from(new Set(reasons)),
   };
@@ -815,28 +840,58 @@ function computePlanOpportunity(
  * unknown, so their capacities are flagged unverified (never summed as fact).
  */
 function applySharedEmployerLimits(plans: PlanOpportunity[], rates: Map<PlanOpportunity, number | null>) {
+  /* Limit groups: same employer, or a user-recorded related group spanning
+     several businesses of one earner. */
   const groups = new Map<string, PlanOpportunity[]>();
   for (const p of plans) {
-    if (!groups.has(p.employerGroupKey)) groups.set(p.employerGroupKey, []);
-    groups.get(p.employerGroupKey)!.push(p);
+    const key = p.relatedGroupKey ?? p.employerGroupKey;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(p);
   }
   for (const group of groups.values()) {
-    if (group.length < 2) continue;
+    const overrides = group.map((p) => p.sharedAnnualLimit).filter((v): v is number => v != null);
+    const override = overrides.length ? Math.min(...overrides) : null;
+    if (group.length < 2 && override == null) continue;
     group.sort((a, b) => String(a.planId).localeCompare(String(b.planId)));
     const used = group.reduce((s, p) => s + p.employeeTowardAnnualAdditions + p.employerContribution, 0);
-    const limits = group.map((p) => p.annualAdditionsLimit).filter((v): v is number => v != null);
-    const headroom = limits.length ? Math.max(0, Math.min(...limits) - used) : null;
+    /* One limit per employer (min of its plans), then combined across related
+       employers: never above the largest single limit (one dollar ceiling) nor
+       above the sum of compensation-capped limits; recorded cap wins if lower. */
+    const byEmployer = new Map<string, PlanOpportunity[]>();
+    for (const p of group) {
+      if (!byEmployer.has(p.employerGroupKey)) byEmployer.set(p.employerGroupKey, []);
+      byEmployer.get(p.employerGroupKey)!.push(p);
+    }
+    const employerLimits: number[] = [];
+    let anyUnknownLimit = false;
+    for (const list of byEmployer.values()) {
+      const ls = list.map((p) => p.annualAdditionsLimit).filter((v): v is number => v != null);
+      if (ls.length) employerLimits.push(Math.min(...ls));
+      else anyUnknownLimit = true;
+    }
+    let limit: number | null =
+      employerLimits.length && !(anyUnknownLimit && byEmployer.size > 1)
+        ? Math.min(Math.max(...employerLimits), employerLimits.reduce((s, v) => s + v, 0))
+        : null;
+    if (override != null) limit = limit == null ? override : Math.min(limit, override);
+    const headroom = limit == null ? null : Math.max(0, limit - used);
     for (const p of group) p.additionsHeadroom = headroom;
     const withCapacity = group.filter((p) => p.employerCapacityRemaining != null);
     if (withCapacity.length === 0) continue;
     const employerUsed = group.reduce((s, p) => s + p.employerContribution, 0);
-    const formulas = withCapacity
-      .map((p) => {
-        const rate = rates.get(p);
-        return p.eligibleCompensation == null || rate == null ? null : p.eligibleCompensation * rate;
-      })
-      .filter((v): v is number => v != null);
-    const formula = formulas.length ? Math.max(...formulas) : null;
+    /* Same employer: one formula from the same earnings (max). Different
+       related employers: each has its own earnings, so formulas add up. */
+    let formula: number | null = null;
+    for (const list of byEmployer.values()) {
+      const fs = list
+        .filter((p) => p.employerCapacityRemaining != null)
+        .map((p) => {
+          const rate = rates.get(p);
+          return p.eligibleCompensation == null || rate == null ? null : p.eligibleCompensation * rate;
+        })
+        .filter((v): v is number => v != null);
+      if (fs.length) formula = (formula ?? 0) + Math.max(...fs);
+    }
     const shared = Math.max(
       0,
       Math.min(formula == null ? Infinity : formula - employerUsed, headroom ?? Infinity),
@@ -847,9 +902,11 @@ function applySharedEmployerLimits(plans: PlanOpportunity[], rates: Map<PlanOppo
     });
   }
 
-  // Different businesses of one earner: related-employer facts unknown. ALL
-  // business plans count (including $0 / unknown capacity), since existing
-  // additions at one business can consume the aggregated limit of another.
+  /* Different businesses of one earner. ALL business plans count (including
+     $0 / unknown capacity). Units are related groups or single businesses:
+     - a business confirmed unrelated keeps its own room;
+     - an unknown business is unverified if any other non-unrelated unit exists;
+     - a related group is unverified while any unknown business exists. */
   const byEarner = new Map<string, PlanOpportunity[]>();
   for (const p of plans) {
     const isBusiness =
@@ -859,8 +916,21 @@ function applySharedEmployerLimits(plans: PlanOpportunity[], rates: Map<PlanOppo
     byEarner.get(p.earner)!.push(p);
   }
   for (const list of byEarner.values()) {
-    if (new Set(list.map((p) => p.employerGroupKey)).size < 2) continue;
+    const units = new Map<string, "related" | "unrelated" | "unknown">();
     for (const p of list) {
+      const key = p.relatedGroupKey ?? p.employerGroupKey;
+      const status = p.relatedGroupKey ? "related" : p.businessRelationship === "unrelated" ? "unrelated" : "unknown";
+      if (!units.has(key)) units.set(key, status);
+    }
+    if (units.size < 2) continue;
+    const statuses = Array.from(units.values());
+    const unknownCount = statuses.filter((s) => s === "unknown").length;
+    const nonUnrelatedCount = statuses.filter((s) => s !== "unrelated").length;
+    for (const p of list) {
+      const st = units.get(p.relatedGroupKey ?? p.employerGroupKey)!;
+      const unverified =
+        st === "unknown" ? nonUnrelatedCount >= 2 : st === "related" ? unknownCount > 0 : false;
+      if (!unverified) continue;
       p.capacityUnverified = true;
       if (!p.reasons.includes("related_employer_unverified")) p.reasons.push("related_employer_unverified");
     }
