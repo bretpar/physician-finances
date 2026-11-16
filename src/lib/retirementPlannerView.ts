@@ -107,7 +107,7 @@ export function buildPlannerHistory(args: {
     const isIra = IRA_TYPES.has(s.accountType);
     const employer = !isIra && (s.accountType === "sep_ira" || s.contributionType === "employer");
     const category: PlannerCategory = isIra ? "ira" : employer ? employerCategory(s.companyId) : "employee";
-    const funding = isIra ? "Personal" : employer ? "Employer" : "Employee";
+    const funding: PlannerHistoryRow["funding"] = isIra ? "Personal" : employer ? "Employer" : "Employee";
     const companyId = isIra ? null : s.companyId;
     const base = { recordId: s.id, category, companyId, funding, source: "Manual" as const, accountLabel: s.accountLabel, possibleDuplicate: ambiguous.has(s.id), editableId: s.id };
     if (s.frequency === "one_time") {
