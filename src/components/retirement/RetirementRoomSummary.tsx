@@ -27,9 +27,9 @@ export interface RetirementRoomSummaryProps {
   hasCapacityAccess?: boolean;
 }
 
-const BucketCard = ({ title, contributed, limit, remaining, description, catchUp, children, testId }: {
+const BucketCard = ({ title, contributed, limit, remaining, description, catchUp, children, testId, extra }: {
   title: string; contributed: number; limit: number; remaining: number; description: string;
-  catchUp?: number; children?: React.ReactNode; testId?: string;
+  catchUp?: number; children?: React.ReactNode; testId?: string; extra?: React.ReactNode;
 }) => (
   <Collapsible asChild>
     <Card data-testid={testId}>
@@ -44,7 +44,7 @@ const BucketCard = ({ title, contributed, limit, remaining, description, catchUp
           {children && <CollapsibleTrigger className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted" aria-label={`Show ${title} details`}><ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" /></CollapsibleTrigger>}
         </div>
         <Progress value={limit > 0 ? Math.min(100, contributed / limit * 100) : 0} className="mt-3 h-2" />
-        <p className="mt-2 text-sm"><span className="font-semibold tabular-nums">{fmt(remaining)}</span> remaining</p>
+        <p className="mt-2 text-sm"><span className="font-semibold tabular-nums">{fmt(remaining)}</span> remaining today</p>{extra}
         <p className="mt-1 text-xs text-muted-foreground">{description}</p>
         {!!catchUp && <p className="mt-1 text-xs text-muted-foreground">Includes {fmt(catchUp)} {catchUp > 8_000 ? "age 60–63" : "age 50+"} catch-up</p>}
         {children && <CollapsibleContent className="mt-4 border-t pt-3">{children}</CollapsibleContent>}
@@ -92,8 +92,7 @@ export function RetirementRoomSummary({
         {unknownEmployerCount > 0 && <p className="mt-3 text-xs text-muted-foreground">Additional employer opportunity may be available for {unknownEmployerCount} {unknownEmployerCount === 1 ? "plan" : "plans"}.</p>}
       </section>
 
-      {primary402gPlans.length > 0 && <BucketCard title={spouse402g ? "Your employee contributions" : "Employee retirement"} contributed={engine.employee402g.contributed} limit={engine.employee402g.limit} remaining={engine.employee402g.remaining} catchUp={engine.employee402g.catchUp} description="Shared across your eligible 401(k), 403(b), and Solo 401(k) employee contributions." testId="employee-room">
-        {projected402g && projected402g.contributed !== engine.employee402g.contributed && <p className="mb-2 text-sm" data-testid="employee-projected-room"><span className="font-semibold tabular-nums">{fmt(projected402g.remaining)}</span> <span className="text-muted-foreground">projected year-end room after {fmt(projected402g.contributed - engine.employee402g.contributed)} scheduled</span></p>}
+      {primary402gPlans.length > 0 && <BucketCard title={spouse402g ? "Your employee contributions" : "Employee retirement"} contributed={engine.employee402g.contributed} limit={engine.employee402g.limit} remaining={engine.employee402g.remaining} catchUp={engine.employee402g.catchUp} description="Shared across your eligible 401(k), 403(b), and Solo 401(k) employee contributions." testId="employee-room" extra={projected402g && projected402g.contributed !== engine.employee402g.contributed && <p className="mt-1 text-sm" data-testid="employee-projected-room"><span className="font-semibold tabular-nums">{fmt(projected402g.remaining)}</span> <span className="text-muted-foreground">projected year-end room after {fmt(projected402g.contributed - engine.employee402g.contributed)} scheduled</span></p>}>
         <div className="space-y-2">{primary402gPlans.map((plan) => <div key={plan.planId ?? plan.companyName} className="flex justify-between gap-3 text-sm"><span>{plan.companyName} {PLAN_LABELS[plan.planKind]}</span><span className="shrink-0 font-medium tabular-nums">{fmt(plan.employeeContribution)}</span></div>)}</div>
       </BucketCard>}
 
