@@ -18,6 +18,8 @@ import {
 import {
   buildRetirementOpportunityInput,
   dedupeRetirementSources,
+  entityKindForCompanyType,
+  k1ServiceEarnings,
   type AmbiguousRetirementPair,
   type CanonicalCompany,
   type PaycheckRetirementSource,
@@ -45,6 +47,8 @@ export interface RetirementRoomViewArgs {
   paychecks: PaycheckRetirementSource[];
   standalone: StandaloneRetirementSource[];
   ira: { traditionalContributed: number; rothContributed: number };
+  /** Future scheduled IRA money (projected run only). */
+  iraScheduled?: { traditionalContributed: number; rothContributed: number };
   /** Actual YTD net business profit by company id. */
   actualNetProfitByCompany?: Map<string, number>;
   /** Remaining ACTIVE planned gross business income by company id. */
@@ -91,6 +95,9 @@ export interface RetirementRoomView {
   /** Future scheduled contributions (projected run minus actual), by bucket. */
   scheduledEmployeeTotal: number;
   scheduledEmployerTotal: number;
+  scheduledIraTotal: number;
+  /** K-1 companies whose service-income classification is not set. */
+  k1ClassificationUnknownCompanyIds: string[];
   /** True when duplicate attribution / classification needs reconciliation. */
   needsReconciliation: boolean;
   headline: RetirementHeadline;
@@ -109,15 +116,17 @@ export function computeRetirementHeadline(
 ): RetirementHeadline {
   const projectedById = new Map((projected?.plans ?? []).map((p) => [p.planId, p]));
   const plans = engine.plans.filter((p) => p.deferralBucket !== "governmental_457b");
+  // Year-end room comes from the projected run (actual + scheduled) when present.
+  const room = projected ?? engine;
   const primary402g = engine.plans.some((p) => p.deferralBucket === "402g" && p.earner !== "spouse");
   const roomFor = (earner: string) =>
     earner === "spouse"
-      ? (engine.spouseEmployee402g?.remaining ?? 0)
+      ? (room.spouseEmployee402g?.remaining ?? 0)
       : primary402g
-        ? engine.employee402g.remaining
-        : (engine.simple?.remaining ?? 0);
-  const employeeRoom = roomFor("primary") + (engine.spouseEmployee402g?.remaining ?? 0);
-  const iraRoom = engine.ira.remainingContributionRoom ?? 0;
+        ? room.employee402g.remaining
+        : (room.simple?.remaining ?? 0);
+  const employeeRoom = roomFor("primary") + (room.spouseEmployee402g?.remaining ?? 0);
+  const iraRoom = room.ira.remainingContributionRoom ?? 0;
   let employerVerified = 0;
   const needsVerificationPlanIds: string[] = [];
   let unknownEmployerCount = 0;
@@ -140,7 +149,7 @@ export function computeRetirementHeadline(
     employerVerified += Math.min(cap, clip);
   }
   return {
-    verifiedTotal: employeeRoom + (engine.governmental457b?.remaining ?? 0) + iraRoom + employerVerified,
+    verifiedTotal: employeeRoom + (room.governmental457b?.remaining ?? 0) + iraRoom + employerVerified,
     employeeRoom,
     iraRoom,
     employerVerified,
@@ -230,7 +239,17 @@ export function computeRetirementRoomView(args: RetirementRoomViewArgs): Retirem
     args.includeProjection === false
       ? null
       : computeRetirementOpportunity(
-          buildRetirementOpportunityInput(common, { projected: true }).input,
+          buildRetirementOpportunityInput(
+            {
+              ...common,
+              ira: {
+                traditionalContributed:
+                  args.ira.traditionalContributed + (args.iraScheduled?.traditionalContributed ?? 0),
+                rothContributed: args.ira.rothContributed + (args.iraScheduled?.rothContributed ?? 0),
+              },
+            },
+            { projected: true },
+          ).input,
         );
 
   /* Employee elective-deferral room — one shared §402(g) bucket, plus the
@@ -295,10 +314,24 @@ export function computeRetirementRoomView(args: RetirementRoomViewArgs): Retirem
   const scheduledEmployerTotal = engineProjected
     ? Math.max(0, sumProjected("employerContribution") - sumActual("employerContribution"))
     : 0;
+  const scheduledIraTotal = engineProjected
+    ? (args.iraScheduled?.traditionalContributed ?? 0) + (args.iraScheduled?.rothContributed ?? 0)
+    : 0;
+  const k1ClassificationUnknownCompanyIds = args.companies
+    .filter(
+      (c) =>
+        entityKindForCompanyType(c.companyType) === "partnership_k1" &&
+        k1ServiceEarnings(c.k1TaxTreatment, 0) == null,
+    )
+    .map((c) => c.id);
   const needsReconciliation =
     sources.ambiguous.length > 0 ||
+    k1ClassificationUnknownCompanyIds.length > 0 ||
     [...engine.plans, ...(engineProjected?.plans ?? [])].some(
-      (p) => p.capacityUnverified || p.reasons.includes("sep_employee_deferral_not_allowed"),
+      (p) =>
+        p.capacityUnverified ||
+        p.reasons.includes("sep_employee_deferral_not_allowed") ||
+        p.reasons.includes("payroll_plan_unresolved"),
     );
 
   return {
@@ -306,6 +339,8 @@ export function computeRetirementRoomView(args: RetirementRoomViewArgs): Retirem
     engineProjected,
     scheduledEmployeeTotal,
     scheduledEmployerTotal,
+    scheduledIraTotal,
+    k1ClassificationUnknownCompanyIds,
     needsReconciliation,
     headline: computeRetirementHeadline(engine, engineProjected),
     employeeRoom,
