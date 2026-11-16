@@ -12,6 +12,8 @@ import { normalizeFilingType } from "@/lib/filingTypes";
 
 export type PlannerCategory = "employee" | "w2_employer" | "self_employed_employer" | "ira";
 
+export const SEP_EMPLOYEE_REVIEW = "Needs review — SEP IRA employee contribution. Ordinary SEP IRAs generally don't allow employee elective deferrals, so this isn't counted as an employer deposit or a deductible contribution.";
+
 export interface PlannerHistoryRow {
   /** Stable key: source record id + money side. */
   key: string;
@@ -30,6 +32,8 @@ export interface PlannerHistoryRow {
   possibleDuplicate: boolean;
   /** Manual record that can be edited/deleted. */
   editableId?: string;
+  /** Display-only review note; never reclassifies the saved record. */
+  reviewNote?: string;
 }
 
 export interface PlannerPaycheckRecord {
@@ -105,11 +109,13 @@ export function buildPlannerHistory(args: {
   }
   for (const s of args.standalone) {
     const isIra = IRA_TYPES.has(s.accountType);
-    const employer = !isIra && (s.accountType === "sep_ira" || s.contributionType === "employer");
+    const sepEmployee = s.accountType === "sep_ira" && s.contributionType === "employee";
+    const employer = !isIra && !sepEmployee && (s.accountType === "sep_ira" || s.contributionType === "employer");
     const category: PlannerCategory = isIra ? "ira" : employer ? employerCategory(s.companyId) : "employee";
     const funding: PlannerHistoryRow["funding"] = isIra ? "Personal" : employer ? "Employer" : "Employee";
     const companyId = isIra ? null : s.companyId;
-    const base = { recordId: s.id, category, companyId, funding, source: "Manual" as const, accountLabel: s.accountLabel, possibleDuplicate: ambiguous.has(s.id), editableId: s.id };
+    const base = { recordId: s.id, category, companyId, funding, source: "Manual" as const, accountLabel: s.accountLabel, possibleDuplicate: ambiguous.has(s.id), editableId: s.id,
+      ...(sepEmployee ? { reviewNote: SEP_EMPLOYEE_REVIEW } : {}) };
     if (s.frequency === "one_time") {
       const amount = s.actual + s.scheduled;
       if (amount <= 0) continue;

@@ -82,6 +82,7 @@ function HistoryTable({ rows, showScheduled, onEdit, onDelete }: { rows: Planner
         <p className="text-xs text-muted-foreground">
           {r.funding} · {r.source === "Planner" ? "Planner paycheck" : r.source}{r.accountLabel ? ` · ${r.accountLabel}` : ""}{r.recurringLabel ? ` · repeating ${r.recurringLabel}` : ""}
         </p>
+        {r.reviewNote && <p className="mt-1 text-xs text-warning" data-testid="retirement-history-review">{r.reviewNote}</p>}
         {r.possibleDuplicate && <Badge variant="outline" className="mt-1 border-warning/50 text-xs">May duplicate a paycheck entry</Badge>}
       </div>
       <div className="flex items-center gap-0.5">
