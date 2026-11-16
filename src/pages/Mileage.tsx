@@ -40,7 +40,7 @@ import {
   useRetirementContributions, useAddRetirementContribution, useUpdateRetirementContribution,
   useDeleteRetirementContribution, useAnnualizedContributions,
   ACCOUNT_TYPES, FREQUENCIES, CONTRIBUTION_TYPES,
-  isIraPlan, isEmployerSponsoredPlan,
+  isIraPlan, isEmployerSponsoredPlan, getAccountTypeLabel,
   annualizeContributionAmount,
   type RetirementContribution,
 } from "@/hooks/useRetirementContributions";
@@ -65,8 +65,8 @@ import {
 } from "@/hooks/useProjectedIncome";
 import { computeRetirementRoomView } from "@/lib/retirementRoomView";
 import { aggregatePlannedBusinessExpenses } from "@/lib/plannedBusinessExpenses";
-import { RetirementRoomSummary } from "@/components/retirement/RetirementRoomSummary";
-import { RetirementContributionDetails } from "@/components/retirement/RetirementContributionDetails";
+import { RetirementPlanner } from "@/components/retirement/RetirementPlanner";
+import { buildPlannerHistory } from "@/lib/retirementPlannerView";
 import { cn } from "@/lib/utils";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -351,6 +351,39 @@ export default function Mileage() {
     }
   }, [hasPlannerAccess, plannerStreams, plannerBonuses, incomeEntries, plannerOverrides, plannerConversions, closureLookup]);
 
+  const retirementStandaloneSources = useMemo(() => {
+    const todayISO = new Date().toISOString().split("T")[0];
+    // Standalone rows, annualized once by the canonical annualizer.
+    // Actual = occurrences through today; the rest of the year is Scheduled.
+    return (contributions || []).map((c) => {
+      const opts = {
+        taxYear: currentYear,
+        payFrequency: (c.company_id && payFrequencyByCompany.get(c.company_id)) || null,
+        closurePeriods: closureLookup.periods,
+        companyId: c.company_id ?? null,
+      };
+      const full = annualizeContributionAmount(c, opts).annual;
+      let actual = full;
+      if (c.frequency === "one_time") {
+        const d = String(c.contribution_date || c.start_date || "");
+        if (d > todayISO) actual = 0;
+      } else {
+        const end = c.end_date && String(c.end_date) < todayISO ? c.end_date : todayISO;
+        actual = String(c.start_date || "") > todayISO ? 0 : annualizeContributionAmount({ ...c, end_date: end }, opts).annual;
+      }
+      return {
+        id: c.id,
+        companyId: c.company_id,
+        accountType: c.account_type,
+        contributionType: c.contribution_type,
+        annualAmount: actual,
+        scheduledAmount: Math.max(0, full - actual),
+        contributionDate: c.contribution_date,
+      };
+    });
+
+  }, [contributions, currentYear, payFrequencyByCompany, closureLookup.periods]);
+
   /**
    * Retirement room comes ENTIRELY from the canonical engine
    * (`computeRetirementRoomView` → `computeRetirementOpportunity`). This page
@@ -395,34 +428,7 @@ export default function Mileage() {
       : [];
     const paycheckSources = [...recordedPaychecks, ...scheduledPaychecks];
 
-    // Standalone rows, annualized once by the canonical annualizer.
-    // Actual = occurrences through today; the rest of the year is Scheduled.
-    const standaloneSources = (contributions || []).map((c) => {
-      const opts = {
-        taxYear: currentYear,
-        payFrequency: (c.company_id && payFrequencyByCompany.get(c.company_id)) || null,
-        closurePeriods: closureLookup.periods,
-        companyId: c.company_id ?? null,
-      };
-      const full = annualizeContributionAmount(c, opts).annual;
-      let actual = full;
-      if (c.frequency === "one_time") {
-        const d = String(c.contribution_date || c.start_date || "");
-        if (d > todayISO) actual = 0;
-      } else {
-        const end = c.end_date && String(c.end_date) < todayISO ? c.end_date : todayISO;
-        actual = String(c.start_date || "") > todayISO ? 0 : annualizeContributionAmount({ ...c, end_date: end }, opts).annual;
-      }
-      return {
-        id: c.id,
-        companyId: c.company_id,
-        accountType: c.account_type,
-        contributionType: c.contribution_type,
-        annualAmount: actual,
-        scheduledAmount: Math.max(0, full - actual),
-        contributionDate: c.contribution_date,
-      };
-    });
+    const standaloneSources = retirementStandaloneSources;
 
     // Remaining ACTIVE planned gross income (matched/converted excluded).
     const remainingPlannedGrossByCompany = new Map<string, number>();
@@ -546,6 +552,7 @@ export default function Mileage() {
     payFrequencyByCompany,
     retirementProfitByCompany,
     closureLookup.periods,
+    retirementStandaloneSources,
     plannerOccurrences,
     plannerStreams,
     hasPlannerAccess,
@@ -554,6 +561,37 @@ export default function Mileage() {
   ]);
 
 
+
+  // Contribution history for the planner — original records only, grouped
+  // for display; scheduled Planner occurrences use the same active-only filter.
+  const retirementHistory = useMemo(() => {
+    const todayISO = new Date().toISOString().split("T")[0];
+    const byId = new Map((contributions || []).map((c) => [c.id, c]));
+    return buildPlannerHistory({
+      taxYear: currentYear,
+      todayISO,
+      companies: companies.map((c) => ({ id: c.id, companyType: c.companyType })),
+      paychecks: (incomeEntries || []).map((e: any) => ({
+        id: e.id, companyId: e.source_id || null, date: e.income_date || null,
+        employee: Number(e.retirement_401k || 0), employer: Number(e.employer_retirement_contribution || 0),
+      })),
+      scheduledPaychecks: hasPlannerAccess
+        ? (plannerOccurrences as any[])
+            .filter((p) => p.matchStatus === "active" && p.date && String(p.date).slice(0, 4) === String(currentYear) && String(p.date) > todayISO && p.streamSourceId)
+            .map((p) => ({ key: `planner:${p.streamId}:${p.date}`, companyId: p.streamSourceId, date: p.date, employee: Number(p.retirement401k || 0), employer: Number(p.employerRetirementContribution || 0) }))
+        : [],
+      standalone: retirementStandaloneSources.map((r) => {
+        const c = byId.get(r.id)!;
+        return {
+          id: r.id, companyId: r.companyId ?? null, accountType: r.accountType, accountLabel: getAccountTypeLabel(r.accountType),
+          contributionType: r.contributionType ?? null, frequency: c?.frequency || "one_time",
+          date: (c?.frequency === "one_time" ? c?.contribution_date : c?.start_date) || c?.contribution_date || null,
+          perContribution: Number(c?.contribution_amount || 0), actual: r.annualAmount, scheduled: r.scheduledAmount,
+        };
+      }),
+      ambiguousIds: retirementRoom.ambiguousDuplicates.flatMap((d) => [d.standaloneId, d.incomeEntryId]),
+    });
+  }, [contributions, currentYear, companies, incomeEntries, hasPlannerAccess, plannerOccurrences, retirementStandaloneSources, retirementRoom]);
 
   const homeOfficePreview = useMemo(() => calculateHomeOfficeAmounts({
     method: homeOfficeForm.method,
@@ -1019,11 +1057,15 @@ export default function Mileage() {
         <Plus className="h-4 w-4" /> Add Contribution
       </Button>
 
-      <RetirementRoomSummary
+      <RetirementPlanner
         room={retirementRoom}
+        history={retirementHistory}
+        companyName={(companyId) => companyId ? companies.find((company) => company.id === companyId)?.name || null : null}
         hasPlannerAccess={hasPlannerAccess && canFeature("projectedContributionCapacity")}
         hasEmployerOpportunityAccess={canFeature("employerContributionOpportunity")}
         hasCapacityAccess={canFeature("projectedContributionCapacity")}
+        onEditContribution={(id) => { const c = contributions?.find((x) => x.id === id); if (c) startEditContrib(c); }}
+        onDeleteContribution={setContribDeleteId}
       />
 
 
@@ -1153,14 +1195,7 @@ export default function Mileage() {
             </DialogContent>
           </Dialog>
 
-          <RetirementContributionDetails
-            contributions={contributions || []}
-            paycheckEntries={paycheckLinked.entries as never}
-            companyName={(companyId) => companyId ? companies.find((company) => company.id === companyId)?.name || null : null}
-            annualAmount={(contribution) => annualizeContributionAmount(contribution, { taxYear: currentYear, payFrequency: contribution.company_id ? payFrequencyByCompany.get(contribution.company_id) ?? null : null, closurePeriods: closureLookup.periods, companyId: contribution.company_id ?? null }).annual}
-            onEdit={startEditContrib}
-            onDelete={setContribDeleteId}
-          />
+
     </div>
   );
 
