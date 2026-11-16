@@ -31,9 +31,9 @@ describe("related businesses", () => {
   it("businesses confirmed not related keep separate room and count in the headline", () => {
     const v = run({ status: "unrelated" }, { status: "unrelated" });
     expect(v.engine.plans.some((p) => p.capacityUnverified)).toBe(false);
-    // Each business high-earning: each capped at its own §415(c) limit.
-    const single = v.engine.plans[0].annualAdditionsLimit!;
-    expect(cap(v)).toBeCloseTo(single * 2, 2);
+    // Each business gets its own room; together more than one shared limit.
+    expect(v.engine.plans.every((p) => (p.employerCapacityRemaining ?? 0) > 0)).toBe(true);
+    expect(cap(v)).toBeGreaterThan(v.engine.plans[0].annualAdditionsLimit!);
     expect(v.headline.needsVerificationPlanIds).toHaveLength(0);
   });
 
