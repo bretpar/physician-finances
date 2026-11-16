@@ -17,6 +17,7 @@ export const RETIREMENT_REASON_MESSAGES: Record<RetirementReasonCode, string> = 
   duplicate_contribution_ambiguous: "This contribution may also appear on a paycheck and needs review.",
   shared_employer_limit: "Shares one annual limit with another plan at the same employer, so it is counted once.",
   related_employer_unverified: "Needs verification: your businesses may share one combined limit, so this amount isn't added to your total.",
+  payroll_plan_unresolved: "Paycheck retirement money couldn't be matched to one plan because this company has several plans.",
   unknown_plan_data: "More plan information is needed to calculate this opportunity.",
 };
 

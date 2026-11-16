@@ -40,6 +40,8 @@ export type RetirementReasonCode =
   | "shared_employer_limit"
   /** The same earner has several businesses; related-employer status unknown. */
   | "related_employer_unverified"
+  /** Payroll retirement money whose plan cannot be determined (company has several plans). */
+  | "payroll_plan_unresolved"
   | "unknown_plan_data";
 
 /* ─────────────────────────────── Rule tables ────────────────────────────── */
@@ -316,6 +318,8 @@ export interface PlanOpportunityInput {
   employerGroupKey?: string | null;
   /** Original record ids (income entries / standalone rows) behind this plan. */
   sourceRecordIds?: string[];
+  /** Payroll money whose plan could not be resolved (company has several plans). */
+  payrollPlanUnresolved?: boolean;
 }
 
 export interface RetirementOpportunityInput {
@@ -769,6 +773,7 @@ function computePlanOpportunity(
     }
   }
 
+  if (plan.payrollPlanUnresolved) reasons.push("payroll_plan_unresolved");
   if (bucket === "402g") reasons.push("employee_402g_limit");
   if (bucket === "governmental_457b") reasons.push("governmental_457b_limit");
   if (bucket === "simple") reasons.push("simple_plan_limit");
@@ -817,6 +822,7 @@ function applySharedEmployerLimits(plans: PlanOpportunity[], rates: Map<PlanOppo
   }
   for (const group of groups.values()) {
     if (group.length < 2) continue;
+    group.sort((a, b) => String(a.planId).localeCompare(String(b.planId)));
     const used = group.reduce((s, p) => s + p.employeeTowardAnnualAdditions + p.employerContribution, 0);
     const limits = group.map((p) => p.annualAdditionsLimit).filter((v): v is number => v != null);
     const headroom = limits.length ? Math.max(0, Math.min(...limits) - used) : null;
@@ -841,12 +847,14 @@ function applySharedEmployerLimits(plans: PlanOpportunity[], rates: Map<PlanOppo
     });
   }
 
-  // Different businesses of one earner: related-employer facts unknown.
+  // Different businesses of one earner: related-employer facts unknown. ALL
+  // business plans count (including $0 / unknown capacity), since existing
+  // additions at one business can consume the aggregated limit of another.
   const byEarner = new Map<string, PlanOpportunity[]>();
   for (const p of plans) {
     const isBusiness =
       p.entityKind === "schedule_c" || p.entityKind === "partnership_k1" || p.entityKind === "s_corp";
-    if (!isBusiness || p.employerCapacityRemaining == null || p.employerCapacityRemaining <= 0) continue;
+    if (!isBusiness) continue;
     if (!byEarner.has(p.earner)) byEarner.set(p.earner, []);
     byEarner.get(p.earner)!.push(p);
   }
@@ -908,10 +916,26 @@ export function computeRetirementOpportunity(
   const bucket402gFor = (earner: RetirementEarner, catchUp: number): DeferralBucketResult => {
     const contributed = sumBucketFor("402g", earner);
     const simpleUsed = sumBucketFor("simple", earner);
+    let remaining = Math.max(0, rules.employeeDeferral + catchUp - contributed - simpleUsed);
+    /* Deferrals can never exceed eligible compensation: when compensation is
+       known for every plan of this earner, cap room by what is left of it. */
+    const earnerPlans = plans.filter(
+      (p) => p.earner === earner && (p.deferralBucket === "402g" || p.deferralBucket === "simple"),
+    );
+    if (earnerPlans.length > 0 && earnerPlans.every((p) => p.eligibleCompensation != null)) {
+      const seenGroups = new Set<string>();
+      let comp = 0;
+      for (const p of earnerPlans) {
+        if (seenGroups.has(p.employerGroupKey)) continue;
+        seenGroups.add(p.employerGroupKey);
+        comp += p.eligibleCompensation ?? 0;
+      }
+      remaining = Math.min(remaining, Math.max(0, comp - contributed - simpleUsed));
+    }
     return {
       contributed,
       limit: rules.employeeDeferral + catchUp,
-      remaining: Math.max(0, rules.employeeDeferral + catchUp - contributed - simpleUsed),
+      remaining,
       catchUp,
       reasons: ["employee_402g_limit"],
     };
