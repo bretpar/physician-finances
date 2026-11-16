@@ -15,6 +15,8 @@ export const RETIREMENT_REASON_MESSAGES: Record<RetirementReasonCode, string> = 
   mfs_spouse_status_unknown: "Your living arrangement is needed to determine IRA eligibility.",
   sep_employee_deferral_not_allowed: "SEP IRA employee contributions need review; standard SEP contributions are made by the business.",
   duplicate_contribution_ambiguous: "This contribution may also appear on a paycheck and needs review.",
+  shared_employer_limit: "Shares one annual limit with another plan at the same employer, so it is counted once.",
+  related_employer_unverified: "Needs verification: your businesses may share one combined limit, so this amount isn't added to your total.",
   unknown_plan_data: "More plan information is needed to calculate this opportunity.",
 };
 
