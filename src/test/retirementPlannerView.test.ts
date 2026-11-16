@@ -33,4 +33,26 @@ describe("retirement planner history", () => {
     expect(rows.every((r) => r.scheduled)).toBe(true);
     expect(rows.find((r) => r.recordId === "p1")?.possibleDuplicate).toBe(true);
   });
+
+  const sep = (id: string, contributionType: string) => ({ id, companyId: "biz", accountType: "sep_ira", accountLabel: "SEP IRA", contributionType, frequency: "one_time", date: "2026-04-01", perContribution: 1000, actual: 1000, scheduled: 0 });
+
+  it("keeps an employee-classified SEP IRA as employee money flagged for review", () => {
+    const [r] = buildPlannerHistory({ ...base, paychecks: [], scheduledPaychecks: [], standalone: [sep("s1", "employee")] });
+    expect(r.funding).toBe("Employee");
+    expect(r.category).not.toBe("self_employed_employer");
+    expect(r.reviewNote).toMatch(/Needs review/);
+    expect([r.amount, r.date, r.companyId, r.accountLabel, r.editableId]).toEqual([1000, "2026-04-01", "biz", "SEP IRA", "s1"]);
+  });
+
+  it("keeps an employer-classified SEP IRA in the self-employed employer section", () => {
+    const [r] = buildPlannerHistory({ ...base, paychecks: [], scheduledPaychecks: [], standalone: [sep("s2", "employer")] });
+    expect([r.funding, r.category, r.amount, r.reviewNote]).toEqual(["Employer", "self_employed_employer", 1000, undefined]);
+  });
+
+  it("leaves Solo 401(k) and W-2 manual classifications unchanged", () => {
+    const solo = (id: string, t: string, companyId = "biz") => ({ ...sep(id, t), companyId, accountType: "solo_401k", accountLabel: "Solo 401(k)" });
+    const rows = buildPlannerHistory({ ...base, paychecks: [], scheduledPaychecks: [], standalone: [solo("a", "employee"), solo("b", "employer"), solo("c", "employer", "w2")] });
+    expect(rows.map((r) => [r.recordId, r.funding, r.category, r.reviewNote])).toEqual([
+      ["a", "Employee", "employee", undefined], ["b", "Employer", "self_employed_employer", undefined], ["c", "Employer", "w2_employer", undefined]]);
+  });
 });
