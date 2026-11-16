@@ -49,6 +49,7 @@ import { useCompanies } from "@/contexts/CompanyContext";
 import { useTaxSettings, useUpdateTaxSettings } from "@/hooks/useTaxSettings";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { normalizeFilingType } from "@/lib/filingTypes";
+import { eligibleIraW2Wages } from "@/lib/iraCompensation";
 import { k1ServiceEarnings } from "@/lib/retirementCanonicalInput";
 import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
 import { getDeductionToolVisibility } from "@/lib/householdIncomeProfile";
@@ -471,9 +472,7 @@ export default function Mileage() {
        this year's paychecks plus positive business net profit. Supplied so the
        IRA card can show real remaining room instead of "Unknown"; when there is
        no compensation at all it stays null and the engine keeps it unknown. */
-    const wagesTotal = recordedPaychecks
-      .filter((p) => !p.scheduled)
-      .reduce((s, p) => s + (Number(p.wages) || 0), 0);
+    const wagesTotal = eligibleIraW2Wages(recordedPaychecks, companies);
     // Same-earner W-2 wages for the shared Social Security wage base.
     const earnerOf = (cid: string | null) =>
       companies.find((c) => c.id === cid)?.employeeRole === "spouse" ? "spouse" : "primary";
