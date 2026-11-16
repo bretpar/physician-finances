@@ -40,7 +40,7 @@ import {
   useRetirementContributions, useAddRetirementContribution, useUpdateRetirementContribution,
   useDeleteRetirementContribution, useAnnualizedContributions,
   ACCOUNT_TYPES, FREQUENCIES, CONTRIBUTION_TYPES,
-  isIraPlan, isEmployerSponsoredPlan,
+  isIraPlan, isEmployerSponsoredPlan, getAccountTypeLabel,
   annualizeContributionAmount,
   type RetirementContribution,
 } from "@/hooks/useRetirementContributions";
