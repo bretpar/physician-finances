@@ -391,7 +391,11 @@ export function buildRetirementOpportunityInput(
           0)
         : null,
       employerContributionRate: isSelfEmployed ? 0.25 : null,
-      employerFormulaKnown: false,
+      employerFormulaKnown: !isSelfEmployed && company?.employerFormula != null,
+      estimatedEmployerContribution:
+        !isSelfEmployed && company?.employerFormula
+          ? estimateEmployerContribution(company.employerFormula, wages > 0 ? wages : null, a.employee)
+          : 0,
       businessRelationship: company?.retirementRelationship?.status ?? null,
       relatedGroupId:
         company?.retirementRelationship?.status === "related" ? company.retirementRelationship.groupId : null,
