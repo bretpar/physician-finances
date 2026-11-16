@@ -36,6 +36,10 @@ export type RetirementReasonCode =
   | "sep_employee_deferral_not_allowed"
   /** Two records may describe the same contribution; both were preserved. */
   | "duplicate_contribution_ambiguous"
+  /** Capacity is shared with another plan of the same employer (counted once). */
+  | "shared_employer_limit"
+  /** The same earner has several businesses; related-employer status unknown. */
+  | "related_employer_unverified"
   | "unknown_plan_data";
 
 /* ─────────────────────────────── Rule tables ────────────────────────────── */
@@ -304,6 +308,14 @@ export interface PlanOpportunityInput {
    * flag, employee deferrals into a SEP are rejected as a data-quality issue.
    */
   grandfatheredSarsep?: boolean | null;
+  /**
+   * Plans with the same key are maintained by the SAME employer and share one
+   * §415(c) annual-additions limit and one compensation base. Defaults to
+   * `${earner}:${companyId}`. Never derived from company names.
+   */
+  employerGroupKey?: string | null;
+  /** Original record ids (income entries / standalone rows) behind this plan. */
+  sourceRecordIds?: string[];
 }
 
 export interface RetirementOpportunityInput {
@@ -398,6 +410,16 @@ export interface PlanOpportunity {
   employerCapacityRemaining: number | null;
   /** Eligible compensation the capacity math used. `null` when unknown. */
   eligibleCompensation: number | null;
+  /**
+   * Remaining §415(c) room shared by employee AND employer money in this
+   * employer group (null when the limit is not known). Employee room and
+   * employer capacity must never be added past this.
+   */
+  additionsHeadroom: number | null;
+  /** True when combined capacity across possibly-related employers is unverified. */
+  capacityUnverified: boolean;
+  employerGroupKey: string;
+  sourceRecordIds: string[];
   reasons: RetirementReasonCode[];
 }
 
@@ -769,8 +791,72 @@ function computePlanOpportunity(
     annualAdditionsLimit,
     employerCapacityRemaining,
     eligibleCompensation,
+    additionsHeadroom:
+      annualAdditionsLimit == null ? null : Math.max(0, annualAdditionsLimit - additionsUsed),
+    capacityUnverified: false,
+    employerGroupKey:
+      plan.employerGroupKey ||
+      `${plan.earner === "spouse" ? "spouse" : "primary"}:${plan.companyId ?? plan.planId ?? "plan"}`,
+    sourceRecordIds: plan.sourceRecordIds ?? [],
     reasons: Array.from(new Set(reasons)),
   };
+}
+
+/**
+ * Same-employer plans share ONE §415(c) limit and ONE formula capacity built
+ * from the SAME eligible earnings. Recompute capacity once per group and report
+ * it on a single plan; the others show $0 with `shared_employer_limit`.
+ * Across different businesses of the same earner, related-employer status is
+ * unknown, so their capacities are flagged unverified (never summed as fact).
+ */
+function applySharedEmployerLimits(plans: PlanOpportunity[], rates: Map<PlanOpportunity, number | null>) {
+  const groups = new Map<string, PlanOpportunity[]>();
+  for (const p of plans) {
+    if (!groups.has(p.employerGroupKey)) groups.set(p.employerGroupKey, []);
+    groups.get(p.employerGroupKey)!.push(p);
+  }
+  for (const group of groups.values()) {
+    if (group.length < 2) continue;
+    const used = group.reduce((s, p) => s + p.employeeTowardAnnualAdditions + p.employerContribution, 0);
+    const limits = group.map((p) => p.annualAdditionsLimit).filter((v): v is number => v != null);
+    const headroom = limits.length ? Math.max(0, Math.min(...limits) - used) : null;
+    for (const p of group) p.additionsHeadroom = headroom;
+    const withCapacity = group.filter((p) => p.employerCapacityRemaining != null);
+    if (withCapacity.length === 0) continue;
+    const employerUsed = group.reduce((s, p) => s + p.employerContribution, 0);
+    const formulas = withCapacity
+      .map((p) => {
+        const rate = rates.get(p);
+        return p.eligibleCompensation == null || rate == null ? null : p.eligibleCompensation * rate;
+      })
+      .filter((v): v is number => v != null);
+    const formula = formulas.length ? Math.max(...formulas) : null;
+    const shared = Math.max(
+      0,
+      Math.min(formula == null ? Infinity : formula - employerUsed, headroom ?? Infinity),
+    );
+    withCapacity.forEach((p, idx) => {
+      p.employerCapacityRemaining = idx === 0 ? (Number.isFinite(shared) ? shared : 0) : 0;
+      if (idx > 0 && !p.reasons.includes("shared_employer_limit")) p.reasons.push("shared_employer_limit");
+    });
+  }
+
+  // Different businesses of one earner: related-employer facts unknown.
+  const byEarner = new Map<string, PlanOpportunity[]>();
+  for (const p of plans) {
+    const isBusiness =
+      p.entityKind === "schedule_c" || p.entityKind === "partnership_k1" || p.entityKind === "s_corp";
+    if (!isBusiness || p.employerCapacityRemaining == null || p.employerCapacityRemaining <= 0) continue;
+    if (!byEarner.has(p.earner)) byEarner.set(p.earner, []);
+    byEarner.get(p.earner)!.push(p);
+  }
+  for (const list of byEarner.values()) {
+    if (new Set(list.map((p) => p.employerGroupKey)).size < 2) continue;
+    for (const p of list) {
+      p.capacityUnverified = true;
+      if (!p.reasons.includes("related_employer_unverified")) p.reasons.push("related_employer_unverified");
+    }
+  }
 }
 
 /* ────────────────────────────── Main entry ──────────────────────────────── */
@@ -788,6 +874,20 @@ export function computeRetirementOpportunity(
 
   const planInputs = input.plans ?? [];
   const plans = planInputs.map((p) => computePlanOpportunity(p, { taxYear, age }));
+  const rateByPlan = new Map<PlanOpportunity, number | null>();
+  plans.forEach((p, i) => {
+    const input = planInputs[i];
+    const nominal =
+      input.employerContributionRate == null || !Number.isFinite(Number(input.employerContributionRate))
+        ? null
+        : nonNeg(input.employerContributionRate);
+    const se = p.entityKind === "schedule_c" || p.entityKind === "partnership_k1";
+    rateByPlan.set(
+      p,
+      se ? reducedSelfEmployedRate(nominal ?? DEFAULT_SELF_EMPLOYED_NOMINAL_RATE) : nominal,
+    );
+  });
+  applySharedEmployerLimits(plans, rateByPlan);
 
   const sumBucket = (bucket: DeferralBucket) =>
     plans
