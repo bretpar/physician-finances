@@ -10,7 +10,7 @@ import { ROUTE_META } from "./src/lib/routeMeta";
 // Writes dist/<route>/index.html with route-specific head tags so crawlers that
 // don't run JS see each public page's own title and description.
 const STATIC_HEAD_ROUTES = [
-  "/estimate", "/trust", "/login", "/signup",
+  "/estimate", "/trust", "/privacy", "/terms", "/login", "/signup",
   ...ROUTE_META.map((r) => r.pattern).filter((p) => p.startsWith("/blog/")),
 ];
 function esc(v: string) {

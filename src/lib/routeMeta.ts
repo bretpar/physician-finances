@@ -233,6 +233,20 @@ export const ROUTE_META: Array<{ pattern: string; meta: Meta }> = [
     },
   },
   {
+    pattern: "/privacy",
+    meta: {
+      title: "Privacy Policy | Paycheck MD",
+      description: "What information Paycheck MD handles, the services that process it, site analytics, and how to delete your account.",
+    },
+  },
+  {
+    pattern: "/terms",
+    meta: {
+      title: "Terms of Use | Paycheck MD",
+      description: "Terms for using Paycheck MD, a physician tax-planning app that provides planning estimates, not tax or legal advice.",
+    },
+  },
+  {
     pattern: "/trust",
     meta: {
       title: "Trust & Security | Paycheck MD",

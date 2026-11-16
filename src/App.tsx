@@ -41,6 +41,9 @@ import StudentLoanValidation from "@/pages/admin/StudentLoanValidation";
 import DiagnosticsBuild from "@/pages/DiagnosticsBuild";
 import NotFound from "@/pages/NotFound";
 import Trust from "@/pages/Trust";
+import Privacy from "@/pages/Privacy";
+import Terms from "@/pages/Terms";
+import { DeveloperRoute } from "@/components/auth/DeveloperRoute";
 import Landing from "@/pages/Landing";
 import { RouteHead } from "@/components/RouteHead";
 import { PageAccessGate } from "@/components/PageAccessGate";
@@ -140,8 +143,8 @@ function ProtectedRoutes() {
           <Route path="/admin" element={<Admin />} />
           <Route path="/admin/data-isolation" element={<DataIsolationReport />} />
 
-          <Route path="/admin/tax-validation" element={<TaxValidation />} />
-          <Route path="/admin/student-loan-validation" element={<StudentLoanValidation />} />
+          <Route path="/admin/tax-validation" element={<DeveloperRoute><TaxValidation /></DeveloperRoute>} />
+          <Route path="/admin/student-loan-validation" element={<DeveloperRoute><StudentLoanValidation /></DeveloperRoute>} />
           {/* Legacy redirects */}
           <Route path="/transactions" element={<Navigate to="/business-activity" replace />} />
           <Route path="/income" element={<Navigate to="/personal-income" replace />} />
@@ -184,6 +187,8 @@ function AppRoutes() {
       <Route path="/blog/tax-planning-for-doctors" element={<TaxPlanningForDoctors />} />
       <Route path="/diagnostics/build" element={<DiagnosticsBuild />} />
       <Route path="/trust" element={<Trust />} />
+      <Route path="/privacy" element={<Privacy />} />
+      <Route path="/terms" element={<Terms />} />
       <Route path="/" element={user ? <ProtectedRoutes /> : <Landing />} />
       <Route path="/*" element={user ? <ProtectedRoutes /> : <Navigate to="/login" replace />} />
 
