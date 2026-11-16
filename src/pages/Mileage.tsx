@@ -303,6 +303,23 @@ export default function Mileage() {
     return map;
   }, [businessCompanies, transactions, ytdEntries]);
 
+  /* Retirement eligible earnings: ONLY the current tax year's business
+     profit (transactions dated in that year; mileage for that year). */
+  const retirementProfitByCompany = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of businessCompanies) map.set(c.id, 0);
+    for (const tx of transactions) {
+      if (isExcludedFromBusiness(tx as any) || !tx.source_id || !map.has(tx.source_id)) continue;
+      if (String(tx.transaction_date || "").slice(0, 4) !== String(currentYear)) continue;
+      const amount = Math.abs(Number(tx.amount) || 0);
+      map.set(tx.source_id, (map.get(tx.source_id) || 0) + (tx.transaction_type === "income" ? amount : tx.transaction_type === "expense" ? -amount : 0));
+    }
+    if (selectedYear === currentYear) {
+      for (const e of ytdEntries) if (e.company_id && map.has(e.company_id)) map.set(e.company_id, (map.get(e.company_id) || 0) - getMileageEntryDeduction(e));
+    }
+    return map;
+  }, [businessCompanies, transactions, ytdEntries, selectedYear, currentYear]);
+
   // ─── Retirement contribution room (calculations only) ─────────
   // Employee elective deferrals share ONE aggregate limit; employer/plan
   // capacity is calculated per company because eligible compensation differs.
@@ -339,7 +356,8 @@ export default function Mileage() {
   const retirementRoom = useMemo(() => {
     const todayISO = new Date().toISOString().split("T")[0];
 
-    const paycheckSources = (incomeEntries || [])
+    // Recorded paychecks through today are ACTUAL; future-dated ones are scheduled.
+    const recordedPaychecks = (incomeEntries || [])
       .filter((e) => String(e.income_date || "").slice(0, 4) === String(currentYear))
       .map((e: any) => ({
         incomeEntryId: e.id,
@@ -348,22 +366,60 @@ export default function Mileage() {
         employer: Number(e.employer_retirement_contribution || 0),
         wages: Number(e.paycheck_amount || 0),
         date: e.income_date || null,
+        scheduled: String(e.income_date || "") > todayISO,
       }));
+    // Future retirement deductions from ACTIVE Planner occurrences only —
+    // converted / skipped / matched occurrences are excluded, so a converted
+    // paycheck is counted once (as the recorded entry above).
+    const scheduledPaychecks = hasPlannerAccess
+      ? (plannerOccurrences as any[])
+          .filter(
+            (p) =>
+              p.matchStatus === "active" &&
+              p.date && String(p.date).slice(0, 4) === String(currentYear) &&
+              String(p.date) > todayISO &&
+              p.streamSourceId,
+          )
+          .map((p) => ({
+            incomeEntryId: `planner:${p.streamId}:${p.date}`,
+            companyId: p.streamSourceId as string,
+            employee: Number(p.retirement401k || 0),
+            employer: Number(p.employerRetirementContribution || 0),
+            wages: Number(p.grossAmount || 0),
+            date: p.date,
+            scheduled: true,
+          }))
+      : [];
+    const paycheckSources = [...recordedPaychecks, ...scheduledPaychecks];
 
     // Standalone rows, annualized once by the canonical annualizer.
-    const standaloneSources = (contributions || []).map((c) => ({
-      id: c.id,
-      companyId: c.company_id,
-      accountType: c.account_type,
-      contributionType: c.contribution_type,
-      annualAmount: annualizeContributionAmount(c, {
+    // Actual = occurrences through today; the rest of the year is Scheduled.
+    const standaloneSources = (contributions || []).map((c) => {
+      const opts = {
         taxYear: currentYear,
         payFrequency: (c.company_id && payFrequencyByCompany.get(c.company_id)) || null,
         closurePeriods: closureLookup.periods,
         companyId: c.company_id ?? null,
-      }).annual,
-      contributionDate: c.contribution_date,
-    }));
+      };
+      const full = annualizeContributionAmount(c, opts).annual;
+      let actual = full;
+      if (c.frequency === "one_time") {
+        const d = String(c.contribution_date || c.start_date || "");
+        if (d > todayISO) actual = 0;
+      } else {
+        const end = c.end_date && String(c.end_date) < todayISO ? c.end_date : todayISO;
+        actual = String(c.start_date || "") > todayISO ? 0 : annualizeContributionAmount({ ...c, end_date: end }, opts).annual;
+      }
+      return {
+        id: c.id,
+        companyId: c.company_id,
+        accountType: c.account_type,
+        contributionType: c.contribution_type,
+        annualAmount: actual,
+        scheduledAmount: Math.max(0, full - actual),
+        contributionDate: c.contribution_date,
+      };
+    });
 
     // Remaining ACTIVE planned gross income (matched/converted excluded).
     const remainingPlannedGrossByCompany = new Map<string, number>();
@@ -413,9 +469,26 @@ export default function Mileage() {
        this year's paychecks plus positive business net profit. Supplied so the
        IRA card can show real remaining room instead of "Unknown"; when there is
        no compensation at all it stays null and the engine keeps it unknown. */
-    const wagesTotal = paycheckSources.reduce((s, p) => s + (Number(p.wages) || 0), 0);
+    const wagesTotal = recordedPaychecks
+      .filter((p) => !p.scheduled)
+      .reduce((s, p) => s + (Number(p.wages) || 0), 0);
+    // Same-earner W-2 wages for the shared Social Security wage base.
+    const earnerOf = (cid: string | null) =>
+      companies.find((c) => c.id === cid)?.employeeRole === "spouse" ? "spouse" : "primary";
+    const isW2Company = (cid: string | null) => {
+      const ft = normalizeFilingType(companies.find((c) => c.id === cid)?.companyType);
+      return ft === "w2" || ft === "scorp_w2";
+    };
+    const actualW2 = new Map<string, number>();
+    const projectedW2 = new Map<string, number>();
+    for (const p of paycheckSources) {
+      if (!isW2Company(p.companyId)) continue;
+      const k = earnerOf(p.companyId);
+      if (!p.scheduled) actualW2.set(k, (actualW2.get(k) || 0) + p.wages);
+      projectedW2.set(k, (projectedW2.get(k) || 0) + p.wages);
+    }
     let profitTotal = 0;
-    for (const v of availableProfitByCompany.values()) {
+    for (const v of retirementProfitByCompany.values()) {
       if (Number(v) > 0) profitTotal += Number(v);
     }
     const eligibleTaxableCompensation =
@@ -435,14 +508,16 @@ export default function Mileage() {
         companyType: c.companyType,
         payFrequency: payFrequencyByCompany.get(c.id) ?? null,
         employeeRole: c.employeeRole ?? null,
+        k1TaxTreatment: c.k1TaxTreatment ?? null,
       })),
+      w2WagesByEarner: { actual: actualW2, projected: projectedW2 },
       paychecks: paycheckSources,
       standalone: standaloneSources,
       ira: {
         traditionalContributed: annualized.traditionalIraTotal,
         rothContributed: annualized.rothIraTotal,
       },
-      actualNetProfitByCompany: availableProfitByCompany,
+      actualNetProfitByCompany: retirementProfitByCompany,
       remainingPlannedGrossByCompany,
       remainingPlannedExpensesByCompany,
       includeProjection: hasPlannerAccess,
@@ -455,7 +530,8 @@ export default function Mileage() {
     annualized.rothIraTotal,
     companies,
     payFrequencyByCompany,
-    availableProfitByCompany,
+    retirementProfitByCompany,
+    closureLookup.periods,
     plannerOccurrences,
     plannerStreams,
     hasPlannerAccess,
