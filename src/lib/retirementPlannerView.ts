@@ -8,7 +8,7 @@
  * Recurring templates stay one row each — individual deposits are never
  * invented from them.
  */
-import { normalizeFilingType } from "@/lib/filingType";
+import { normalizeFilingType } from "@/lib/filingTypes";
 
 export type PlannerCategory = "employee" | "w2_employer" | "self_employed_employer" | "ira";
 
