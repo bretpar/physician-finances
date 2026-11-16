@@ -1,4 +1,8 @@
 import type { BusinessRelationship } from "./businessRelationships";
+import {
+  estimateEmployerContribution,
+  type EmployerContributionFormula,
+} from "./employerContributionFormula";
 import { resolveIncomeEarner } from "@/lib/incomeEarner";
 /**
  * Canonical retirement normalization boundary.
@@ -48,6 +52,8 @@ export interface CanonicalCompany {
   k1TaxTreatment?: string | null;
   /** User-recorded related-business setting (retirement shared limits). */
   retirementRelationship?: BusinessRelationship | null;
+  /** User-recorded W-2 employer match/profit-sharing formula. */
+  employerFormula?: EmployerContributionFormula | null;
 }
 
 /** Retirement money recorded on a paycheck / income entry. */
