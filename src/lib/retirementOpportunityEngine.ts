@@ -42,6 +42,8 @@ export type RetirementReasonCode =
   | "related_employer_unverified"
   /** Payroll retirement money whose plan cannot be determined (company has several plans). */
   | "payroll_plan_unresolved"
+  /** Employer money estimated from a user-recorded match/profit-sharing formula. */
+  | "employer_formula_estimate"
   | "unknown_plan_data";
 
 /* ─────────────────────────────── Rule tables ────────────────────────────── */
@@ -667,6 +669,7 @@ function computePlanOpportunity(
   const reasons: RetirementReasonCode[] = [];
   const employeeContribution = nonNeg(plan.employeeContribution);
   const employerContribution = nonNeg(plan.employerContribution);
+  const estimatedEmployerContribution = nonNeg(plan.estimatedEmployerContribution);
   const bucket = getDeferralBucket(plan.planKind);
 
   if (plan.requestsSpecial457Catchup && plan.planKind === "governmental_457b") {
