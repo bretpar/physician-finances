@@ -42,6 +42,8 @@ export type RetirementReasonCode =
   | "related_employer_unverified"
   /** Payroll retirement money whose plan cannot be determined (company has several plans). */
   | "payroll_plan_unresolved"
+  /** Employer money estimated from a user-recorded match/profit-sharing formula. */
+  | "employer_formula_estimate"
   | "unknown_plan_data";
 
 /* ─────────────────────────────── Rule tables ────────────────────────────── */
@@ -297,6 +299,13 @@ export interface PlanOpportunityInput {
    */
   employerFormulaKnown?: boolean | null;
   /**
+   * Estimated employer contribution for the year, derived from a user-recorded
+   * match/profit-sharing formula (see employerContributionFormula.ts). Counts
+   * toward the plan's used room so remaining capacity reflects what the
+   * employer is expected to add. Never part of recorded totals.
+   */
+  estimatedEmployerContribution?: number | null;
+  /**
    * Partnership K-1 only: the portion of K-1 income that is earned income for
    * services (guaranteed payments / active SE earnings). Passive distributions
    * must NOT be passed here.
@@ -415,6 +424,8 @@ export interface PlanOpportunity {
   /** Employee dollars that DO count toward §415(c) annual additions. */
   employeeTowardAnnualAdditions: number;
   employerContribution: number;
+  /** Estimated employer money from a recorded formula (not yet recorded). */
+  estimatedEmployerContribution: number;
   totalAdditions: number;
   /** §415(c) ceiling for this plan, capped by eligible compensation when known. */
   annualAdditionsLimit: number | null;
@@ -658,6 +669,7 @@ function computePlanOpportunity(
   const reasons: RetirementReasonCode[] = [];
   const employeeContribution = nonNeg(plan.employeeContribution);
   const employerContribution = nonNeg(plan.employerContribution);
+  const estimatedEmployerContribution = nonNeg(plan.estimatedEmployerContribution);
   const bucket = getDeferralBucket(plan.planKind);
 
   if (plan.requestsSpecial457Catchup && plan.planKind === "governmental_457b") {
@@ -775,16 +787,35 @@ function computePlanOpportunity(
     }
   } else {
     // W-2 and unknown entities: never assume the employer will fill §415(c).
-    if (plan.employerFormulaKnown && nominalRate != null && eligibleCompensation != null) {
-      const additionsCeiling = Math.max(0, (annualAdditionsLimit ?? 0) - additionsUsed);
-      employerCapacityRemaining = Math.max(
-        0,
-        Math.min(eligibleCompensation * nominalRate - employerContribution, additionsCeiling),
-      );
+    if (plan.employerFormulaKnown && eligibleCompensation != null) {
+      /* A recorded match/profit-sharing formula yields an ESTIMATE of what the
+         employer will add this year; that estimate is the formula capacity
+         (the employer won't contribute beyond its own formula). Fall back to a
+         nominal rate only when no estimate was supplied. */
+      const formulaCapacity =
+        estimatedEmployerContribution > 0
+          ? estimatedEmployerContribution
+          : nominalRate != null
+            ? eligibleCompensation * nominalRate
+            : null;
+      if (formulaCapacity != null) {
+        const additionsCeiling = Math.max(
+          0,
+          (annualAdditionsLimit ?? 0) - additionsUsed - estimatedEmployerContribution,
+        );
+        employerCapacityRemaining = Math.max(
+          0,
+          Math.min(formulaCapacity - employerContribution, additionsCeiling),
+        );
+      } else {
+        reasons.push("unknown_plan_data");
+      }
     } else {
       reasons.push("unknown_plan_data");
     }
   }
+
+  if (estimatedEmployerContribution > 0) reasons.push("employer_formula_estimate");
 
   if (plan.payrollPlanUnresolved) reasons.push("payroll_plan_unresolved");
   if (bucket === "402g") reasons.push("employee_402g_limit");
@@ -805,12 +836,15 @@ function computePlanOpportunity(
     allowableCatchUp,
     employeeTowardAnnualAdditions: employeeTowardAdditions,
     employerContribution,
+    estimatedEmployerContribution,
     totalAdditions,
     annualAdditionsLimit,
     employerCapacityRemaining,
     eligibleCompensation,
     additionsHeadroom:
-      annualAdditionsLimit == null ? null : Math.max(0, annualAdditionsLimit - additionsUsed),
+      annualAdditionsLimit == null
+        ? null
+        : Math.max(0, annualAdditionsLimit - additionsUsed - estimatedEmployerContribution),
     capacityUnverified: false,
     employerGroupKey:
       plan.employerGroupKey ||
@@ -853,7 +887,10 @@ function applySharedEmployerLimits(plans: PlanOpportunity[], rates: Map<PlanOppo
     const override = overrides.length ? Math.min(...overrides) : null;
     if (group.length < 2 && override == null) continue;
     group.sort((a, b) => String(a.planId).localeCompare(String(b.planId)));
-    const used = group.reduce((s, p) => s + p.employeeTowardAnnualAdditions + p.employerContribution, 0);
+    const used = group.reduce(
+      (s, p) => s + p.employeeTowardAnnualAdditions + p.employerContribution + p.estimatedEmployerContribution,
+      0,
+    );
     /* One limit per employer (min of its plans), then combined across related
        employers: never above the largest single limit (one dollar ceiling) nor
        above the sum of compensation-capped limits; recorded cap wins if lower. */
@@ -878,7 +915,10 @@ function applySharedEmployerLimits(plans: PlanOpportunity[], rates: Map<PlanOppo
     for (const p of group) p.additionsHeadroom = headroom;
     const withCapacity = group.filter((p) => p.employerCapacityRemaining != null);
     if (withCapacity.length === 0) continue;
-    const employerUsed = group.reduce((s, p) => s + p.employerContribution, 0);
+    const employerUsed = group.reduce(
+      (s, p) => s + p.employerContribution + p.estimatedEmployerContribution,
+      0,
+    );
     /* Same employer: one formula from the same earnings (max). Different
        related employers: each has its own earnings, so formulas add up. */
     let formula: number | null = null;

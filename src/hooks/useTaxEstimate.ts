@@ -1,4 +1,5 @@
 import { readBusinessRelationship } from "@/lib/businessRelationships";
+import { readEmployerContributionFormula } from "@/lib/employerContributionFormula";
 import type { FilingStatus } from "@/lib/taxBrackets";
 import { closureWindowForYear } from "@/lib/companyClosure";
 import { useMemo, useCallback } from "react";
@@ -297,6 +298,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       payFrequency: c.payFrequency ?? null,
       employeeRole: c.employeeRole ?? null,
         retirementRelationship: readBusinessRelationship(c.advancedFieldVisibility),
+        employerFormula: readEmployerContributionFormula(c.advancedFieldVisibility),
     }));
     /* Paycheck-derived retirement, used ONLY as the dedup reference: money
        already deducted through income_entries must never be deducted again

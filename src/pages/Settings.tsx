@@ -1,4 +1,5 @@
 import { RelatedBusinessesSection } from "@/components/settings/RelatedBusinessesSection";
+import { EmployerMatchSection } from "@/components/settings/EmployerMatchSection";
 import { useAccountRole } from "@/hooks/useAccountRole";
 import { isDeveloper } from "@/lib/roles";
 import { getTodayLocalDateString } from "@/lib/localDate";
@@ -3027,6 +3028,7 @@ export default function Settings() {
       <HouseholdIncomeStreamsSection />
       <CompaniesSection />
       <RelatedBusinessesSection />
+      <EmployerMatchSection />
       <ConnectedAccountsSection />
       <TeamSection />
       <BuildInfoSection />

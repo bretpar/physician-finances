@@ -1,4 +1,8 @@
 import type { BusinessRelationship } from "./businessRelationships";
+import {
+  estimateEmployerContribution,
+  type EmployerContributionFormula,
+} from "./employerContributionFormula";
 import { resolveIncomeEarner } from "@/lib/incomeEarner";
 /**
  * Canonical retirement normalization boundary.
@@ -48,6 +52,8 @@ export interface CanonicalCompany {
   k1TaxTreatment?: string | null;
   /** User-recorded related-business setting (retirement shared limits). */
   retirementRelationship?: BusinessRelationship | null;
+  /** User-recorded W-2 employer match/profit-sharing formula. */
+  employerFormula?: EmployerContributionFormula | null;
 }
 
 /** Retirement money recorded on a paycheck / income entry. */
@@ -385,7 +391,11 @@ export function buildRetirementOpportunityInput(
           0)
         : null,
       employerContributionRate: isSelfEmployed ? 0.25 : null,
-      employerFormulaKnown: false,
+      employerFormulaKnown: !isSelfEmployed && company?.employerFormula != null,
+      estimatedEmployerContribution:
+        !isSelfEmployed && company?.employerFormula
+          ? estimateEmployerContribution(company.employerFormula, wages > 0 ? wages : null, a.employee)
+          : 0,
       businessRelationship: company?.retirementRelationship?.status ?? null,
       relatedGroupId:
         company?.retirementRelationship?.status === "related" ? company.retirementRelationship.groupId : null,
