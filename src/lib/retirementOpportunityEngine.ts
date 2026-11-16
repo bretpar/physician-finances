@@ -920,8 +920,7 @@ function applySharedEmployerLimits(plans: PlanOpportunity[], rates: Map<PlanOppo
     for (const p of list) {
       const key = p.relatedGroupKey ?? p.employerGroupKey;
       const status = p.relatedGroupKey ? "related" : p.businessRelationship === "unrelated" ? "unrelated" : "unknown";
-      const prev = units.get(key);
-      units.set(key, prev === "unknown" || status === "unknown" ? (prev && prev !== status && status !== "unknown" ? prev : status) : status);
+      if (!units.has(key)) units.set(key, status);
     }
     if (units.size < 2) continue;
     const statuses = Array.from(units.values());
