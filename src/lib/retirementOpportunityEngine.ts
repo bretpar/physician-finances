@@ -787,16 +787,35 @@ function computePlanOpportunity(
     }
   } else {
     // W-2 and unknown entities: never assume the employer will fill §415(c).
-    if (plan.employerFormulaKnown && nominalRate != null && eligibleCompensation != null) {
-      const additionsCeiling = Math.max(0, (annualAdditionsLimit ?? 0) - additionsUsed);
-      employerCapacityRemaining = Math.max(
-        0,
-        Math.min(eligibleCompensation * nominalRate - employerContribution, additionsCeiling),
-      );
+    if (plan.employerFormulaKnown && eligibleCompensation != null) {
+      /* A recorded match/profit-sharing formula yields an ESTIMATE of what the
+         employer will add this year; that estimate is the formula capacity
+         (the employer won't contribute beyond its own formula). Fall back to a
+         nominal rate only when no estimate was supplied. */
+      const formulaCapacity =
+        estimatedEmployerContribution > 0
+          ? estimatedEmployerContribution
+          : nominalRate != null
+            ? eligibleCompensation * nominalRate
+            : null;
+      if (formulaCapacity != null) {
+        const additionsCeiling = Math.max(
+          0,
+          (annualAdditionsLimit ?? 0) - additionsUsed - estimatedEmployerContribution,
+        );
+        employerCapacityRemaining = Math.max(
+          0,
+          Math.min(formulaCapacity - employerContribution, additionsCeiling),
+        );
+      } else {
+        reasons.push("unknown_plan_data");
+      }
     } else {
       reasons.push("unknown_plan_data");
     }
   }
+
+  if (estimatedEmployerContribution > 0) reasons.push("employer_formula_estimate");
 
   if (plan.payrollPlanUnresolved) reasons.push("payroll_plan_unresolved");
   if (bucket === "402g") reasons.push("employee_402g_limit");
@@ -817,12 +836,15 @@ function computePlanOpportunity(
     allowableCatchUp,
     employeeTowardAnnualAdditions: employeeTowardAdditions,
     employerContribution,
+    estimatedEmployerContribution,
     totalAdditions,
     annualAdditionsLimit,
     employerCapacityRemaining,
     eligibleCompensation,
     additionsHeadroom:
-      annualAdditionsLimit == null ? null : Math.max(0, annualAdditionsLimit - additionsUsed),
+      annualAdditionsLimit == null
+        ? null
+        : Math.max(0, annualAdditionsLimit - additionsUsed - estimatedEmployerContribution),
     capacityUnverified: false,
     employerGroupKey:
       plan.employerGroupKey ||
