@@ -351,6 +351,39 @@ export default function Mileage() {
     }
   }, [hasPlannerAccess, plannerStreams, plannerBonuses, incomeEntries, plannerOverrides, plannerConversions, closureLookup]);
 
+  const retirementStandaloneSources = useMemo(() => {
+    const todayISO = new Date().toISOString().split("T")[0];
+    // Standalone rows, annualized once by the canonical annualizer.
+    // Actual = occurrences through today; the rest of the year is Scheduled.
+    return (contributions || []).map((c) => {
+      const opts = {
+        taxYear: currentYear,
+        payFrequency: (c.company_id && payFrequencyByCompany.get(c.company_id)) || null,
+        closurePeriods: closureLookup.periods,
+        companyId: c.company_id ?? null,
+      };
+      const full = annualizeContributionAmount(c, opts).annual;
+      let actual = full;
+      if (c.frequency === "one_time") {
+        const d = String(c.contribution_date || c.start_date || "");
+        if (d > todayISO) actual = 0;
+      } else {
+        const end = c.end_date && String(c.end_date) < todayISO ? c.end_date : todayISO;
+        actual = String(c.start_date || "") > todayISO ? 0 : annualizeContributionAmount({ ...c, end_date: end }, opts).annual;
+      }
+      return {
+        id: c.id,
+        companyId: c.company_id,
+        accountType: c.account_type,
+        contributionType: c.contribution_type,
+        annualAmount: actual,
+        scheduledAmount: Math.max(0, full - actual),
+        contributionDate: c.contribution_date,
+      };
+    });
+
+  }, [contributions, currentYear, payFrequencyByCompany, closureLookup.periods]);
+
   /**
    * Retirement room comes ENTIRELY from the canonical engine
    * (`computeRetirementRoomView` → `computeRetirementOpportunity`). This page
@@ -395,34 +428,7 @@ export default function Mileage() {
       : [];
     const paycheckSources = [...recordedPaychecks, ...scheduledPaychecks];
 
-    // Standalone rows, annualized once by the canonical annualizer.
-    // Actual = occurrences through today; the rest of the year is Scheduled.
-    const standaloneSources = (contributions || []).map((c) => {
-      const opts = {
-        taxYear: currentYear,
-        payFrequency: (c.company_id && payFrequencyByCompany.get(c.company_id)) || null,
-        closurePeriods: closureLookup.periods,
-        companyId: c.company_id ?? null,
-      };
-      const full = annualizeContributionAmount(c, opts).annual;
-      let actual = full;
-      if (c.frequency === "one_time") {
-        const d = String(c.contribution_date || c.start_date || "");
-        if (d > todayISO) actual = 0;
-      } else {
-        const end = c.end_date && String(c.end_date) < todayISO ? c.end_date : todayISO;
-        actual = String(c.start_date || "") > todayISO ? 0 : annualizeContributionAmount({ ...c, end_date: end }, opts).annual;
-      }
-      return {
-        id: c.id,
-        companyId: c.company_id,
-        accountType: c.account_type,
-        contributionType: c.contribution_type,
-        annualAmount: actual,
-        scheduledAmount: Math.max(0, full - actual),
-        contributionDate: c.contribution_date,
-      };
-    });
+    const standaloneSources = retirementStandaloneSources;
 
     // Remaining ACTIVE planned gross income (matched/converted excluded).
     const remainingPlannedGrossByCompany = new Map<string, number>();
@@ -546,6 +552,7 @@ export default function Mileage() {
     payFrequencyByCompany,
     retirementProfitByCompany,
     closureLookup.periods,
+    retirementStandaloneSources,
     plannerOccurrences,
     plannerStreams,
     hasPlannerAccess,
