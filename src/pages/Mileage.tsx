@@ -48,6 +48,7 @@ import { useCompanies } from "@/contexts/CompanyContext";
 import { useTaxSettings, useUpdateTaxSettings } from "@/hooks/useTaxSettings";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { normalizeFilingType } from "@/lib/filingTypes";
+import { k1ServiceEarnings } from "@/lib/retirementCanonicalInput";
 import { deriveUserTypeFromIncomeStreams } from "@/lib/entitlements";
 import { getDeductionToolVisibility } from "@/lib/householdIncomeProfile";
 import { computeStudentLoanInterestDeduction, STUDENT_LOAN_INTEREST_MAX } from "@/lib/studentLoanInterestDeduction";
@@ -186,6 +187,8 @@ export default function Mileage() {
   const { companies, closedCompanyIds, closureLookup } = useCompanies();
   const { data: monthEntries = [], isLoading } = useMileageEntries(selectedMonth, selectedYear);
   const { data: ytdEntries = [] } = useMileageYTD(selectedYear);
+  // Retirement always uses the CURRENT tax year's mileage, whatever year is selected.
+  const { data: currentYearMileage = [] } = useMileageYTD(new Date().getFullYear());
   const addMileage = useAddMileageEntry();
   const updateMileage = useUpdateMileageEntry();
   const deleteMileage = useDeleteMileageEntry();
@@ -314,11 +317,9 @@ export default function Mileage() {
       const amount = Math.abs(Number(tx.amount) || 0);
       map.set(tx.source_id, (map.get(tx.source_id) || 0) + (tx.transaction_type === "income" ? amount : tx.transaction_type === "expense" ? -amount : 0));
     }
-    if (selectedYear === currentYear) {
-      for (const e of ytdEntries) if (e.company_id && map.has(e.company_id)) map.set(e.company_id, (map.get(e.company_id) || 0) - getMileageEntryDeduction(e));
-    }
+    for (const e of currentYearMileage) if (e.company_id && map.has(e.company_id)) map.set(e.company_id, (map.get(e.company_id) || 0) - getMileageEntryDeduction(e));
     return map;
-  }, [businessCompanies, transactions, ytdEntries, selectedYear, currentYear]);
+  }, [businessCompanies, transactions, currentYearMileage, currentYear]);
 
   // ─── Retirement contribution room (calculations only) ─────────
   // Employee elective deferrals share ONE aggregate limit; employer/plan
@@ -487,9 +488,23 @@ export default function Mileage() {
       if (!p.scheduled) actualW2.set(k, (actualW2.get(k) || 0) + p.wages);
       projectedW2.set(k, (projectedW2.get(k) || 0) + p.wages);
     }
+    // IRA compensation: only SE-earned business profit (Schedule C, active /
+    // guaranteed-payment K-1). Passive K-1 and S-corp distributions never count.
     let profitTotal = 0;
-    for (const v of retirementProfitByCompany.values()) {
-      if (Number(v) > 0) profitTotal += Number(v);
+    for (const [cid, v] of retirementProfitByCompany.entries()) {
+      const co = companies.find((c) => c.id === cid);
+      const ft = normalizeFilingType(co?.companyType);
+      const earned = ft === "1099_schedule_c" || (ft === "k1_partnership" && k1ServiceEarnings(co?.k1TaxTreatment ?? null, 1) === 1);
+      if (earned && Number(v) > 0) profitTotal += Number(v);
+    }
+    // IRA money: Actual through today, the rest of the year Scheduled.
+    const iraActual = { traditionalContributed: 0, rothContributed: 0 };
+    const iraScheduled = { traditionalContributed: 0, rothContributed: 0 };
+    for (const r of standaloneSources) {
+      const key = r.accountType === "traditional_ira" ? "traditionalContributed" : r.accountType === "roth_ira" ? "rothContributed" : null;
+      if (!key) continue;
+      iraActual[key] += r.annualAmount;
+      iraScheduled[key] += r.scheduledAmount;
     }
     const eligibleTaxableCompensation =
       wagesTotal + profitTotal > 0 ? wagesTotal + profitTotal : null;
@@ -513,10 +528,8 @@ export default function Mileage() {
       w2WagesByEarner: { actual: actualW2, projected: projectedW2 },
       paychecks: paycheckSources,
       standalone: standaloneSources,
-      ira: {
-        traditionalContributed: annualized.traditionalIraTotal,
-        rothContributed: annualized.rothIraTotal,
-      },
+      ira: iraActual,
+      iraScheduled,
       actualNetProfitByCompany: retirementProfitByCompany,
       remainingPlannedGrossByCompany,
       remainingPlannedExpensesByCompany,

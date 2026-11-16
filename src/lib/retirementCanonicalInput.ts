@@ -259,7 +259,8 @@ export function buildRetirementOpportunityInput(
 
   interface Agg {
     companyId: string;
-    planKind: RetirementPlanKind | null; // null => company default kind
+    /** Resolved plan kind; null => payroll money with an unresolved plan. */
+    planKind: RetirementPlanKind | null;
     employee: number;
     employer: number;
     hasRows: boolean;
@@ -268,8 +269,12 @@ export function buildRetirementOpportunityInput(
   const UNASSIGNED = "__unassigned__";
   const agg = new Map<string, Agg>();
   const wagesByCompany = new Map<string, number>();
+  const entityFor = (cid: string) => {
+    const c = args.companies.find((x) => x.id === cid);
+    return c ? entityKindForCompanyType(c.companyType) : "unknown";
+  };
   const ensure = (companyId: string, planKind: RetirementPlanKind | null) => {
-    const key = `${companyId}:${planKind ?? "default"}`;
+    const key = `${companyId}:${planKind ?? "payroll_unresolved"}`;
     let a = agg.get(key);
     if (!a) {
       a = { companyId, planKind, employee: 0, employer: 0, hasRows: false, sourceIds: [] };
@@ -290,9 +295,12 @@ export function buildRetirementOpportunityInput(
     if (!explicitKinds.has(cid)) explicitKinds.set(cid, new Set());
     explicitKinds.get(cid)!.add(k);
   }
+  /* Resolve BEFORE aggregating: none → company default, one → that plan,
+     several → explicitly unresolved (its own plan entry, flagged). */
   const payrollKindFor = (cid: string): RetirementPlanKind | null => {
     const kinds = explicitKinds.get(cid);
-    return kinds && kinds.size === 1 ? Array.from(kinds)[0] : null;
+    if (!kinds || kinds.size === 0) return defaultPlanKindForEntity(entityFor(cid));
+    return kinds.size === 1 ? Array.from(kinds)[0] : null;
   };
 
   for (const p of args.sources.paychecks) {
@@ -321,7 +329,7 @@ export function buildRetirementOpportunityInput(
   // Zero-contribution discovery: every known company is a plan candidate.
   for (const c of args.companies) {
     const hasAny = Array.from(agg.values()).some((a) => a.companyId === c.id);
-    if (!hasAny) ensure(c.id, null);
+    if (!hasAny) ensure(c.id, defaultPlanKindForEntity(entityFor(c.id)));
   }
 
   const zeroContributionCompanyIds: string[] = [];
@@ -330,7 +338,9 @@ export function buildRetirementOpportunityInput(
     Array.from(agg.values()).filter((a) => a.hasRows).map((a) => a.companyId),
   );
 
-  for (const a of agg.values()) {
+  // Stable, order-independent output.
+  const ordered = Array.from(agg.entries()).sort(([a], [b]) => a.localeCompare(b));
+  for (const [aggKey, a] of ordered) {
     const companyId = a.companyId;
     const company = args.companies.find((c) => c.id === companyId);
     const entityKind = company ? entityKindForCompanyType(company.companyType) : "unknown";
@@ -348,13 +358,14 @@ export function buildRetirementOpportunityInput(
     const earner = resolveIncomeEarner(company);
 
     plans.push({
-      planId: `${companyId}:${planKind}`,
+      planId: aggKey,
+      payrollPlanUnresolved: a.planKind == null,
       companyId: companyId === UNASSIGNED ? null : companyId,
       companyName: company?.name || (companyId === UNASSIGNED ? "Unassigned" : "Plan"),
       earner,
       // Plans of the SAME company share one §415(c) / formula capacity.
       employerGroupKey: `${earner}:${companyId}`,
-      sourceRecordIds: a.sourceIds,
+      sourceRecordIds: [...a.sourceIds].sort(),
       planKind,
       entityKind,
       employeeContribution: a.employee,
