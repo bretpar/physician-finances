@@ -1,3 +1,4 @@
+import { readBusinessRelationship } from "@/lib/businessRelationships";
 import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -524,6 +525,7 @@ export default function Mileage() {
         payFrequency: payFrequencyByCompany.get(c.id) ?? null,
         employeeRole: c.employeeRole ?? null,
         k1TaxTreatment: c.k1TaxTreatment ?? null,
+        retirementRelationship: readBusinessRelationship(c.advancedFieldVisibility),
       })),
       w2WagesByEarner: { actual: actualW2, projected: projectedW2 },
       paychecks: paycheckSources,
