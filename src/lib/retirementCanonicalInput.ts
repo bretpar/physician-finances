@@ -18,6 +18,7 @@ import { resolveIncomeEarner } from "@/lib/incomeEarner";
  *  3. Map company filing types to engine entity/plan kinds.
  */
 
+import { isK1TreatmentSETaxable, type K1TaxTreatment } from "@/lib/k1TaxTreatment";
 import { normalizeFilingType, type FilingType } from "@/lib/filingTypes";
 import {
   type PlanOpportunityInput,
@@ -42,6 +43,8 @@ export interface CanonicalCompany {
   payFrequency?: string | null;
   /** companies.employee_role — the canonical income earner. */
   employeeRole?: "primary" | "spouse" | null;
+  /** K-1 only: saved K-1 tax treatment (active / guaranteed / passive / S-corp). */
+  k1TaxTreatment?: string | null;
 }
 
 /** Retirement money recorded on a paycheck / income entry. */
@@ -54,6 +57,11 @@ export interface PaycheckRetirementSource {
   /** Gross W-2 wages on the entry (employer plan compensation). */
   wages: number;
   date?: string | null;
+  /**
+   * True for a FUTURE Planner occurrence (not yet paid). Scheduled money is
+   * excluded from actual YTD and only enters the projected year-end run.
+   */
+  scheduled?: boolean;
 }
 
 /** An annualized standalone `retirement_contributions` row. */
@@ -65,6 +73,8 @@ export interface StandaloneRetirementSource {
   contributionType: string;
   /** Already annualized for the tax year by the canonical annualizer. */
   annualAmount: number;
+  /** Recurring rows only: occurrences after the as-of date (projected run only). */
+  scheduledAmount?: number;
   contributionDate?: string | null;
   /**
    * Explicit linkage to a paycheck, when the data model provides it. When set
@@ -102,6 +112,8 @@ export function dedupeRetirementSources(input: {
   const paychecks = input.paychecks.filter(
     (p) => num(p.employee) > 0 || num(p.employer) > 0 || num(p.wages) > 0,
   );
+  // Only recorded paychecks can be the "same money" as a standalone row.
+  const recorded = paychecks.filter((p) => !p.scheduled);
   const byEntryId = new Map(paychecks.map((p) => [p.incomeEntryId, p]));
 
   const droppedDuplicateIds: string[] = [];
@@ -123,7 +135,7 @@ export function dedupeRetirementSources(input: {
     const bucket: "employee" | "employer" =
       (row.contributionType || "employee") === "employer" ? "employer" : "employee";
     if (amount > 0 && row.companyId) {
-      const twin = paychecks.find(
+      const twin = recorded.find(
         (p) =>
           p.companyId === row.companyId &&
           Math.abs(num(bucket === "employer" ? p.employer : p.employee) - amount) < 0.005 &&
@@ -186,6 +198,21 @@ export function defaultPlanKindForEntity(entity: RetirementEntityKind): Retireme
   return entity === "schedule_c" || entity === "partnership_k1" ? "solo_401k" : "401k";
 }
 
+/**
+ * K-1 profit counts as earned income for services ONLY with a supporting
+ * classification: active partner / guaranteed payments → profit; passive or
+ * S-corp distribution → $0; unset → `null` (needs verification).
+ */
+export function k1ServiceEarnings(
+  treatment: string | null | undefined,
+  profit: number | null,
+): number | null {
+  if (profit == null) return null;
+  const seTaxable = isK1TreatmentSETaxable((treatment ?? null) as K1TaxTreatment | null);
+  if (seTaxable == null) return null;
+  return seTaxable ? profit : 0;
+}
+
 /* ─────────────────────────── Engine input builder ───────────────────────── */
 
 export interface BuildRetirementInputArgs {
@@ -231,90 +258,120 @@ export function buildRetirementOpportunityInput(
   const projected = opts?.projected === true;
 
   interface Agg {
+    companyId: string;
+    planKind: RetirementPlanKind | null; // null => company default kind
     employee: number;
     employer: number;
-    wages: number;
-    planKinds: Set<RetirementPlanKind>;
     hasRows: boolean;
+    sourceIds: string[];
   }
+  const UNASSIGNED = "__unassigned__";
   const agg = new Map<string, Agg>();
-  const ensure = (companyId: string) => {
-    let a = agg.get(companyId);
+  const wagesByCompany = new Map<string, number>();
+  const ensure = (companyId: string, planKind: RetirementPlanKind | null) => {
+    const key = `${companyId}:${planKind ?? "default"}`;
+    let a = agg.get(key);
     if (!a) {
-      a = { employee: 0, employer: 0, wages: 0, planKinds: new Set(), hasRows: false };
-      agg.set(companyId, a);
+      a = { companyId, planKind, employee: 0, employer: 0, hasRows: false, sourceIds: [] };
+      agg.set(key, a);
     }
     return a;
   };
 
-  const UNASSIGNED = "__unassigned__";
+  /* Explicit plan kinds per company (from standalone rows). Payroll money has no
+     plan type of its own: it is attributed to the company's ONLY explicit plan
+     kind when there is exactly one, otherwise to the company's default kind —
+     never to whichever kind happened to appear first. */
+  const explicitKinds = new Map<string, Set<RetirementPlanKind>>();
+  for (const row of args.sources.standalone) {
+    const k = planKindForAccountType(row.accountType);
+    if (!k) continue;
+    const cid = row.companyId || UNASSIGNED;
+    if (!explicitKinds.has(cid)) explicitKinds.set(cid, new Set());
+    explicitKinds.get(cid)!.add(k);
+  }
+  const payrollKindFor = (cid: string): RetirementPlanKind | null => {
+    const kinds = explicitKinds.get(cid);
+    return kinds && kinds.size === 1 ? Array.from(kinds)[0] : null;
+  };
 
   for (const p of args.sources.paychecks) {
-    const a = ensure(p.companyId || UNASSIGNED);
+    if (p.scheduled && !projected) continue; // future money is never "actual"
+    const cid = p.companyId || UNASSIGNED;
+    wagesByCompany.set(cid, (wagesByCompany.get(cid) ?? 0) + num(p.wages));
+    if (num(p.employee) <= 0 && num(p.employer) <= 0) continue;
+    const a = ensure(cid, payrollKindFor(cid));
     a.employee += num(p.employee);
     a.employer += num(p.employer);
-    a.wages += num(p.wages);
-    if (num(p.employee) > 0 || num(p.employer) > 0) a.hasRows = true;
+    a.hasRows = true;
+    a.sourceIds.push(p.incomeEntryId);
   }
 
   for (const row of args.sources.standalone) {
     const planKind = planKindForAccountType(row.accountType);
     if (!planKind) continue; // IRAs / HSA are not employer plans
-    const a = ensure(row.companyId || UNASSIGNED);
-    a.planKinds.add(planKind);
-    const amount = num(row.annualAmount);
+    const a = ensure(row.companyId || UNASSIGNED, planKind);
+    const amount = num(row.annualAmount) + (projected ? num(row.scheduledAmount) : 0);
     if ((row.contributionType || "employee") === "employer") a.employer += amount;
     else a.employee += amount;
     if (amount > 0) a.hasRows = true;
+    a.sourceIds.push(row.id);
   }
 
   // Zero-contribution discovery: every known company is a plan candidate.
-  for (const c of args.companies) ensure(c.id);
+  for (const c of args.companies) {
+    const hasAny = Array.from(agg.values()).some((a) => a.companyId === c.id);
+    if (!hasAny) ensure(c.id, null);
+  }
 
   const zeroContributionCompanyIds: string[] = [];
   const plans: PlanOpportunityInput[] = [];
+  const companiesWithRows = new Set(
+    Array.from(agg.values()).filter((a) => a.hasRows).map((a) => a.companyId),
+  );
 
-  for (const [companyId, a] of agg.entries()) {
+  for (const a of agg.values()) {
+    const companyId = a.companyId;
     const company = args.companies.find((c) => c.id === companyId);
     const entityKind = company ? entityKindForCompanyType(company.companyType) : "unknown";
-    const kinds = a.planKinds.size > 0
-      ? Array.from(a.planKinds)
-      : [defaultPlanKindForEntity(entityKind)];
+    const planKind = a.planKind ?? defaultPlanKindForEntity(entityKind);
 
-    if (!a.hasRows && companyId !== UNASSIGNED) zeroContributionCompanyIds.push(companyId);
+    if (!companiesWithRows.has(companyId) && companyId !== UNASSIGNED && !zeroContributionCompanyIds.includes(companyId)) {
+      zeroContributionCompanyIds.push(companyId);
+    }
 
     const isSelfEmployed = entityKind === "schedule_c" || entityKind === "partnership_k1";
     const actualProfit = args.actualNetProfitByCompany?.get(companyId);
     const projectedProfit = args.projectedNetProfitByCompany?.get(companyId);
     const profit = projected ? (projectedProfit ?? actualProfit ?? null) : (actualProfit ?? null);
+    const wages = wagesByCompany.get(companyId) ?? 0;
+    const earner = resolveIncomeEarner(company);
 
-    // Multiple plan kinds at one company each get their own §415(c) evaluation;
-    // employee/employer dollars are attributed to the first (primary) kind so
-    // the same money is never counted twice across plan rows.
-    kinds.forEach((planKind, idx) => {
-      const primary = idx === 0;
-      plans.push({
-        planId: `${companyId}:${planKind}`,
-        companyId: companyId === UNASSIGNED ? null : companyId,
-        companyName: company?.name || (companyId === UNASSIGNED ? "Unassigned" : "Plan"),
-        earner: resolveIncomeEarner(company),
-        planKind,
-        entityKind,
-        employeeContribution: primary ? a.employee : 0,
-        employerContribution: primary ? a.employer : 0,
-        w2Wages: entityKind === "w2" || entityKind === "s_corp" ? (a.wages > 0 ? a.wages : null) : null,
-        netBusinessProfit: entityKind === "schedule_c" ? profit : null,
-        k1EarnedIncomeFromServices: entityKind === "partnership_k1" ? profit : null,
-        deductibleHalfSeTax: isSelfEmployed
-          ? ((projected
-              ? args.projectedDeductibleHalfSeTaxByCompany?.get(companyId)
-              : undefined) ??
-            args.deductibleHalfSeTaxByCompany?.get(companyId) ??
-            0)
-          : null,
-        employerContributionRate: isSelfEmployed ? 0.25 : null,
-        employerFormulaKnown: false,
-      });
+    plans.push({
+      planId: `${companyId}:${planKind}`,
+      companyId: companyId === UNASSIGNED ? null : companyId,
+      companyName: company?.name || (companyId === UNASSIGNED ? "Unassigned" : "Plan"),
+      earner,
+      // Plans of the SAME company share one §415(c) / formula capacity.
+      employerGroupKey: `${earner}:${companyId}`,
+      sourceRecordIds: a.sourceIds,
+      planKind,
+      entityKind,
+      employeeContribution: a.employee,
+      employerContribution: a.employer,
+      w2Wages: entityKind === "w2" || entityKind === "s_corp" ? (wages > 0 ? wages : null) : null,
+      netBusinessProfit: entityKind === "schedule_c" ? profit : null,
+      k1EarnedIncomeFromServices:
+        entityKind === "partnership_k1" ? k1ServiceEarnings(company?.k1TaxTreatment, profit) : null,
+      deductibleHalfSeTax: isSelfEmployed
+        ? ((projected
+            ? args.projectedDeductibleHalfSeTaxByCompany?.get(companyId)
+            : undefined) ??
+          args.deductibleHalfSeTaxByCompany?.get(companyId) ??
+          0)
+        : null,
+      employerContributionRate: isSelfEmployed ? 0.25 : null,
+      employerFormulaKnown: false,
     });
   }
 
