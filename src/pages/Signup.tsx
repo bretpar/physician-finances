@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { LegalLinks } from "@/components/legal/LegalPage";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { Eye, EyeOff, PiggyBank } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -194,6 +195,7 @@ export default function Signup() {
             Want a quick tax estimate first?{" "}
             <Link to="/estimate" className="font-medium text-primary hover:underline">Try the estimator</Link>
           </p>
+          <div className="mt-4"><LegalLinks /></div>
         </CardContent>
       </Card>
     </main>

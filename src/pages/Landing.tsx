@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { PLAN_OPTIONS } from "@/lib/planSelection";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -207,6 +208,31 @@ export default function Landing() {
           </div>
         </section>
 
+        <section className="border-t border-border py-14 sm:py-16" data-testid="landing-plans">
+          <div className="mx-auto max-w-3xl px-4">
+            <h2 className="text-2xl font-semibold sm:text-3xl">Free and Premium access</h2>
+            <p className="mt-4 text-base text-muted-foreground">
+              You choose a plan when you set up your account. Pricing for Premium hasn't been announced, and no payment is
+              taken today.
+            </p>
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              {PLAN_OPTIONS.map((plan) => (
+                <Card key={plan.plan}>
+                  <CardHeader className="pb-2">
+                    <CardTitle as="h3" className="text-base">{plan.title}</CardTitle>
+                    <p className="text-xs text-muted-foreground">{plan.subtitle}</p>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                      {plan.benefits.map((b) => <li key={b}>{b}</li>)}
+                    </ul>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
+        </section>
+
         <section className="py-14 sm:py-16">
           <div className="mx-auto max-w-3xl px-4 text-center">
             <h2 className="text-2xl font-semibold sm:text-3xl">Start your tax plan this year</h2>
@@ -229,9 +255,11 @@ export default function Landing() {
       <footer className="border-t border-border py-8">
         <div className="mx-auto flex max-w-5xl flex-col gap-3 px-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <p>© {new Date().getFullYear()} Paycheck MD. Educational information, not tax advice.</p>
-          <nav className="flex gap-4">
+          <nav className="flex flex-wrap gap-4">
             <Link to="/trust" className="underline underline-offset-4">Trust &amp; security</Link>
             <Link to="/estimate" className="underline underline-offset-4">Tax estimator</Link>
+            <Link to="/privacy" className="underline underline-offset-4">Privacy</Link>
+            <Link to="/terms" className="underline underline-offset-4">Terms</Link>
           </nav>
         </div>
       </footer>

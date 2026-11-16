@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { LegalLinks } from "@/components/legal/LegalPage";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -136,6 +137,7 @@ export default function Login() {
               Sign up
             </Link>
           </p>
+          <div className="mt-4"><LegalLinks /></div>
         </CardContent>
       </Card>
     </main>
