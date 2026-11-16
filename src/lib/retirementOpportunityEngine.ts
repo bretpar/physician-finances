@@ -297,6 +297,13 @@ export interface PlanOpportunityInput {
    */
   employerFormulaKnown?: boolean | null;
   /**
+   * Estimated employer contribution for the year, derived from a user-recorded
+   * match/profit-sharing formula (see employerContributionFormula.ts). Counts
+   * toward the plan's used room so remaining capacity reflects what the
+   * employer is expected to add. Never part of recorded totals.
+   */
+  estimatedEmployerContribution?: number | null;
+  /**
    * Partnership K-1 only: the portion of K-1 income that is earned income for
    * services (guaranteed payments / active SE earnings). Passive distributions
    * must NOT be passed here.
@@ -415,6 +422,8 @@ export interface PlanOpportunity {
   /** Employee dollars that DO count toward §415(c) annual additions. */
   employeeTowardAnnualAdditions: number;
   employerContribution: number;
+  /** Estimated employer money from a recorded formula (not yet recorded). */
+  estimatedEmployerContribution: number;
   totalAdditions: number;
   /** §415(c) ceiling for this plan, capped by eligible compensation when known. */
   annualAdditionsLimit: number | null;
