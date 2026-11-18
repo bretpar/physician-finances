@@ -2,14 +2,12 @@ import { useMemo, type ReactNode } from "react";
 import { ChevronDown, Pencil, PiggyBank, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { InfoTooltip } from "@/components/ui/tooltip";
-import type { RetirementRoomView } from "@/lib/retirementRoomView";
+import { computeRetirementHeadline, type RetirementRoomView } from "@/lib/retirementRoomView";
 import type { PlanOpportunity } from "@/lib/retirementOpportunityEngine";
 import { retirementReasonMessage } from "@/lib/retirementReasonMessages";
-import { groupRowsByCompany, sumRows, type PlannerCategory, type PlannerHistoryRow } from "@/lib/retirementPlannerView";
+import { businessPlannerOpportunity, groupRowsByCompany, sumRows, type PlannerCategory, type PlannerHistoryRow } from "@/lib/retirementPlannerView";
 
 const fmt = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
 
@@ -40,30 +38,33 @@ function Stat({ label, value, hint, testId }: { label: string; value: string; hi
   );
 }
 
-function Section({ title, subtitle, children, testId }: { title: string; subtitle: string; children: ReactNode; testId: string }) {
+function Section({ title, subtitle, children, testId, overview }: { title: string; subtitle: string; children: ReactNode; testId: string; overview?: ReactNode }) {
   return (
-    <Collapsible asChild>
-      <Card data-testid={testId}>
-        <CollapsibleTrigger className="group flex min-h-[56px] w-full items-center justify-between gap-3 p-4 text-left">
-          <span className="min-w-0">
-            <span className="block font-semibold">{title}</span>
-            <span className="block text-xs text-muted-foreground">{subtitle}</span>
-          </span>
-          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
-        </CollapsibleTrigger>
-        <CollapsibleContent>
-          <CardContent className="space-y-4 border-t p-4">{children}</CardContent>
-        </CollapsibleContent>
-      </Card>
-    </Collapsible>
+    <section className="space-y-3 border-t border-border py-4" data-testid={testId}>
+      <div><h4 className="font-semibold">{title}</h4><p className="text-xs text-muted-foreground">{subtitle}</p></div>
+      {overview}
+      <Collapsible>
+        <CollapsibleTrigger asChild><Button variant="ghost" size="sm" className="group gap-2 px-0">Details & history <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" /></Button></CollapsibleTrigger>
+        <CollapsibleContent className="space-y-4 pt-3">{children}</CollapsibleContent>
+      </Collapsible>
+    </section>
   );
 }
 
-function Meter({ used, limit, label }: { used: number; limit: number; label: string }) {
+function Meter({ actual, scheduled = 0, available, label, limit, unknownLabel = "Unverified" }: { actual: number; scheduled?: number; available: number | null; label: string; limit?: number | null; unknownLabel?: string }) {
+  const values = [Math.max(0, actual), Math.max(0, scheduled), Math.max(0, available ?? 0)];
+  const total = values.reduce((s, n) => s + n, 0);
+  const labels = ["Contributed", "Scheduled", "Available"];
+  const colors = ["bg-primary", "bg-warning", "bg-success"];
   return (
-    <div>
-      <div className="flex justify-between text-xs text-muted-foreground"><span>{label}</span><span className="tabular-nums">{fmt(used)} of {fmt(limit)}</span></div>
-      <Progress value={limit > 0 ? Math.min(100, (used / limit) * 100) : 0} className="mt-1 h-2" aria-label={label} />
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-1 text-xs"><span className="font-medium">{label}</span>{limit != null && <span className="text-muted-foreground">Annual limit {fmt(limit)}</span>}</div>
+      <div className="flex h-3 w-full overflow-hidden rounded-sm bg-muted" role="img" aria-label={`${label}: contributed ${fmt(actual)}, scheduled ${fmt(scheduled)}, available ${available == null ? "unknown" : fmt(available)}`}>
+        {total > 0 && values.map((n, i) => n > 0 && <span key={labels[i]} className={colors[i]} style={{ width: `${n / total * 100}%` }} />)}
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {labels.map((text, i) => <div key={text} className="min-w-0"><p className="flex items-center gap-1 text-[11px] text-muted-foreground"><span className={`h-2 w-2 shrink-0 rounded-sm ${colors[i]}`} />{text}</p><p className="text-sm font-semibold tabular-nums">{i === 2 && available == null ? unknownLabel : fmt(values[i])}</p></div>)}
+      </div>
     </div>
   );
 }
@@ -87,8 +88,8 @@ function HistoryTable({ rows, showScheduled, onEdit, onDelete }: { rows: Planner
       </div>
       <div className="flex items-center gap-0.5">
         <span className="mr-1 font-semibold tabular-nums">{fmt(r.amount)}</span>
-        {r.editableId && onEdit && <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => onEdit(r.editableId!)} aria-label="Edit contribution"><Pencil className="h-4 w-4" /></Button>}
-        {r.editableId && onDelete && <Button size="icon" variant="ghost" className="h-9 w-9 text-destructive" onClick={() => onDelete(r.editableId!)} aria-label="Delete contribution"><Trash2 className="h-4 w-4" /></Button>}
+        {r.editableId && onEdit && <Button size="icon" variant="ghost" className="h-9 w-9" onClick={() => { if (r.editableId) onEdit(r.editableId); }} aria-label="Edit contribution"><Pencil className="h-4 w-4" /></Button>}
+        {r.editableId && onDelete && <Button size="icon" variant="ghost" className="h-9 w-9 text-destructive" onClick={() => { if (r.editableId) onDelete(r.editableId); }} aria-label="Delete contribution"><Trash2 className="h-4 w-4" /></Button>}
       </div>
     </div>
   ));
@@ -154,26 +155,19 @@ export function RetirementPlanner({
   const primaryPlans = engine.plans.filter((p) => p.deferralBucket === "402g" && p.earner !== "spouse");
   const spousePlans = engine.plans.filter((p) => p.deferralBucket === "402g" && p.earner === "spouse");
   const employeeToday = engine.employee402g.remaining;
-  const employeeProjected = projected?.employee402g.remaining ?? null;
+  const employeeProjected = projected?.employee402g.remaining ?? employeeToday;
 
   // Self-employed (Solo 401(k)/SEP) employer plans, one card per company.
   const sePlans = engine.plans.filter((p) => SELF_EMPLOYED.has(p.entityKind));
   const w2Plans = engine.plans.filter((p) => !SELF_EMPLOYED.has(p.entityKind) && p.deferralBucket !== "governmental_457b");
   // Verified capacity: one value per employer group (shared limits never duplicated),
   // clipped to the group's remaining annual-additions headroom; unverified excluded.
-  const { verifiedSeCapacity, needsVerification } = useMemo(() => {
-    const byGroup = new Map<string, number>();
-    let unverified = 0;
-    for (const p of sePlans) {
-      const v = projectedById.get(p.planId) ?? p;
-      if (v.capacityUnverified) { unverified++; continue; }
-      if (v.employerCapacityRemaining == null) continue;
-      const cap = Math.max(0, Math.min(v.employerCapacityRemaining, v.additionsHeadroom ?? v.employerCapacityRemaining));
-      const key = v.relatedGroupKey ?? v.employerGroupKey;
-      byGroup.set(key, Math.max(byGroup.get(key) ?? 0, cap));
-    }
-    return { verifiedSeCapacity: Array.from(byGroup.values()).reduce((a, b) => a + b, 0), needsVerification: unverified };
-  }, [sePlans, projectedById]);
+  const verifiedSeCapacity = useMemo(() => {
+    const actual = { ...engine, plans: sePlans.filter((p) => p.planKind === "solo_401k" && p.entityKind === "schedule_c" && p.sourceRecordIds.length > 0) };
+    const future = projected ? { ...projected, plans: projected.plans.filter((p) => p.planKind === "solo_401k" && p.entityKind === "schedule_c" && p.sourceRecordIds.length > 0) } : null;
+    return computeRetirementHeadline(actual, future).employerVerified;
+  }, [engine, projected, sePlans]);
+  const needsVerification = sePlans.filter((p) => view(p).capacityUnverified).length;
 
   const reviewNotes: string[] = [];
   if (needsVerification > 0) reviewNotes.push(`${needsVerification} self-employed ${needsVerification === 1 ? "plan needs" : "plans need"} verification before employer room can be counted`);
@@ -192,11 +186,12 @@ export function RetirementPlanner({
 
   // W-2 employers: plans + any employer rows, grouped by company id.
   const w2CompanyIds = Array.from(new Set([...w2Plans.filter((p) => p.employerContribution > 0 || p.estimatedEmployerContribution > 0).map((p) => p.companyId), ...w2EmployerRows.map((r) => r.companyId)]));
-  const seCompanyIds = Array.from(new Set([...sePlans.map((p) => p.companyId), ...seRows.map((r) => r.companyId)]));
+  const seCompanyIds = Array.from(new Set([...sePlans.filter((p) => p.totalAdditions > 0 || (view(p).employerCapacityRemaining ?? 0) > 0 || view(p).capacityUnverified || (p.companyId != null && room.k1ClassificationUnknownCompanyIds.includes(p.companyId))).map((p) => p.companyId), ...seRows.map((r) => r.companyId)]));
 
   const ira = engine.ira;
   const iraLimit = ira.combinedLimit ?? ira.statutoryCombinedLimit;
   const iraScheduled = hasPlannerAccess ? room.scheduledIraTotal : 0;
+  const iraFuture = projected?.ira ?? ira;
   const otherBuckets = [
     engine.governmental457b && { title: "Governmental 457(b)", b: engine.governmental457b, note: "Separate limit from your 401(k)/403(b) limit." },
     engine.simple && { title: "SIMPLE", b: engine.simple, note: "SIMPLE plans have their own annual limit." },
@@ -204,29 +199,21 @@ export function RetirementPlanner({
 
   return (
     <div className="space-y-3" data-testid="retirement-planner">
-      <Card data-testid="retirement-planner-summary">
-        <CardContent className="space-y-4 p-4">
-          <div className="flex items-center gap-2"><PiggyBank className="h-5 w-5 text-primary" /><h3 className="text-lg font-semibold">{engine.taxYear} Retirement</h3></div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
-            <Stat label="Contributed so far" value={fmt(actualTotal)} hint="Recorded through today" testId="summary-actual" />
-            <Stat label="Scheduled" value={hasPlannerAccess ? fmt(scheduledTotal) : "—"} hint={`From Planner through Dec 31`} testId="summary-scheduled" />
-            <Stat label="Projected year-end" value={hasPlannerAccess ? fmt(actualTotal + scheduledTotal) : fmt(actualTotal)} testId="summary-projected" />
-            {primaryPlans.length > 0 && <Stat label="Employee room today" value={fmt(employeeToday)} hint="401(k)/403(b)/TSP limit" testId="summary-employee-room" />}
-            {primaryPlans.length > 0 && hasPlannerAccess && employeeProjected != null && <Stat label="Room after scheduled pay" value={fmt(employeeProjected)} hint="If Planner paychecks happen" testId="summary-employee-projected" />}
-            {sePlans.length > 0 && <Stat label="Solo 401(k) employer room" value={hasCapacityAccess && hasEmployerOpportunityAccess ? fmt(verifiedSeCapacity) : "—"} hint={needsVerification > 0 ? "Verified only · some need review" : "Verified only"} testId="summary-se-capacity" />}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Room is how much more you're allowed to put in — not a tax saving by itself. Employer contributions from a W-2 job and Roth or nondeductible IRA money don't reduce your taxes.
-          </p>
-          {reviewNotes.length > 0 && <p className="rounded-md border border-warning/40 bg-warning/10 p-2 text-xs" data-testid="retirement-reconcile-warning">Needs review: {reviewNotes.join("; ")}.</p>}
-        </CardContent>
-      </Card>
+      <div className="space-y-4 pb-2" data-testid="retirement-planner-summary">
+        <div className="flex items-center gap-2"><PiggyBank className="h-5 w-5 text-primary" /><h3 className="text-lg font-semibold">{engine.taxYear} Retirement Contribution Calculator</h3></div>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          {(primaryPlans.length > 0 || spousePlans.length > 0) && <Stat label={primaryPlans.length ? "Employee room after scheduled pay" : "Spouse employee room after scheduled pay"} value={fmt(primaryPlans.length ? employeeProjected : (projected ?? engine).spouseEmployee402g?.remaining ?? 0)} hint="Shared across applicable jobs" testId="summary-employee-projected" />}
+          {sePlans.length > 0 && <Stat label="Verified Solo employer room" value={hasCapacityAccess && hasEmployerOpportunityAccess ? verifiedSeCapacity === 0 && (needsVerification > 0 || sePlans.some((p) => p.entityKind === "partnership_k1")) ? "Needs verification" : fmt(verifiedSeCapacity) : "—"} hint="After reserving shared employee room" testId="summary-se-capacity" />}
+          <Stat label="IRA contribution room" value={iraFuture.remainingContributionRoom == null ? "Unknown" : fmt(iraFuture.remainingContributionRoom)} hint="Deduction depends on eligibility" />
+        </div>
+        <p className="text-xs text-muted-foreground">{fmt(actualTotal)} contributed · {fmt(scheduledTotal)} scheduled through Dec 31. Contribution room is not a tax-saving amount.</p>
+        {reviewNotes.length > 0 && <p className="border-l-2 border-warning pl-3 text-xs" data-testid="retirement-reconcile-warning">Needs review: {reviewNotes.join("; ")}.</p>}
+      </div>
 
       {(primaryPlans.length > 0 || spousePlans.length > 0 || employeeRows.length > 0 || otherBuckets.length > 0) && (
-        <Section testId="planner-employee" title="Employee 401(k) / 403(b) / TSP" subtitle={primaryPlans.length ? `${fmt(engine.employee402g.contributed)} of ${fmt(engine.employee402g.limit)} · ${fmt(employeeToday)} left` : "Your paycheck deferrals"}>
+        <Section testId="planner-employee" title="Employee 401(k) / 403(b) / TSP" subtitle={primaryPlans.length ? `${fmt(employeeToday)} room today · one shared employee limit` : "Your paycheck deferrals"}
+          overview={primaryPlans.length > 0 ? <Meter actual={engine.employee402g.contributed} scheduled={Math.max(0, (projected?.employee402g.contributed ?? engine.employee402g.contributed) - engine.employee402g.contributed)} available={employeeProjected} limit={engine.employee402g.limit} label="All your applicable jobs" /> : undefined}>
           {primaryPlans.length > 0 && <>
-            <Meter used={engine.employee402g.contributed} limit={engine.employee402g.limit} label="Recorded so far" />
-            {projected && <Meter used={projected.employee402g.contributed} limit={projected.employee402g.limit} label="Projected by Dec 31" />}
             <p className="text-xs text-muted-foreground">
               Everything you put in from your own paychecks — at every job, including a Solo 401(k) — shares one yearly limit.{engine.employee402g.catchUp ? ` Includes ${fmt(engine.employee402g.catchUp)} age-based catch-up.` : ""} Pre-tax amounts lower your taxable income; Roth amounts don't.
             </p>
@@ -239,23 +226,65 @@ export function RetirementPlanner({
           {engine.spouseEmployee402g && (
             <div className="space-y-2 border-t pt-3">
               <p className="text-sm font-semibold">Spouse</p>
-              <Meter used={engine.spouseEmployee402g.contributed} limit={engine.spouseEmployee402g.limit} label="Spouse recorded so far" />
+              <Meter actual={engine.spouseEmployee402g.contributed} scheduled={Math.max(0, (projected?.spouseEmployee402g?.contributed ?? engine.spouseEmployee402g.contributed) - engine.spouseEmployee402g.contributed)} available={projected?.spouseEmployee402g?.remaining ?? engine.spouseEmployee402g.remaining} limit={engine.spouseEmployee402g.limit} label="Spouse — separate limit" />
               <p className="text-xs text-muted-foreground">Your spouse has a separate limit: {fmt(engine.spouseEmployee402g.remaining)} left today.</p>
               {Array.from(spouseGroups.entries()).map(([cid, rows]) => <CompanyCard key={cid ?? "none"} name={nameOf(cid)} rows={rows} showScheduled={hasPlannerAccess} onEdit={onEditContribution} onDelete={onDeleteContribution} />)}
             </div>
           )}
           {otherBuckets.map(({ title, b, note }) => (
-            <div key={title} className="space-y-1 border-t pt-3"><p className="text-sm font-semibold">{title}</p><Meter used={b.contributed} limit={b.limit} label={note} /><p className="text-xs text-muted-foreground">{fmt(b.remaining)} left today.</p></div>
+            <div key={title} className="space-y-1 border-t pt-3"><p className="text-sm font-semibold">{title}</p><Meter actual={b.contributed} scheduled={Math.max(0, ((title === "SIMPLE" ? projected?.simple : projected?.governmental457b)?.contributed ?? b.contributed) - b.contributed)} available={(title === "SIMPLE" ? projected?.simple : projected?.governmental457b)?.remaining ?? b.remaining} limit={b.limit} label={note} /><p className="text-xs text-muted-foreground">{fmt(b.remaining)} left today.</p></div>
           ))}
         </Section>
       )}
 
+      {seCompanyIds.length > 0 && (
+        <section className="space-y-4 border-t border-border py-4" data-testid="planner-self-employed">
+          <div><h4 className="font-semibold">Solo 401(k) & business plans</h4><p className="text-xs text-muted-foreground">Year-end room after scheduled contributions across all jobs</p></div>
+          {seCompanyIds.map((cid) => {
+            const opportunity = businessPlannerOpportunity(room, cid, hasPlannerAccess);
+            const { actual: plans, plans: views } = opportunity;
+            const employee = plans.reduce((s, p) => s + p.employeeDeferralCounted, 0);
+            const employer = plans.reduce((s, p) => s + p.employerContribution, 0);
+            const futureEmployee = views.reduce((s, p) => s + p.employeeDeferralCounted, 0);
+            const futureEmployer = views.reduce((s, p) => s + p.employerContribution, 0);
+            const actualEarnings = plans.find((p) => p.eligibleCompensation != null)?.eligibleCompensation ?? null;
+            const futureEarnings = views.find((p) => p.eligibleCompensation != null)?.eligibleCompensation ?? null;
+            const cap = hasCapacityAccess && hasEmployerOpportunityAccess ? opportunity.employer : null;
+            const reasons = Array.from(new Set(views.flatMap((p) => p.reasons))).map(retirementReasonMessage).filter(Boolean);
+            const partnership = views.some((p) => p.entityKind === "partnership_k1");
+            const businessRows = [...employeeRows, ...seRows].filter((r) => r.companyId === cid);
+            return <div key={cid ?? "none"} className="space-y-3 rounded-md border border-border bg-card p-3" data-testid="solo-business-result">
+              <div className="flex flex-wrap items-center justify-between gap-2"><h5 className="font-semibold">{nameOf(cid)}</h5><Badge variant="outline">{partnership ? "Partnership plan" : views.some((p) => p.planKind === "solo_401k") ? "Solo 401(k)" : "Business plan"}</Badge></div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Meter actual={employee} scheduled={Math.max(0, futureEmployee - employee)} available={null} label="Employee — account allocation needs verification" />
+                <Meter actual={employer} scheduled={Math.max(0, futureEmployer - employer)} available={cap} label="Employer — additional room" />
+              </div>
+              <p className="text-sm font-semibold">{cap == null ? "Needs verification before additional contributions can be confirmed." : `You may be able to contribute an additional ${fmt(cap)} as employer.`}</p>
+              <p className="text-xs text-muted-foreground">{fmt(opportunity.employeeShared ?? 0)} shared employee room remains across all jobs; it is not additional room for each business. Account-specific employee allocation requires verified compensation and plan limits.</p>
+              {partnership && <p className="text-xs text-warning">Qualifying service earnings and partnership plan terms need verification; distributions alone do not establish a personal Solo 401(k).</p>}
+              <Collapsible>
+                <CollapsibleTrigger asChild><Button variant="ghost" size="sm" className="group gap-2 px-0">Earnings, plan details & history <ChevronDown className="h-4 w-4 group-data-[state=open]:rotate-180" /></Button></CollapsibleTrigger>
+                <CollapsibleContent className="space-y-3 pt-2">
+                  <Line muted label="Adjusted eligible earnings so far" value={actualEarnings == null ? "Unknown" : fmt(actualEarnings)} />
+                  {projected && <Line muted label="Adjusted projected year-end earnings" value={futureEarnings == null ? "Unknown" : fmt(futureEarnings)} />}
+                  <p className="text-xs text-muted-foreground">Earnings include eligible active Planner income, net of planned business expenses and the retirement engine's compensation adjustments. Employer room reserves shared employee capacity first; related plans never receive a duplicate employer allowance.</p>
+                  {plans.map((p) => <Line key={p.planId ?? p.planKind} muted label={PLAN_LABELS[p.planKind] ?? p.planKind} value={`${fmt(p.employeeContribution)} employee · ${fmt(p.employerContribution)} employer`} />)}
+                  {reasons.map((m) => <p key={m} className="text-xs text-muted-foreground">{m}</p>)}
+                  <HistoryTable rows={businessRows} showScheduled={hasPlannerAccess} onEdit={onEditContribution} onDelete={onDeleteContribution} />
+                </CollapsibleContent>
+              </Collapsible>
+            </div>;
+          })}
+        </section>
+      )}
+
       {w2CompanyIds.length > 0 && (
-        <Section testId="planner-w2-employer" title="W-2 employer contributions" subtitle={`${fmt(sumRows(w2EmployerRows, false))} recorded from employers`}>
+        <Section testId="planner-w2-employer" title="W-2 employer contributions" subtitle="Employer-funded money · not personally available contribution room"
+          overview={<Meter actual={sumRows(w2EmployerRows, false)} scheduled={hasPlannerAccess ? sumRows(w2EmployerRows, true) : 0} available={null} unknownLabel="Plan-dependent" label="Employer-funded contributions" />}>
           <p className="text-xs text-muted-foreground">Matches and profit-sharing your employer adds. They don't use up your own employee limit, and they aren't an extra deduction on your personal return.</p>
           {w2CompanyIds.map((cid) => {
             const plans = w2Plans.filter((p) => p.companyId === cid);
-            const estimate = plans.reduce((s, p) => s + p.estimatedEmployerContribution, 0);
+            const estimate = plans.reduce((s, p) => s + view(p).estimatedEmployerContribution, 0);
             const known = plans.some((p) => view(p).employerCapacityRemaining != null);
             return (
               <CompanyCard key={cid ?? "none"} name={nameOf(cid)} rows={w2EmployerRows.filter((r) => r.companyId === cid)} showScheduled={hasPlannerAccess}
@@ -268,44 +297,16 @@ export function RetirementPlanner({
         </Section>
       )}
 
-      {seCompanyIds.length > 0 && (
-        <Section testId="planner-self-employed" title="Solo 401(k) employer contributions" subtitle={hasCapacityAccess && hasEmployerOpportunityAccess ? `${fmt(sumRows(seRows, false))} recorded · ${fmt(verifiedSeCapacity)} verified room` : `${fmt(sumRows(seRows, false))} recorded`}>
-          <p className="text-xs text-muted-foreground">As your own employer, your business can add a profit-sharing contribution based on its earnings. These usually lower your taxes. Room is shown only when PaycheckMD can confirm it.</p>
-          {seCompanyIds.map((cid) => {
-            const plans = sePlans.filter((p) => p.companyId === cid);
-            const views = plans.map(view);
-            const unverified = views.some((v) => v.capacityUnverified);
-            const caps = views.filter((v) => !v.capacityUnverified && v.employerCapacityRemaining != null).map((v) => Math.max(0, Math.min(v.employerCapacityRemaining!, v.additionsHeadroom ?? v.employerCapacityRemaining!)));
-            const cap = caps.length ? Math.max(...caps) : null; // shared at one business — shown once
-            const actualEarnings = plans.find((p) => p.eligibleCompensation != null)?.eligibleCompensation ?? null;
-            const projEarnings = views.find((v) => v.eligibleCompensation != null && projectedById.has(v.planId))?.eligibleCompensation ?? null;
-            const reasons = Array.from(new Set(views.flatMap((v) => v.reasons))).map(retirementReasonMessage).filter(Boolean);
-            return (
-              <CompanyCard key={cid ?? "none"} name={nameOf(cid)} rows={seRows.filter((r) => r.companyId === cid)} showScheduled={hasPlannerAccess}
-                flag={!cid ? "Not linked to a company" : unverified ? "Needs verification" : undefined}
-                onEdit={onEditContribution} onDelete={onDeleteContribution}>
-                <div className="space-y-1.5">
-                  <Line muted label="Eligible earnings so far" value={actualEarnings == null ? "Unknown" : fmt(actualEarnings)} />
-                  {projected && <Line muted label="Projected year-end earnings" value={projEarnings == null ? "Unknown" : fmt(projEarnings)} />}
-                  {hasCapacityAccess && hasEmployerOpportunityAccess && <Line label={<>Remaining employer room <InfoTooltip>Counted only when your businesses' relationship is confirmed in Settings → Related businesses and the plan type is clear.</InfoTooltip></>} value={unverified ? "Needs verification" : cap == null ? "Unknown" : fmt(cap)} />}
-                  {plans.length > 1 && plans.map((p) => <Line key={p.planId ?? p.planKind} muted label={`${PLAN_LABELS[p.planKind] ?? p.planKind} plan`} value={`${fmt(p.employerContribution)} employer · ${fmt(p.employeeContribution)} employee`} />)}
-                  {reasons.length > 0 && <div className="space-y-1 text-xs text-muted-foreground">{reasons.map((m) => <p key={m}>{m}</p>)}</div>}
-                </div>
-              </CompanyCard>
-            );
-          })}
-        </Section>
-      )}
-
-      <Section testId="planner-ira" title="Traditional IRA" subtitle={`${fmt(ira.combinedContributed)} of ${fmt(iraLimit)} · ${ira.remainingContributionRoom == null ? "room unknown" : `${fmt(ira.remainingContributionRoom)} left`}`}>
-        <Meter used={ira.combinedContributed} limit={iraLimit} label="All IRAs (Traditional + Roth)" />
+      <Section testId="planner-ira" title="Traditional IRA" subtitle="Contribution capacity and tax deduction are separate"
+        overview={<Meter actual={ira.combinedContributed} scheduled={iraScheduled} available={iraFuture.remainingContributionRoom} limit={iraLimit} label="Shared Traditional + Roth IRA limit" />}>
         <div className="space-y-1.5">
           <Line label="Traditional IRA recorded" value={fmt(ira.traditionalContributed)} />
           {ira.rothContributed > 0 && <Line muted label="Roth IRA recorded (never deductible)" value={fmt(ira.rothContributed)} />}
           {hasPlannerAccess && iraScheduled > 0 && <Line label="Scheduled rest of year" value={fmt(iraScheduled)} />}
-          <Line label="Remaining room" value={ira.remainingContributionRoom == null ? "Unknown" : fmt(ira.remainingContributionRoom)} />
-          <Line label="Deductible" value={ira.deductibilityUnknown ? "Not yet known" : fmt(ira.traditionalDeductible)} />
-          {!ira.deductibilityUnknown && ira.traditionalNondeductible > 0 && <Line muted label="Nondeductible" value={fmt(ira.traditionalNondeductible)} />}
+          <Line label="Remaining room" value={iraFuture.remainingContributionRoom == null ? "Unknown" : fmt(iraFuture.remainingContributionRoom)} />
+          <Line label="Current-year recorded deductible amount" value={ira.deductibilityUnknown ? "Not yet known" : fmt(ira.traditionalDeductible)} />
+          <Line muted label="Additional deductible / nondeductible allocation" value="Needs income review" />
+          {!ira.deductibilityUnknown && ira.traditionalNondeductible > 0 && <Line muted label="Recorded nondeductible amount" value={fmt(ira.traditionalNondeductible)} />}
         </div>
         <p className="text-xs text-muted-foreground">Having IRA room doesn't mean the contribution is deductible. If you or your spouse have a workplace plan, your income decides how much (if any) you can deduct.</p>
         {ira.reasons.length > 0 && <div className="space-y-1 text-xs text-muted-foreground">{Array.from(new Set(ira.reasons)).map(retirementReasonMessage).filter(Boolean).map((m) => <p key={m}>{m}</p>)}</div>}

@@ -1,10 +1,38 @@
 import { describe, it, expect } from "vitest";
-import { buildPlannerHistory } from "@/lib/retirementPlannerView";
+import { buildPlannerHistory, businessPlannerOpportunity } from "@/lib/retirementPlannerView";
+import { computeRetirementRoomView } from "@/lib/retirementRoomView";
 
 const base = {
   taxYear: 2026, todayISO: "2026-11-16",
   companies: [{ id: "w2", companyType: "w2" }, { id: "biz", companyType: "1099_schedule_c" }],
 };
+
+describe("visual business opportunity selection", () => {
+  const calculate = (companyType = "1099_schedule_c", scheduled = true) => computeRetirementRoomView({
+    taxYear: 2026, companies: [{ id: "biz", name: "Practice", companyType }],
+    paychecks: [], standalone: [{ id: "solo", companyId: "biz", accountType: "solo_401k", contributionType: "employer", annualAmount: 1_000, scheduledAmount: scheduled ? 2_000 : 0 }],
+    ira: { traditionalContributed: 0, rothContributed: 0 }, actualNetProfitByCompany: new Map([["biz", 100_000]]),
+    remainingPlannedGrossByCompany: new Map([["biz", 50_000]]), includeProjection: true,
+  });
+  it("selects projected canonical capacity and preserves actual versus scheduled funding", () => {
+    const room = calculate();
+    const result = businessPlannerOpportunity(room, "biz", true);
+    expect(result.verified).toBe(true);
+    expect(result.actual[0].employerContribution).toBe(1_000);
+    expect(result.plans[0].employerContribution).toBe(3_000);
+    expect(result.employer).toBeGreaterThan(businessPlannerOpportunity(room, "biz", false).employer ?? 0);
+    expect((result.employer ?? 0) + (result.employeeShared ?? 0)).toBeLessThanOrEqual(result.plans[0].additionsHeadroom ?? 0);
+  });
+  it("never labels an unverified partnership plan as personally available Solo room", () => {
+    const result = businessPlannerOpportunity(calculate("k1_partnership"), "biz", true);
+    expect(result.verified).toBe(false);
+    expect(result.employer).toBeNull();
+  });
+  it("does not assert a discovered default plan is a verified personal Solo account", () => {
+    const room = computeRetirementRoomView({ taxYear: 2026, companies: [{ id: "biz", name: "Practice", companyType: "1099_schedule_c" }], paychecks: [], standalone: [], ira: { traditionalContributed: 0, rothContributed: 0 }, actualNetProfitByCompany: new Map([["biz", 100_000]]) });
+    expect(businessPlannerOpportunity(room, "biz", true).employer).toBeNull();
+  });
+});
 
 describe("retirement planner history", () => {
   it("splits paycheck money into employee and the right employer category", () => {

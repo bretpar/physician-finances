@@ -1,4 +1,7 @@
 # Focused monitoring fixes
+- [x] Replace retirement presentation with labeled contribution bars and compact year-end room summary.
+- [x] Show company-grouped self-employed opportunities conservatively; preserve history and editing. Account-specific joint employee allocation and hypothetical scenarios deferred because canonical outputs do not establish them.
+- [x] Run focused tests (32 passed) and a signed-in desktop/mobile visual check; do not publish.
 - [x] Reject closed-period manual Planner conversions before writes; fresh lookup failures block writes, existing conversions remain no-ops.
 - [x] Preserve original retirement recurrence anchors across closures; $800 × 10 = $8,000 verified; 61 focused tests passed, preview build OK; no real-record writes or publishing.
 - [x] Preserve historical HSA limits for years before recorded coverage periods; verify regression.

@@ -9,6 +9,7 @@
  * invented from them.
  */
 import { normalizeFilingType } from "@/lib/filingTypes";
+import { computeRetirementHeadline, type RetirementRoomView } from "@/lib/retirementRoomView";
 
 export type PlannerCategory = "employee" | "w2_employer" | "self_employed_employer" | "ira";
 
@@ -138,4 +139,22 @@ export function groupRowsByCompany(rows: PlannerHistoryRow[]): Map<string | null
   const map = new Map<string | null, PlannerHistoryRow[]>();
   for (const r of rows) map.set(r.companyId, [...(map.get(r.companyId) ?? []), r]);
   return map;
+}
+
+/** Select canonical group room, reserving shared employee room first. No new limit math. */
+export function businessPlannerOpportunity(room: RetirementRoomView, companyId: string | null, projected: boolean) {
+  const actual = room.engine.plans.filter((p) => p.companyId === companyId);
+  const yearEnd = projected ? room.engineProjected : null;
+  const plans = (yearEnd ?? room.engine).plans.filter((p) => p.companyId === companyId);
+  const solo = plans.filter((p) => p.planKind === "solo_401k" && p.entityKind === "schedule_c");
+  const verified = companyId != null && solo.length === plans.length && solo.length > 0 &&
+    solo.every((p) => !p.capacityUnverified && p.employerCapacityRemaining != null && !p.reasons.includes("payroll_plan_unresolved") && p.sourceRecordIds.length > 0);
+  const selected = { ...room.engine, plans: actual };
+  const selectedProjected = yearEnd ? { ...yearEnd, plans } : null;
+  const employer = verified ? computeRetirementHeadline(selected, selectedProjected).employerVerified : null;
+  return { actual, plans, verified, employer,
+    employeeShared: plans[0]?.earner === "spouse"
+      ? (yearEnd ?? room.engine).spouseEmployee402g?.remaining ?? null
+      : (yearEnd ?? room.engine).employee402g.remaining,
+  };
 }
