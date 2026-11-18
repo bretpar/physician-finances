@@ -3,6 +3,10 @@
  * round-trip, and engine behavior (the estimate counts toward used room).
  */
 import { describe, it, expect } from "vitest";
+import { readFileSync } from "node:fs";
+import { transpileModule } from "typescript";
+import { readBusinessRelationship } from "@/lib/businessRelationships";
+import { computeRetirementRoomView } from "@/lib/retirementRoomView";
 import {
   estimateEmployerContribution,
   readEmployerContributionFormula,
@@ -16,6 +20,41 @@ import {
 } from "@/lib/retirementOpportunityEngine";
 
 const YEAR = 2026;
+
+describe("Tax Savings page company adapter", () => {
+  it("passes saved match metadata into actual and projected planner room without recording money", () => {
+    // Execute the production page's company mapping, not a recreated test adapter.
+    const page = readFileSync("src/pages/Mileage.tsx", "utf8");
+    const mapping = page.match(/companies: (companies\.map\([\s\S]*?\)\)),\s*w2WagesByEarner:/)?.[1];
+    if (!mapping) throw new Error("Tax Savings company mapping not found");
+    const adapter = new Function(
+      "companies", "payFrequencyByCompany", "readBusinessRelationship", "readEmployerContributionFormula",
+      transpileModule(`return ${mapping};`, { compilerOptions: {} }).outputText,
+    );
+    const companies = adapter(
+      [{ id: "w2", name: "Employer", companyType: "w2", advancedFieldVisibility: writeEmployerContributionFormula({}, {
+        kind: "match", matchRate: 0.5, matchCapPct: 0.06,
+      }) }],
+      new Map(), readBusinessRelationship, readEmployerContributionFormula,
+    );
+    const view = computeRetirementRoomView({
+      taxYear: YEAR, companies,
+      paychecks: [
+        { incomeEntryId: "paid", companyId: "w2", wages: 100_000, employee: 10_000, employer: 0 },
+        { incomeEntryId: "future", companyId: "w2", wages: 50_000, employee: 5_000, employer: 0, scheduled: true },
+      ],
+      standalone: [], ira: { traditionalContributed: 0, rothContributed: 0 },
+    });
+    expect(view.engine.plans[0].estimatedEmployerContribution).toBe(3_000);
+    expect(view.engine.plans[0].employerCapacityRemaining).toBe(3_000);
+    expect(view.engine.plans[0].additionsHeadroom).toBe(59_000);
+    expect(view.engine.plans[0].reasons).not.toContain("unknown_plan_data");
+    expect(view.engineProjected?.plans[0].estimatedEmployerContribution).toBe(4_500);
+    expect(view.engineProjected?.plans[0].additionsHeadroom).toBe(52_500);
+    expect(view.employerContributionTotal).toBe(0);
+    expect(view.scheduledEmployerTotal).toBe(0);
+  });
+});
 
 describe("estimateEmployerContribution", () => {
   it("match: 50% of deferrals up to 6% of pay", () => {
