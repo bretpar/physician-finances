@@ -51,7 +51,7 @@ function Section({ title, subtitle, children, testId, overview }: { title: strin
   );
 }
 
-function Meter({ actual, scheduled = 0, available, label, limit, unknownLabel = "Unverified" }: { actual: number; scheduled?: number; available: number | null; label: string; limit?: number | null; unknownLabel?: string }) {
+function Meter({ actual, scheduled = 0, available, label, limit, unknownLabel = "Needs one detail" }: { actual: number; scheduled?: number; available: number | null; label: string; limit?: number | null; unknownLabel?: string }) {
   const values = [Math.max(0, actual), Math.max(0, scheduled), Math.max(0, available ?? 0)];
   const total = values.reduce((s, n) => s + n, 0);
   const labels = ["Contributed", "Scheduled", "Available"];
@@ -59,9 +59,9 @@ function Meter({ actual, scheduled = 0, available, label, limit, unknownLabel = 
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center justify-between gap-1 text-xs"><span className="font-medium">{label}</span>{limit != null && <span className="text-muted-foreground">Annual limit {fmt(limit)}</span>}</div>
-      <div className="flex h-3 w-full overflow-hidden rounded-sm bg-muted" role="img" aria-label={`${label}: contributed ${fmt(actual)}, scheduled ${fmt(scheduled)}, available ${available == null ? "unknown" : fmt(available)}`}>
+      {available != null && <div className="flex h-3 w-full overflow-hidden rounded-sm bg-muted" role="img" aria-label={`${label}: contributed ${fmt(actual)}, scheduled ${fmt(scheduled)}, available ${fmt(available)}`}>
         {total > 0 && values.map((n, i) => n > 0 && <span key={labels[i]} className={colors[i]} style={{ width: `${n / total * 100}%` }} />)}
-      </div>
+      </div>}
       <div className="grid grid-cols-3 gap-2">
         {labels.map((text, i) => <div key={text} className="min-w-0"><p className="flex items-center gap-1 text-[11px] text-muted-foreground"><span className={`h-2 w-2 shrink-0 rounded-sm ${colors[i]}`} />{text}</p><p className="text-sm font-semibold tabular-nums">{i === 2 && available == null ? unknownLabel : fmt(values[i])}</p></div>)}
       </div>
@@ -163,14 +163,15 @@ export function RetirementPlanner({
   // Verified capacity: one value per employer group (shared limits never duplicated),
   // clipped to the group's remaining annual-additions headroom; unverified excluded.
   const verifiedSeCapacity = useMemo(() => {
-    const actual = { ...engine, plans: sePlans.filter((p) => p.planKind === "solo_401k" && p.entityKind === "schedule_c" && p.sourceRecordIds.length > 0) };
-    const future = projected ? { ...projected, plans: projected.plans.filter((p) => p.planKind === "solo_401k" && p.entityKind === "schedule_c" && p.sourceRecordIds.length > 0) } : null;
+    const eligibleCompanies = new Set(sePlans.map((p) => p.companyId).filter((cid) => businessPlannerOpportunity(room, cid, hasPlannerAccess).verified));
+    const actual = { ...engine, plans: sePlans.filter((p) => eligibleCompanies.has(p.companyId)) };
+    const future = projected ? { ...projected, plans: projected.plans.filter((p) => eligibleCompanies.has(p.companyId)) } : null;
     return computeRetirementHeadline(actual, future).employerVerified;
-  }, [engine, projected, sePlans]);
+  }, [engine, projected, sePlans, room, hasPlannerAccess]);
   const needsVerification = sePlans.filter((p) => view(p).capacityUnverified).length;
 
   const reviewNotes: string[] = [];
-  if (needsVerification > 0) reviewNotes.push(`${needsVerification} self-employed ${needsVerification === 1 ? "plan needs" : "plans need"} verification before employer room can be counted`);
+  if (needsVerification > 0) reviewNotes.push("business ownership relationships are missing; see the affected business below");
   if (room.k1ClassificationUnknownCompanyIds.length) reviewNotes.push(`set the K-1 tax treatment for ${room.k1ClassificationUnknownCompanyIds.length} partnership(s) in Settings`);
   if (room.ambiguousDuplicates.length) reviewNotes.push(`${room.ambiguousDuplicates.length} possible duplicate ${room.ambiguousDuplicates.length === 1 ? "entry" : "entries"} between paychecks and added contributions`);
   const unassigned = visibleHistory.filter((r) => r.category !== "ira" && !r.companyId).length;
@@ -203,7 +204,7 @@ export function RetirementPlanner({
         <div className="flex items-center gap-2"><PiggyBank className="h-5 w-5 text-primary" /><h3 className="text-lg font-semibold">{engine.taxYear} Retirement Contribution Calculator</h3></div>
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           {(primaryPlans.length > 0 || spousePlans.length > 0) && <Stat label={primaryPlans.length ? "Employee room after scheduled pay" : "Spouse employee room after scheduled pay"} value={fmt(primaryPlans.length ? employeeProjected : (projected ?? engine).spouseEmployee402g?.remaining ?? 0)} hint="Shared across applicable jobs" testId="summary-employee-projected" />}
-          {sePlans.length > 0 && <Stat label="Verified Solo employer room" value={hasCapacityAccess && hasEmployerOpportunityAccess ? verifiedSeCapacity === 0 && (needsVerification > 0 || sePlans.some((p) => p.entityKind === "partnership_k1")) ? "Needs verification" : fmt(verifiedSeCapacity) : "—"} hint="After reserving shared employee room" testId="summary-se-capacity" />}
+          {sePlans.length > 0 && <Stat label="Additional business employer room" value={hasCapacityAccess && hasEmployerOpportunityAccess ? fmt(verifiedSeCapacity) : "—"} hint="Supported plans only; shared employee room reserved first" testId="summary-se-capacity" />}
           <Stat label="IRA contribution room" value={iraFuture.remainingContributionRoom == null ? "Unknown" : fmt(iraFuture.remainingContributionRoom)} hint="Deduction depends on eligibility" />
         </div>
         <p className="text-xs text-muted-foreground">{fmt(actualTotal)} contributed · {fmt(scheduledTotal)} scheduled through Dec 31. Contribution room is not a tax-saving amount.</p>
@@ -254,14 +255,17 @@ export function RetirementPlanner({
             const partnership = views.some((p) => p.entityKind === "partnership_k1");
             const businessRows = [...employeeRows, ...seRows].filter((r) => r.companyId === cid);
             return <div key={cid ?? "none"} className="space-y-3 rounded-md border border-border bg-card p-3" data-testid="solo-business-result">
-              <div className="flex flex-wrap items-center justify-between gap-2"><h5 className="font-semibold">{nameOf(cid)}</h5><Badge variant="outline">{partnership ? "Partnership plan" : views.some((p) => p.planKind === "solo_401k") ? "Solo 401(k)" : "Business plan"}</Badge></div>
+              <div className="flex flex-wrap items-center justify-between gap-2"><h5 className="font-semibold">{nameOf(cid)}</h5><Badge variant="outline">{opportunity.status}</Badge></div>
+              <Line label="Projected net profit" value={opportunity.projectedProfit == null ? "Not available" : fmt(opportunity.projectedProfit)} />
+              <p className="text-xs text-muted-foreground">{partnership ? "Partnership plan" : views.some((p) => p.planKind === "solo_401k") ? "Solo 401(k) / business plans" : "Business plan"}</p>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Meter actual={employee} scheduled={Math.max(0, futureEmployee - employee)} available={null} label="Employee — account allocation needs verification" />
+                <Meter actual={employee} scheduled={Math.max(0, futureEmployee - employee)} available={hasCapacityAccess ? opportunity.employee : null} label="Employee — additional possible" />
                 <Meter actual={employer} scheduled={Math.max(0, futureEmployer - employer)} available={cap} label="Employer — additional room" />
               </div>
-              <p className="text-sm font-semibold">{cap == null ? "Needs verification before additional contributions can be confirmed." : `You may be able to contribute an additional ${fmt(cap)} as employer.`}</p>
-              <p className="text-xs text-muted-foreground">{fmt(opportunity.employeeShared ?? 0)} shared employee room remains across all jobs; it is not additional room for each business. Account-specific employee allocation requires verified compensation and plan limits.</p>
-              {partnership && <p className="text-xs text-warning">Qualifying service earnings and partnership plan terms need verification; distributions alone do not establish a personal Solo 401(k).</p>}
+              {cap != null && <p className="text-sm font-semibold">You may be able to contribute an additional {fmt(cap)} as employer.</p>}
+              <p className="text-xs text-muted-foreground">Any additional employee contribution uses the shared remaining limit shown above, not a new allowance. Employer room reserves that employee room first; don't add separate account maxima together.</p>
+              {opportunity.missingDetails.map((detail) => <p key={detail} className="text-xs text-warning">{detail.replace("this business", nameOf(cid)).replace("the retirement plan", `${nameOf(cid)}'s retirement plan`)}</p>)}
+              {partnership && hasCapacityAccess && hasEmployerOpportunityAccess && opportunity.employerEstimate != null && <p className="text-xs text-muted-foreground">Earnings-based employer estimate: {fmt(opportunity.employerEstimate)} using the standard 25% nominal / 20% adjusted self-employed formula, after recorded and scheduled contributions and shared employee room. Not available contribution room until partnership plan terms allow it.</p>}
               <Collapsible>
                 <CollapsibleTrigger asChild><Button variant="ghost" size="sm" className="group gap-2 px-0">Earnings, plan details & history <ChevronDown className="h-4 w-4 group-data-[state=open]:rotate-180" /></Button></CollapsibleTrigger>
                 <CollapsibleContent className="space-y-3 pt-2">
@@ -269,6 +273,7 @@ export function RetirementPlanner({
                   {projected && <Line muted label="Adjusted projected year-end earnings" value={futureEarnings == null ? "Unknown" : fmt(futureEarnings)} />}
                   <p className="text-xs text-muted-foreground">Earnings include eligible active Planner income, net of planned business expenses and the retirement engine's compensation adjustments. Employer room reserves shared employee capacity first; related plans never receive a duplicate employer allowance.</p>
                   {plans.map((p) => <Line key={p.planId ?? p.planKind} muted label={PLAN_LABELS[p.planKind] ?? p.planKind} value={`${fmt(p.employeeContribution)} employee · ${fmt(p.employerContribution)} employer`} />)}
+                  {opportunity.allocationNote && <p className="text-xs text-muted-foreground">{opportunity.allocationNote}</p>}
                   {reasons.map((m) => <p key={m} className="text-xs text-muted-foreground">{m}</p>)}
                   <HistoryTable rows={businessRows} showScheduled={hasPlannerAccess} onEdit={onEditContribution} onDelete={onDeleteContribution} />
                 </CollapsibleContent>

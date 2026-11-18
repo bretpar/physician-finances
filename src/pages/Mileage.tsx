@@ -459,7 +459,7 @@ export default function Mileage() {
           is_active: s.is_active,
           forecast_expense_per_period: Number(s.forecast_expense_per_period || 0),
         })),
-        (plannerOccurrences as any[]).map((p) => ({
+        (plannerOccurrences as any[]).filter((p) => p.date && String(p.date).slice(0, 4) === String(currentYear) && String(p.date) >= todayISO).map((p) => ({
           streamId: p.streamId,
           type: p.type,
           matchStatus: p.matchStatus,

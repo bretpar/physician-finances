@@ -146,15 +146,41 @@ export function businessPlannerOpportunity(room: RetirementRoomView, companyId: 
   const actual = room.engine.plans.filter((p) => p.companyId === companyId);
   const yearEnd = projected ? room.engineProjected : null;
   const plans = (yearEnd ?? room.engine).plans.filter((p) => p.companyId === companyId);
-  const solo = plans.filter((p) => p.planKind === "solo_401k" && p.entityKind === "schedule_c");
-  const verified = companyId != null && solo.length === plans.length && solo.length > 0 &&
-    solo.every((p) => !p.capacityUnverified && p.employerCapacityRemaining != null && !p.reasons.includes("payroll_plan_unresolved") && p.sourceRecordIds.length > 0);
+  // A saved 401(k) at a Schedule C business uses the same canonical business
+  // compensation path as a Solo 401(k); mixed account labels aren't missing data.
+  const businessPlans = plans.filter((p) => p.entityKind === "schedule_c" && ["solo_401k", "401k", "sep_ira"].includes(p.planKind));
+  const hasSavedPlan = businessPlans.some((p) => p.sourceRecordIds.length > 0);
+  const missingDetails: string[] = [];
+  if (plans.some((p) => p.capacityUnverified)) missingDetails.push("We need to know whether this business shares common ownership with another business.");
+  const unresolvedPayroll = plans.some((p) => p.reasons.includes("payroll_plan_unresolved"));
+  // Exact plan attribution is unnecessary for COMPANY-level room when every
+  // candidate is a 401(k) sharing both the same employee and employer limits.
+  const equivalent401kPlans = plans.every((p) => p.entityKind === "schedule_c" && ["401k", "solo_401k"].includes(p.planKind));
+  if (unresolvedPayroll && !equivalent401kPlans) missingDetails.push("This paycheck includes retirement contributions that aren't assigned to a specific plan.");
+  if (plans.some((p) => p.eligibleCompensation == null)) missingDetails.push(plans.some((p) => p.entityKind === "partnership_k1")
+    ? "We need the partnership's qualifying service-compensation treatment in Settings."
+    : "We need eligible business earnings for this tax year.");
+  const partnership = plans.some((p) => p.entityKind === "partnership_k1");
+  if (partnership) missingDetails.push("We need to know whether the retirement plan is sponsored by the partnership and permits additional employee or discretionary employer contributions.");
+  if (!partnership && !hasSavedPlan) missingDetails.push("We need to know which retirement plan this business has.");
+  const verified = companyId != null && businessPlans.length === plans.length && businessPlans.length > 0 && hasSavedPlan && missingDetails.length === 0;
   const selected = { ...room.engine, plans: actual };
   const selectedProjected = yearEnd ? { ...yearEnd, plans } : null;
   const employer = verified ? computeRetirementHeadline(selected, selectedProjected).employerVerified : null;
-  return { actual, plans, verified, employer,
-    employeeShared: plans[0]?.earner === "spouse"
+  const employeeShared = plans[0]?.earner === "spouse"
       ? (yearEnd ?? room.engine).spouseEmployee402g?.remaining ?? null
-      : (yearEnd ?? room.engine).employee402g.remaining,
+      : (yearEnd ?? room.engine).employee402g.remaining;
+  // Account selection only: canonical compensation/headroom bound the shared
+  // deferral bucket; this is not another independent allowance per business.
+  const employeePlans = businessPlans.filter((p) => p.deferralBucket === "402g");
+  const employee = verified && employeePlans.length > 0 ? Math.max(0, Math.min(employeeShared ?? 0,
+    ...employeePlans.map((p) => Math.max(0, (p.eligibleCompensation ?? 0) - plans.reduce((s, r) => s + r.totalAdditions, 0))),
+    ...employeePlans.map((p) => p.additionsHeadroom ?? 0))) : null;
+  const projectedProfit = companyId == null ? null : (projected ? room.projectedNetProfitByCompany.get(companyId) : room.actualNetProfitByCompany.get(companyId)) ?? room.actualNetProfitByCompany.get(companyId) ?? null;
+  return { actual, plans, verified, employer, employee, employeeShared, projectedProfit, missingDetails,
+    allocationNote: unresolvedPayroll && equivalent401kPlans ? "Paycheck contributions aren't assigned to one account; company totals and shared limits still include them exactly once." : null,
+    status: missingDetails.length ? "Needs one detail" : yearEnd ? "Estimated" : "Calculated",
+    employerEstimate: partnership && !plans.some((p) => p.capacityUnverified || p.eligibleCompensation == null || p.reasons.includes("payroll_plan_unresolved"))
+      ? computeRetirementHeadline(selected, selectedProjected).employerVerified : null,
   };
 }

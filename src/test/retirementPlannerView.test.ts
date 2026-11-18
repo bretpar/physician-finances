@@ -32,6 +32,46 @@ describe("visual business opportunity selection", () => {
     const room = computeRetirementRoomView({ taxYear: 2026, companies: [{ id: "biz", name: "Practice", companyType: "1099_schedule_c" }], paychecks: [], standalone: [], ira: { traditionalContributed: 0, rothContributed: 0 }, actualNetProfitByCompany: new Map([["biz", 100_000]]) });
     expect(businessPlannerOpportunity(room, "biz", true).employer).toBeNull();
   });
+  it("uses WWEP's saved mixed 401k and Solo labels as one employer capacity, with unrelated status", () => {
+    const room = computeRetirementRoomView({ taxYear: 2026,
+      companies: [{ id: "wwep", name: "WWEP", companyType: "1099_schedule_c", retirementRelationship: { status: "unrelated" } }, { id: "vituity", name: "Vituity", companyType: "k1_partnership", k1TaxTreatment: "active_partnership", retirementRelationship: { status: "unrelated" } }],
+      paychecks: [{ incomeEntryId: "paycheck", companyId: "wwep", employee: 500, employer: 0, wages: 0 }], standalone: [
+        { id: "employee", companyId: "wwep", accountType: "401k", contributionType: "employee", annualAmount: 3500, scheduledAmount: 1000 },
+        { id: "employer", companyId: "wwep", accountType: "401k", contributionType: "employer", annualAmount: 2000 },
+        { id: "solo", companyId: "wwep", accountType: "solo_401k", contributionType: "employer", annualAmount: 2000 }],
+      ira: { traditionalContributed: 0, rothContributed: 0 }, actualNetProfitByCompany: new Map([["wwep", 100000], ["vituity", 100000]]),
+      remainingPlannedGrossByCompany: new Map([["wwep", 50000]]), remainingPlannedExpensesByCompany: new Map([["wwep", 10000]]), deductibleHalfSeTaxByCompany: new Map([["wwep", 0]]),
+      w2WagesByEarner: { actual: new Map([["primary", 200000]]) }, includeProjection: true });
+    const result = businessPlannerOpportunity(room, "wwep", true);
+    expect(result.verified).toBe(true);
+    expect(result.missingDetails).toEqual([]);
+    expect(result.projectedProfit).toBe(140000);
+    expect(result.employeeShared).toBe(19500);
+    expect(result.employee).toBe(19500);
+    expect(result.plans.some((p) => p.reasons.includes("payroll_plan_unresolved"))).toBe(true);
+    expect(result.allocationNote).not.toBeNull();
+    // Above the SS base, canonical half-SE deduction is Medicare only.
+    expect(result.employer).toBeCloseTo((140000 - 140000 * .9235 * .029 / 2) * .2 - 4000, 2);
+    expect(result.plans.filter((p) => (p.employerCapacityRemaining ?? 0) > 0)).toHaveLength(1);
+    expect((result.employer ?? 0) + (result.employee ?? 0)).toBeLessThanOrEqual(result.plans[0].additionsHeadroom ?? 0);
+    const partnership = businessPlannerOpportunity(room, "vituity", true);
+    expect(partnership.plans[0].planKind).toBe("401k");
+    expect(partnership.employer).toBeNull();
+    expect(partnership.employerEstimate).toBeGreaterThan(0);
+    expect(partnership.missingDetails).toHaveLength(1);
+  });
+  it("keeps unknown ownership and unresolved paycheck plans out of available capacity", () => {
+    const room = computeRetirementRoomView({ taxYear: 2026,
+      companies: [{ id: "a", name: "A", companyType: "1099_schedule_c" }, { id: "b", name: "B", companyType: "1099_schedule_c" }],
+      paychecks: [{ incomeEntryId: "p", companyId: "a", employee: 100, employer: 50, wages: 0 }],
+      standalone: [{ id: "s", companyId: "a", accountType: "solo_401k", contributionType: "employer", annualAmount: 100 }, { id: "k", companyId: "a", accountType: "sep_ira", contributionType: "employer", annualAmount: 100 }],
+      ira: { traditionalContributed: 0, rothContributed: 0 }, actualNetProfitByCompany: new Map([["a", 100000], ["b", 100000]]) });
+    const result = businessPlannerOpportunity(room, "a", true);
+    expect(result.employer).toBeNull();
+    expect(result.employee).toBeNull();
+    expect(result.missingDetails.some((d) => d.includes("common ownership"))).toBe(true);
+    expect(result.missingDetails.some((d) => d.includes("specific plan"))).toBe(true);
+  });
 });
 
 describe("retirement planner history", () => {

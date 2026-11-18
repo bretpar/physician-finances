@@ -83,6 +83,8 @@ export interface RetirementHeadline {
 }
 
 export interface RetirementRoomView {
+  actualNetProfitByCompany: Map<string, number>;
+  projectedNetProfitByCompany: Map<string, number>;
   engine: RetirementOpportunityResult;
   engineProjected: RetirementOpportunityResult | null;
   employeeRoom: EmployeeRoomSummary;
@@ -335,6 +337,8 @@ export function computeRetirementRoomView(args: RetirementRoomViewArgs): Retirem
     );
 
   return {
+    actualNetProfitByCompany: args.actualNetProfitByCompany ?? new Map(),
+    projectedNetProfitByCompany,
     engine,
     engineProjected,
     scheduledEmployeeTotal,

@@ -204,7 +204,7 @@ export function planKindForAccountType(accountType: string | null | undefined): 
 
 /** Default plan kind for a company that has no explicit plan rows yet. */
 export function defaultPlanKindForEntity(entity: RetirementEntityKind): RetirementPlanKind {
-  return entity === "schedule_c" || entity === "partnership_k1" ? "solo_401k" : "401k";
+  return entity === "schedule_c" ? "solo_401k" : "401k";
 }
 
 /**
