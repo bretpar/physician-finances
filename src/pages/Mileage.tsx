@@ -1,3 +1,4 @@
+import { employerMatchFormulaByStream } from "@/lib/employerMatchPaycheck";
 import { readBusinessRelationship } from "@/lib/businessRelationships";
 import { readEmployerContributionFormula } from "@/lib/employerContributionFormula";
 import { useState, useMemo, useEffect, useRef, type ReactNode } from "react";
@@ -347,11 +348,12 @@ export default function Mileage() {
         [],
         undefined,
         closureLookup,
+        employerMatchFormulaByStream(plannerStreams, companies),
       );
     } catch {
       return [];
     }
-  }, [hasPlannerAccess, plannerStreams, plannerBonuses, incomeEntries, plannerOverrides, plannerConversions, closureLookup]);
+  }, [hasPlannerAccess, plannerStreams, plannerBonuses, incomeEntries, plannerOverrides, plannerConversions, closureLookup, companies]);
 
   const retirementStandaloneSources = useMemo(() => {
     const todayISO = new Date().toISOString().split("T")[0];

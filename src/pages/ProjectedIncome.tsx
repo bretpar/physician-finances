@@ -1,3 +1,4 @@
+import { employerMatchFormulaByStream } from "@/lib/employerMatchPaycheck";
 import { buildTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
 import { Info } from "lucide-react";
 import { useState, useMemo, useEffect, useRef } from "react";
@@ -555,7 +556,7 @@ export default function ProjectedIncome() {
   const projectedPaychecks = useMemo(() => {
     if (!streams || !bonuses) return [];
     return generateProjectedPaychecks(streams, bonuses, incomeEntriesForMatching, overrides || [], plannerConversions || [], businessTxsForMatching,
-      employerRetirementReducesByStream(streams, companies), closureLookup);
+      employerRetirementReducesByStream(streams, companies), closureLookup, employerMatchFormulaByStream(streams, companies));
   }, [streams, bonuses, incomeEntriesForMatching, overrides, plannerConversions, businessTxsForMatching, companies, closureLookup]);
 
   const projectedTotals = useMemo(() => getProjectedTotals(projectedPaychecks, streams || []), [projectedPaychecks, streams]);
@@ -1071,7 +1072,7 @@ export default function ProjectedIncome() {
       paycheck_amount: String(entry.grossAmount),
       taxes_withheld: String(entry.taxesWithheld),
       retirement_401k: String(entry.retirement401k),
-      employer_retirement_contribution: entry.employerRetirementContribution ? String(entry.employerRetirementContribution) : "",
+      employer_retirement_contribution: entry.employerRetirementContribution && !entry.employerMatchEstimated ? String(entry.employerRetirementContribution) : "",
       pre_tax_deductions: String(otherPreTax),
       notes: existing?.notes || "",
       // Date field shows where this occurrence currently sits.
@@ -2892,7 +2893,7 @@ export default function ProjectedIncome() {
                 )}
                 {(convertTarget.employerRetirementContribution || 0) > 0 && (
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Employer retirement</span>
+                    <span className="text-muted-foreground">Employer retirement{convertTarget.employerMatchEstimated ? " (estimated from formula)" : ""}</span>
                     <span>{fmtFull(convertTarget.employerRetirementContribution || 0)}</span>
                   </div>
                 )}
@@ -2961,6 +2962,7 @@ export default function ProjectedIncome() {
               { label: "Net received", value: fmtFull(Math.max(0, e.grossAmount - (e.taxesWithheld || 0) - (e.retirement401k || 0))), mono: true },
               ...(e.taxesWithheld > 0 ? [{ label: "Federal", value: fmtFull(e.taxesWithheld), mono: true }] : []),
               ...(e.retirement401k > 0 ? [{ label: "401(k)", value: fmtFull(e.retirement401k), mono: true }] : []),
+              ...((e.employerRetirementContribution || 0) > 0 ? [{ label: e.employerMatchEstimated ? "Employer match (estimated from formula)" : "Employer retirement", value: fmtFull(e.employerRetirementContribution || 0), mono: true }] : []),
             ],
           },
         ];

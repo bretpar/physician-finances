@@ -799,9 +799,11 @@ function computePlanOpportunity(
             ? eligibleCompensation * nominalRate
             : null;
       if (formulaCapacity != null) {
+        // Recorded/scheduled employer money comes first; the formula estimate
+        // only fills the remaining gap, so it is never counted on top of it.
         const additionsCeiling = Math.max(
           0,
-          (annualAdditionsLimit ?? 0) - additionsUsed - estimatedEmployerContribution,
+          (annualAdditionsLimit ?? 0) - additionsUsed - Math.max(0, estimatedEmployerContribution - employerContribution),
         );
         employerCapacityRemaining = Math.max(
           0,
@@ -844,7 +846,7 @@ function computePlanOpportunity(
     additionsHeadroom:
       annualAdditionsLimit == null
         ? null
-        : Math.max(0, annualAdditionsLimit - additionsUsed - estimatedEmployerContribution),
+        : Math.max(0, annualAdditionsLimit - additionsUsed - Math.max(0, estimatedEmployerContribution - employerContribution)),
     capacityUnverified: false,
     employerGroupKey:
       plan.employerGroupKey ||
@@ -888,7 +890,7 @@ function applySharedEmployerLimits(plans: PlanOpportunity[], rates: Map<PlanOppo
     if (group.length < 2 && override == null) continue;
     group.sort((a, b) => String(a.planId).localeCompare(String(b.planId)));
     const used = group.reduce(
-      (s, p) => s + p.employeeTowardAnnualAdditions + p.employerContribution + p.estimatedEmployerContribution,
+      (s, p) => s + p.employeeTowardAnnualAdditions + Math.max(p.employerContribution, p.estimatedEmployerContribution),
       0,
     );
     /* One limit per employer (min of its plans), then combined across related

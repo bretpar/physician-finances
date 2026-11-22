@@ -176,7 +176,8 @@ describe("engine: estimated employer contribution counts toward used room", () =
     const p = r.plans[0];
     // $3,000 expected − $2,500 already recorded = $500 remaining.
     expect(p.employerCapacityRemaining).toBe(500);
-    expect(p.additionsHeadroom).toBe(72_000 - 10_000 - 2_500 - 3_000);
+    // Recorded money fills the estimate first, so headroom counts the $3,000 once.
+    expect(p.additionsHeadroom).toBe(72_000 - 10_000 - 3_000);
   });
 
   it("without a recorded formula, W-2 employer capacity stays unknown", () => {

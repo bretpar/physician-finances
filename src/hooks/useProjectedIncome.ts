@@ -1,3 +1,5 @@
+import { estimatePaycheckEmployerMatch } from "@/lib/employerMatchPaycheck";
+import type { EmployerContributionFormula } from "@/lib/employerContributionFormula";
 import { employerPaycheckReductions } from "@/lib/estimatedNet";
 import { isOccurrenceClosed, type ClosureLookup } from "@/lib/companyClosure";
 import { resolveEmployerPaycheckReduction, resolveHealthcarePretaxPayroll, normalizeFilingType } from "@/lib/filingTypes";
@@ -161,6 +163,8 @@ export interface ProjectedPaycheck {
   retirement401k: number;
   /** Employer retirement contribution for this occurrence (override > stream). Never reduces net by itself. */
   employerRetirementContribution?: number;
+  /** True when the employer amount is a formula estimate, not an entered amount. */
+  employerMatchEstimated?: boolean;
   preTaxDeductions: number;
   /** Healthcare deduction (formerly ownerHealthcare). */
   healthcareDeduction: number;
@@ -1764,6 +1768,8 @@ export function generateProjectedPaychecks(
   /** Company closure periods. Occurrences dated inside a closed period are dropped
    *  unless already converted (history is preserved; nothing is backfilled). */
   closure?: ClosureLookup | null,
+  /** streamId → W-2 per-paycheck employer match formula (see employerMatchFormulaByStream). */
+  employerMatchFormulas?: Record<string, EmployerContributionFormula>,
 ): ProjectedPaycheck[] {
   const now = startOfDay(new Date());
   const yearStart = parseISO(`${now.getFullYear()}-01-01`);
@@ -1981,6 +1987,21 @@ export function generateProjectedPaychecks(
 
   // Sort by date for matching priority
   rawPaychecks.sort((a, b) => a.date.localeCompare(b.date));
+
+  // Employer match estimate: only for W-2 paychecks whose occurrence/stream has
+  // no explicit employer amount. Recomputed from each occurrence's own gross and
+  // employee deferral, so a changed deferral changes the estimate. Flat annual
+  // formulas are never spread per paycheck (they are not in this map).
+  if (employerMatchFormulas) {
+    for (const r of rawPaychecks as Array<(typeof rawPaychecks)[number] & { employerMatchEstimated?: boolean }>) {
+      if (r.type !== "paycheck" || r.isSkipped || (Number(r.employerRetirementContribution) || 0) > 0) continue;
+      const est = estimatePaycheckEmployerMatch(employerMatchFormulas[r.streamId], Number(r.grossAmount) || 0, Number(r.retirement401k) || 0);
+      if (est != null && est > 0) {
+        r.employerRetirementContribution = est;
+        r.employerMatchEstimated = true;
+      }
+    }
+  }
 
   // Company closure: drop planned occurrences whose own date is in a closed
   // period. Already-converted occurrences stay (they are history).

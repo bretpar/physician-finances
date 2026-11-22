@@ -1,3 +1,4 @@
+import { paycheckFormulaForCompany, resolvePaycheckEmployerAmount, type EmployerAmountMode } from "@/lib/employerMatchPaycheck";
 import { FSA_COLUMN, FSA_KINDS, FSA_LABELS, fsaDefaultsForDate, fsaTotal, readFsaConfigs } from "@/lib/fsaDeductions";
 import { useState, useMemo, useEffect } from "react";
 import type { CoverageStatus } from "@/lib/catchUpRecommendation";
@@ -368,6 +369,22 @@ export default function PersonalIncome() {
   const setField = (key: keyof FormState, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
+  // Employer match: "auto" follows the company's saved formula for new
+  // paychecks; typing an amount (or opening a saved paycheck) switches to
+  // "manual" so an entered/recorded amount is never overwritten.
+  const [employerMode, setEmployerMode] = useState<EmployerAmountMode>("manual");
+  const employerFormula = useMemo(
+    () => paycheckFormulaForCompany(form.source_id ? companies.find((c) => c.id === form.source_id) : null),
+    [form.source_id, companies],
+  );
+  useEffect(() => {
+    if (employerMode !== "auto" || !employerFormula) return;
+    setForm((prev) => {
+      const next = resolvePaycheckEmployerAmount({ mode: "auto", current: prev.employer_retirement_contribution, formula: employerFormula, gross: num(prev.gross_amount), employeeDeferral: num(prev.retirement_pretax) });
+      return next === prev.employer_retirement_contribution ? prev : { ...prev, employer_retirement_contribution: next };
+    });
+  }, [employerMode, employerFormula, form.gross_amount, form.retirement_pretax]);
+
   /**
    * Resolve which advanced fields to render. Driven by the selected company's
    * Settings → Advanced tax settings toggles. When no company is linked
@@ -661,6 +678,7 @@ export default function PersonalIncome() {
 
   function openAdd() {
     setForm(emptyForm);
+    setEmployerMode("auto");
     setEditingId(null);
     setShowSourceError(false);
     setAdvancedOpen(false);
@@ -709,6 +727,7 @@ export default function PersonalIncome() {
       additional_tax_reserve: String((entry as any).additional_tax_reserve || 0),
     });
     setEditingId(entry.id);
+    setEmployerMode("manual");
     setShowSourceError(false);
     setAdvancedOpen(false);
     setPendingAttachments([]);
@@ -1586,8 +1605,16 @@ export default function PersonalIncome() {
                             data-testid="paycheck-employer-401k-input"
                             type="number" min="0" step="0.01" placeholder="0.00"
                             value={form.employer_retirement_contribution}
-                            onChange={(e) => setField("employer_retirement_contribution", e.target.value)}
+                            onChange={(e) => { setEmployerMode("manual"); setField("employer_retirement_contribution", e.target.value); }}
                           />
+                          {employerFormula && (
+                            <p className="text-[10px] text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2" data-testid="paycheck-employer-mode">
+                              <span>{employerMode === "auto" ? "Estimated from employer formula" : "Manual"}</span>
+                              {employerMode === "manual" && (
+                                <button type="button" className="text-primary underline" onClick={() => setEmployerMode("auto")}>Use formula estimate</button>
+                              )}
+                            </p>
+                          )}
                           <p className="text-[10px] text-muted-foreground mt-1">
                             {employerReducesPaycheck.retirement
                               ? "Deducted from your paycheck based on this company's settings"
