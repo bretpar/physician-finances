@@ -109,6 +109,10 @@ export function buildIncomeEntryRow(
     medicare_withholding: money(entry.medicare_withholding),
     taxes_withheld: money(taxesWithheld),
     pre_tax_deductions: money(entry.pre_tax_deductions),
+    // Labeled FSA breakdown of pre_tax_deductions (display/tracking only).
+    fsa_health: money((entry as any).fsa_health),
+    fsa_dependent_care: money((entry as any).fsa_dependent_care),
+    fsa_limited_purpose: money((entry as any).fsa_limited_purpose),
     retirement_401k: money(entry.retirement_401k),
     // Employer retirement contribution is stored independently from the
     // employee amount so contribution-room math can distinguish the two.

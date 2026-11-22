@@ -1,3 +1,4 @@
+import { FSA_COLUMN, FSA_KINDS, FSA_LABELS, fsaDefaultsForDate, fsaTotal, readFsaConfigs } from "@/lib/fsaDeductions";
 import { useState, useMemo, useEffect } from "react";
 import type { CoverageStatus } from "@/lib/catchUpRecommendation";
 
@@ -138,6 +139,9 @@ interface FormState {
   total_federal_payroll_taxes: string;
   retirement_pretax: string;
   deductions_pre_tax: string;
+  fsa_health: string;
+  fsa_dependent_care: string;
+  fsa_limited_purpose: string;
   healthcare_deduction: string;
   hsa_contribution: string;
   employer_hsa_contribution: string;
@@ -165,6 +169,9 @@ const emptyForm: FormState = {
   total_federal_payroll_taxes: "",
   retirement_pretax: "",
   deductions_pre_tax: "",
+  fsa_health: "",
+  fsa_dependent_care: "",
+  fsa_limited_purpose: "",
   healthcare_deduction: "",
   hsa_contribution: "",
   employer_hsa_contribution: "",
@@ -212,6 +219,9 @@ const isStockType = (t: string) => t === "short_term_gain" || t === "long_term_g
 
 const STATUS_ICON = { ahead: TrendingUp, on_track: Minus, behind: TrendingDown };
 const STATUS_LABEL = { ahead: "Ahead", on_track: "On Track", behind: "Behind" };
+
+const fsaFormTotal = (f: Pick<FormState, "fsa_health" | "fsa_dependent_care" | "fsa_limited_purpose">) =>
+  fsaTotal({ health: Number(f.fsa_health) || 0, dependent_care: Number(f.fsa_dependent_care) || 0, limited_purpose: Number(f.fsa_limited_purpose) || 0 });
 
 export default function PersonalIncome() {
   // Idempotent repair: restore any YTD catch-up rows whose ledger mirror
@@ -487,7 +497,7 @@ export default function PersonalIncome() {
       // The edited row is excluded from the estimate, so it is not "already included".
       alreadyIncludedInEstimate: false,
     });
-  }, [grossAmount, form.income_type, form.total_federal_payroll_taxes, form.federal_withholding, form.ss_withholding, form.medicare_withholding, form.state_withholding, form.retirement_pretax, form.deductions_pre_tax, form.healthcare_deduction, form.hsa_contribution, stateIncomeTaxEnabled, getWithholdingRec, isEditing, entryIsFutureOpportunity]);
+  }, [grossAmount, form.income_type, form.total_federal_payroll_taxes, form.federal_withholding, form.ss_withholding, form.medicare_withholding, form.state_withholding, form.retirement_pretax, form.deductions_pre_tax, form.fsa_health, form.fsa_dependent_care, form.fsa_limited_purpose, form.healthcare_deduction, form.hsa_contribution, stateIncomeTaxEnabled, getWithholdingRec, isEditing, entryIsFutureOpportunity]);
 
   // ── Per-paycheck profile-based savings guide ────────────────────────────
   // Simple paycheck-only calculation: uses the user's selected tax profile
@@ -518,7 +528,7 @@ export default function PersonalIncome() {
     // 2. Eligible pre-tax deductions for this paycheck.
     const eligibleDeductions =
       num(form.retirement_pretax) +
-      num(form.deductions_pre_tax) +
+      num(form.deductions_pre_tax) + fsaFormTotal(form) +
       num(form.healthcare_deduction) +
       num(form.hsa_contribution);
 
@@ -605,6 +615,7 @@ export default function PersonalIncome() {
     form.retirement_pretax,
     form.healthcare_deduction,
     form.deductions_pre_tax,
+    form.fsa_health, form.fsa_dependent_care, form.fsa_limited_purpose,
     form.hsa_contribution,
     form.federal_withholding,
     form.ss_withholding,
@@ -682,7 +693,10 @@ export default function PersonalIncome() {
       // taxes_withheld → split-fields fallback for legacy rows).
       total_federal_payroll_taxes: String(getCanonicalTotalFederalPayrollTaxes(entry as any)),
       retirement_pretax: String(entry.retirement_401k),
-      deductions_pre_tax: String(entry.pre_tax_deductions),
+      deductions_pre_tax: String(Math.max(0, Math.round((Number(entry.pre_tax_deductions) - fsaTotal({ health: Number((entry as any).fsa_health) || 0, dependent_care: Number((entry as any).fsa_dependent_care) || 0, limited_purpose: Number((entry as any).fsa_limited_purpose) || 0 })) * 100) / 100)),
+      fsa_health: String((entry as any).fsa_health || 0),
+      fsa_dependent_care: String((entry as any).fsa_dependent_care || 0),
+      fsa_limited_purpose: String((entry as any).fsa_limited_purpose || 0),
       healthcare_deduction: String((entry as any).healthcare_deduction || 0),
       hsa_contribution: String((entry as any).hsa_contribution || 0),
       employer_hsa_contribution: String((entry as any).employer_hsa_contribution || 0),
@@ -712,7 +726,7 @@ export default function PersonalIncome() {
     const medicareOnly = num(form.medicare_withholding);
     const stateW = stateIncomeTaxEnabled ? num(form.state_withholding) : 0;
     const totalWithheld = totalFederal + stateW;
-    const computedNet = grossAmt - totalWithheld - num(form.deductions_pre_tax) - num(form.retirement_pretax) - num(form.healthcare_deduction) - num(form.hsa_contribution);
+    const computedNet = grossAmt - totalWithheld - num(form.deductions_pre_tax) - fsaFormTotal(form) - num(form.retirement_pretax) - num(form.healthcare_deduction) - num(form.hsa_contribution);
     const netReceived = num(form.net_received) > 0 ? num(form.net_received) : Math.max(0, computedNet);
 
     // Compute the base tax estimate for the record using the canonical total.
@@ -751,7 +765,11 @@ export default function PersonalIncome() {
         medicare_withholding: medicareOnly,
         state_withholding: stateW,
         retirement_401k: num(form.retirement_pretax),
-        pre_tax_deductions: num(form.deductions_pre_tax),
+        // FSA amounts are a labeled part of the pre-tax total (engines read only the total).
+        pre_tax_deductions: num(form.deductions_pre_tax) + fsaFormTotal(form),
+        fsa_health: num(form.fsa_health),
+        fsa_dependent_care: num(form.fsa_dependent_care),
+        fsa_limited_purpose: num(form.fsa_limited_purpose),
         healthcare_deduction: num(form.healthcare_deduction),
         hsa_contribution: num(form.hsa_contribution),
         employer_hsa_contribution: num(form.employer_hsa_contribution),
@@ -1421,8 +1439,12 @@ export default function PersonalIncome() {
                           nextIncomeType = "w2_user";
                         }
                       }
+                      // New paychecks pick up the employer's recurring FSA amounts for this date.
+                      const fsaCompany = !isEditing && next.sourceId ? companies.find((c) => c.id === next.sourceId) : undefined;
+                      const fsaDefaults = fsaCompany ? fsaDefaultsForDate(readFsaConfigs(fsaCompany.advancedFieldVisibility), prev.date) : null;
                       return {
                         ...prev,
+                        ...(fsaDefaults ? { fsa_health: fsaDefaults.health ? String(fsaDefaults.health) : "", fsa_dependent_care: fsaDefaults.dependent_care ? String(fsaDefaults.dependent_care) : "", fsa_limited_purpose: fsaDefaults.limited_purpose ? String(fsaDefaults.limited_purpose) : "" } : {}),
                         source_id: next.sourceId,
                         source_name: next.otherName,
                         source_save_as_new: next.saveAsNew,
@@ -1463,7 +1485,7 @@ export default function PersonalIncome() {
                 aggregateFederalPayrollTaxes: num(form.total_federal_payroll_taxes),
                 state: num(form.state_withholding),
                 retirement: num(form.retirement_pretax),
-                otherPreTax: num(form.deductions_pre_tax),
+                otherPreTax: num(form.deductions_pre_tax) + fsaFormTotal(form),
                 healthcare: num(form.healthcare_deduction),
                 hsa: num(form.hsa_contribution),
                 employerRetirement: num(form.employer_retirement_contribution),
@@ -1638,6 +1660,18 @@ export default function PersonalIncome() {
                           <Input data-testid="paycheck-pretax-other-input" type="number" min="0" step="0.01" placeholder="0.00" value={form.deductions_pre_tax} onChange={(e) => setField("deductions_pre_tax", e.target.value)} />
                         </div>
                       )}
+                      {(() => {
+                        const cfg = readFsaConfigs(companies.find((c) => c.id === form.source_id)?.advancedFieldVisibility);
+                        return FSA_KINDS.filter((k) => cfg[k]?.enabled || num(form[FSA_COLUMN[k]]) > 0).map((k) => (
+                          <div key={k}>
+                            <Label className="text-xs text-muted-foreground mb-1.5 flex items-center gap-1">
+                              {FSA_LABELS[k]}
+                              <InfoTooltip label={`About ${FSA_LABELS[k]}`}>Pre-tax: lowers federal, Social Security and Medicare wages. Filled from this employer's FSA settings; change it for this paycheck if it differs.</InfoTooltip>
+                            </Label>
+                            <Input data-testid={`paycheck-${FSA_COLUMN[k]}-input`} type="number" min="0" step="0.01" placeholder="0.00" value={form[FSA_COLUMN[k]]} onChange={(e) => setField(FSA_COLUMN[k], e.target.value)} />
+                          </div>
+                        ));
+                      })()}
                     </div>
                   )}
 
@@ -1870,7 +1904,7 @@ export default function PersonalIncome() {
                             retirement401k: num(form.retirement_pretax),
                             healthInsurance: num(form.healthcare_deduction),
                             hsa: num(form.hsa_contribution),
-                            otherPreTax: num(form.deductions_pre_tax),
+                            otherPreTax: num(form.deductions_pre_tax) + fsaFormTotal(form),
                           }}
                         />
                       </p>

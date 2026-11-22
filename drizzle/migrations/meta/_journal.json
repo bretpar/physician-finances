@@ -22,6 +22,13 @@
       "when": 1793016785773,
       "tag": "0002_company_closure_periods",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795365615031,
+      "tag": "0003_add_fsa_paycheck_columns",
+      "breakpoints": true
     }
   ]
 }

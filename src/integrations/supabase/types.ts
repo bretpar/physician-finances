@@ -321,6 +321,9 @@ export type Database = {
           employer_retirement_contribution: number
           entry_kind: string
           federal_withholding: number
+          fsa_dependent_care: number
+          fsa_health: number
+          fsa_limited_purpose: number
           gross_amount: number
           healthcare_deduction: number
           hsa_contribution: number
@@ -371,6 +374,9 @@ export type Database = {
           employer_retirement_contribution?: number
           entry_kind?: string
           federal_withholding?: number
+          fsa_dependent_care?: number
+          fsa_health?: number
+          fsa_limited_purpose?: number
           gross_amount?: number
           healthcare_deduction?: number
           hsa_contribution?: number
@@ -421,6 +427,9 @@ export type Database = {
           employer_retirement_contribution?: number
           entry_kind?: string
           federal_withholding?: number
+          fsa_dependent_care?: number
+          fsa_health?: number
+          fsa_limited_purpose?: number
           gross_amount?: number
           healthcare_deduction?: number
           hsa_contribution?: number
