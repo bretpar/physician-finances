@@ -1,3 +1,5 @@
+import { fsaDefaultsForDate, fsaTotal, readFsaConfigs, type FsaConfigs, type FsaKind } from "@/lib/fsaDeductions";
+import { isW2CompanyType } from "@/lib/employerMatchPaycheck";
 import { estimatePaycheckEmployerMatch } from "@/lib/employerMatchPaycheck";
 import type { EmployerContributionFormula } from "@/lib/employerContributionFormula";
 import { employerPaycheckReductions } from "@/lib/estimatedNet";
@@ -163,6 +165,8 @@ export interface ProjectedPaycheck {
   retirement401k: number;
   /** Employer retirement contribution for this occurrence (override > stream). Never reduces net by itself. */
   employerRetirementContribution?: number;
+  /** Employer FSA amounts included in preTaxDeductions (from company FSA settings). */
+  fsaDeductions?: Record<FsaKind, number>;
   /** True when the employer amount is a formula estimate, not an entered amount. */
   employerMatchEstimated?: boolean;
   preTaxDeductions: number;
@@ -1770,6 +1774,8 @@ export function generateProjectedPaychecks(
   closure?: ClosureLookup | null,
   /** streamId → W-2 per-paycheck employer match formula (see employerMatchFormulaByStream). */
   employerMatchFormulas?: Record<string, EmployerContributionFormula>,
+  /** streamId → W-2 employer FSA settings (see fsaConfigsByStream). */
+  fsaConfigs?: Record<string, FsaConfigs>,
 ): ProjectedPaycheck[] {
   const now = startOfDay(new Date());
   const yearStart = parseISO(`${now.getFullYear()}-01-01`);
@@ -1992,6 +1998,21 @@ export function generateProjectedPaychecks(
   // no explicit employer amount. Recomputed from each occurrence's own gross and
   // employee deferral, so a changed deferral changes the estimate. Flat annual
   // formulas are never spread per paycheck (they are not in this map).
+  // Employer FSA deductions: recurring per-paycheck amounts from the W-2
+  // employer's FSA settings, only inside their effective dates. They are
+  // added to the occurrence's pre-tax total (lowers net pay and taxable
+  // wages) and kept as a labeled breakdown. Never saved to records.
+  if (fsaConfigs) {
+    for (const r of rawPaychecks as Array<(typeof rawPaychecks)[number] & { fsaDeductions?: Record<FsaKind, number> }>) {
+      if (r.type !== "paycheck" || r.isSkipped || !fsaConfigs[r.streamId]) continue;
+      const fsa = fsaDefaultsForDate(fsaConfigs[r.streamId], r.date);
+      const total = fsaTotal(fsa);
+      if (total <= 0) continue;
+      r.preTaxDeductions = (Number(r.preTaxDeductions) || 0) + total;
+      r.fsaDeductions = fsa;
+    }
+  }
+
   if (employerMatchFormulas) {
     for (const r of rawPaychecks as Array<(typeof rawPaychecks)[number] & { employerMatchEstimated?: boolean }>) {
       if (r.type !== "paycheck" || r.isSkipped || (Number(r.employerRetirementContribution) || 0) > 0) continue;
@@ -2366,4 +2387,19 @@ export function getMonthlyPlannerBreakdown(
     }
   }
   return months;
+}
+
+/** streamId → FSA settings of the stream's W-2 employer (streams without any enabled FSA are omitted). */
+export function fsaConfigsByStream(
+  streams: Array<{ id: string; source_id?: string | null }>,
+  companies: Array<{ id: string; companyType?: string | null; advancedFieldVisibility?: unknown }>,
+): Record<string, FsaConfigs> {
+  const out: Record<string, FsaConfigs> = {};
+  for (const st of streams) {
+    const c = st.source_id ? companies.find((x) => x.id === st.source_id) : undefined;
+    if (!c || !isW2CompanyType(c.companyType)) continue;
+    const cfg = readFsaConfigs(c.advancedFieldVisibility);
+    if (Object.values(cfg).some((v) => v?.enabled && v.perPaycheck > 0)) out[st.id] = cfg;
+  }
+  return out;
 }

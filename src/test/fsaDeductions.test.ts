@@ -39,3 +39,21 @@ describe("FSA deductions", () => {
     expect(r.ficaWages).toBe(9700);
   });
 });
+
+import { format, addDays } from "date-fns";
+import { generateProjectedPaychecks, type ProjectedIncomeStream } from "@/hooks/useProjectedIncome";
+
+describe("FSA in Income Planner paychecks", () => {
+  const d = format(addDays(new Date(), 3), "yyyy-MM-dd");
+  const s = { id: "s1", company: "VA", company_type: "w2", pay_frequency: "single", start_date: d, end_date: null, paycheck_amount: 5000, taxes_withheld: 1000, retirement_401k: 0, pre_tax_deductions: 0, healthcare_deduction: 0, hsa_contribution: 0, state_withholding: 0, federal_withholding: 0, ss_withholding: 0, medicare_withholding: 0, additional_tax_reserve: 0, is_active: true, include_in_tax: true, notes: "", custom_interval_days: null, source_id: "c1" } as ProjectedIncomeStream;
+  const run = (c: Parameters<typeof generateProjectedPaychecks>[9]) => generateProjectedPaychecks([s], [], [], [], [], [], undefined, null, undefined, c)[0];
+  it("subtracts in-range FSA amounts from projected net pay and labels them", () => {
+    const p = run({ s1: { health: { enabled: true, perPaycheck: 100, startDate: null, endDate: null, annualElection: null }, dependent_care: { enabled: true, perPaycheck: 200, startDate: null, endDate: null, annualElection: null } } });
+    expect(p.netAmount).toBe(3700);
+    expect(p.fsaDeductions).toMatchObject({ health: 100, dependent_care: 200 });
+  });
+  it("skips FSA amounts outside their effective dates", () => {
+    const p = run({ s1: { health: { enabled: true, perPaycheck: 100, startDate: null, endDate: "2000-01-01", annualElection: null } } });
+    expect(p.netAmount).toBe(4000);
+  });
+});

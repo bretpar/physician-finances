@@ -1,4 +1,6 @@
+import { FSA_KINDS, FSA_LABELS, fsaTotal } from "@/lib/fsaDeductions";
 import { employerMatchFormulaByStream } from "@/lib/employerMatchPaycheck";
+import { fsaConfigsByStream } from "@/hooks/useProjectedIncome";
 import { buildTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
 import { Info } from "lucide-react";
 import { useState, useMemo, useEffect, useRef } from "react";
@@ -556,7 +558,7 @@ export default function ProjectedIncome() {
   const projectedPaychecks = useMemo(() => {
     if (!streams || !bonuses) return [];
     return generateProjectedPaychecks(streams, bonuses, incomeEntriesForMatching, overrides || [], plannerConversions || [], businessTxsForMatching,
-      employerRetirementReducesByStream(streams, companies), closureLookup, employerMatchFormulaByStream(streams, companies));
+      employerRetirementReducesByStream(streams, companies), closureLookup, employerMatchFormulaByStream(streams, companies), fsaConfigsByStream(streams, companies));
   }, [streams, bonuses, incomeEntriesForMatching, overrides, plannerConversions, businessTxsForMatching, companies, closureLookup]);
 
   const projectedTotals = useMemo(() => getProjectedTotals(projectedPaychecks, streams || []), [projectedPaychecks, streams]);
@@ -1065,9 +1067,12 @@ export default function ProjectedIncome() {
     // `pre_tax_deductions` is an AGGREGATE that already includes the separately
     // persisted detailed components (health insurance, HSA). Hydrating it straight
     // into "Other pre-tax" double-counts them, so derive the standalone remainder.
+    // Employer FSA amounts are added at projection time from Settings, so they
+    // must not be saved back into this occurrence's own pre-tax amount.
+    const preTaxWithoutFsa = Math.max(0, entry.preTaxDeductions - fsaTotal(entry.fsaDeductions ?? {}));
     const otherPreTax = hasDetailed
-      ? deriveOtherPreTax(entry.preTaxDeductions, detail?.healthcareDeduction, detail?.hsaContribution)
-      : entry.preTaxDeductions;
+      ? deriveOtherPreTax(preTaxWithoutFsa, detail?.healthcareDeduction, detail?.hsaContribution)
+      : preTaxWithoutFsa;
     setOverrideForm({
       paycheck_amount: String(entry.grossAmount),
       taxes_withheld: String(entry.taxesWithheld),
@@ -2959,9 +2964,13 @@ export default function ProjectedIncome() {
             title: "Tax details",
             fields: [
               { label: "Gross", value: fmtFull(e.grossAmount), mono: true },
-              { label: "Net received", value: fmtFull(Math.max(0, e.grossAmount - (e.taxesWithheld || 0) - (e.retirement401k || 0))), mono: true },
-              ...(e.taxesWithheld > 0 ? [{ label: "Federal", value: fmtFull(e.taxesWithheld), mono: true }] : []),
-              ...(e.retirement401k > 0 ? [{ label: "401(k)", value: fmtFull(e.retirement401k), mono: true }] : []),
+              ...(e.taxesWithheld > 0 ? [{ label: "− Taxes withheld", value: fmtFull(e.taxesWithheld), mono: true }] : []),
+              ...(e.retirement401k > 0 ? [{ label: "− 401(k)", value: fmtFull(e.retirement401k), mono: true }] : []),
+              ...FSA_KINDS.filter((k) => (e.fsaDeductions?.[k] || 0) > 0).map((k) => ({ label: `− ${FSA_LABELS[k]} (from employer settings)`, value: fmtFull(e.fsaDeductions![k]), mono: true })),
+              ...(Math.max(0, e.preTaxDeductions - fsaTotal(e.fsaDeductions ?? {})) > 0 ? [{ label: "− Other pre-tax", value: fmtFull(Math.max(0, e.preTaxDeductions - fsaTotal(e.fsaDeductions ?? {}))), mono: true }] : []),
+              ...(e.healthcareDeduction > 0 ? [{ label: "− Healthcare", value: fmtFull(e.healthcareDeduction), mono: true }] : []),
+              { label: "Projected net pay", value: fmtFull(Math.max(0, e.netAmount ?? 0)), mono: true },
+              ...(fsaTotal(e.fsaDeductions ?? {}) > 0 ? [{ label: "FSA lowers net pay by", value: fmtFull(fsaTotal(e.fsaDeductions ?? {})), mono: true }] : []),
               ...((e.employerRetirementContribution || 0) > 0 ? [{ label: e.employerMatchEstimated ? "Employer match (estimated from formula)" : "Employer retirement", value: fmtFull(e.employerRetirementContribution || 0), mono: true }] : []),
             ],
           },
