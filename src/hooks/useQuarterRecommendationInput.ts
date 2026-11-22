@@ -32,6 +32,7 @@ import {
   useStreamOverrides,
   usePlannerConversions,
   generateProjectedPaychecks,
+  fsaConfigsByStream,
 } from "@/hooks/useProjectedIncome";
 import type { QuarterRecommendationInput } from "@/lib/quarterRecommendation";
 import { excludeIncomeEntriesLinkedToTransaction } from "@/lib/taxRecommendationContext";
@@ -111,7 +112,9 @@ export function useQuarterRecommendationInput(
       }));
   }, [transactions]);
 
-  const closureLookup = useOptionalCompanies()?.closureLookup;
+  const companyContext = useOptionalCompanies();
+  const closureLookup = companyContext?.closureLookup;
+  const companies = companyContext?.companies;
   const projectedPaychecks = useMemo(
     () =>
       generateProjectedPaychecks(
@@ -123,8 +126,10 @@ export function useQuarterRecommendationInput(
         businessTxsForMatching,
         undefined,
         closureLookup,
+        undefined,
+        fsaConfigsByStream(streams || [], companies || []),
       ),
-    [streams, bonuses, incomeEntries, overrides, plannerConversions, businessTxsForMatching, closureLookup],
+    [streams, bonuses, incomeEntries, overrides, plannerConversions, businessTxsForMatching, closureLookup, companies],
   );
 
   const manualSavings = useMemo(

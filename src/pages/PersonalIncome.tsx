@@ -1,5 +1,5 @@
 import { paycheckFormulaForCompany, resolvePaycheckEmployerAmount, type EmployerAmountMode } from "@/lib/employerMatchPaycheck";
-import { FSA_COLUMN, FSA_KINDS, FSA_LABELS, fsaDefaultsForDate, fsaTotal, readFsaConfigs } from "@/lib/fsaDeductions";
+import { FSA_COLUMN, FSA_KINDS, FSA_LABELS, refreshFsaDefaults, fsaTotal, readFsaConfigs, type FsaKind } from "@/lib/fsaDeductions";
 import { useState, useMemo, useEffect } from "react";
 import type { CoverageStatus } from "@/lib/catchUpRecommendation";
 
@@ -366,8 +366,17 @@ export default function PersonalIncome() {
 
 
   const isEditing = !!editingId;
-  const setField = (key: keyof FormState, value: string) =>
+  const [fsaDirty, setFsaDirty] = useState<Partial<Record<FsaKind, boolean>>>({});
+  const setField = (key: keyof FormState, value: string) => {
+    const kind = FSA_KINDS.find((k) => FSA_COLUMN[k] === key);
+    if (kind) setFsaDirty((prev) => ({ ...prev, [kind]: true }));
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
+  useEffect(() => {
+    if (isEditing || !showForm) return;
+    const company = companies.find((c) => c.id === form.source_id);
+    setForm((prev) => refreshFsaDefaults(prev, isW2Type(prev.income_type) ? readFsaConfigs(company?.advancedFieldVisibility) : {}, prev.date, fsaDirty, false));
+  }, [form.source_id, form.date, form.income_type, companies, fsaDirty, isEditing, showForm]);
 
   // Employer match: "auto" follows the company's saved formula for new
   // paychecks; typing an amount (or opening a saved paycheck) switches to
@@ -678,6 +687,7 @@ export default function PersonalIncome() {
 
   function openAdd() {
     setForm(emptyForm);
+    setFsaDirty({});
     setEmployerMode("auto");
     setEditingId(null);
     setShowSourceError(false);
@@ -1458,12 +1468,8 @@ export default function PersonalIncome() {
                           nextIncomeType = "w2_user";
                         }
                       }
-                      // New paychecks pick up the employer's recurring FSA amounts for this date.
-                      const fsaCompany = !isEditing && next.sourceId ? companies.find((c) => c.id === next.sourceId) : undefined;
-                      const fsaDefaults = fsaCompany ? fsaDefaultsForDate(readFsaConfigs(fsaCompany.advancedFieldVisibility), prev.date) : null;
                       return {
                         ...prev,
-                        ...(fsaDefaults ? { fsa_health: fsaDefaults.health ? String(fsaDefaults.health) : "", fsa_dependent_care: fsaDefaults.dependent_care ? String(fsaDefaults.dependent_care) : "", fsa_limited_purpose: fsaDefaults.limited_purpose ? String(fsaDefaults.limited_purpose) : "" } : {}),
                         source_id: next.sourceId,
                         source_name: next.otherName,
                         source_save_as_new: next.saveAsNew,

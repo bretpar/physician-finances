@@ -30,22 +30,23 @@ export function splitOverrideTax(ov: Row) {
 }
 export function resolveOccurrence(s: Row, ov: Row | undefined, date: string) {
   const modified = ov?.action === "modify";
-  const detailed = modified && !!ov!.has_detailed_breakdown;
+  const detailed = modified && !!ov?.has_detailed_breakdown;
   const snapshot = modified && (detailed || [
-    ov!.federal_withholding, ov!.state_withholding, ov!.ss_withholding, ov!.medicare_withholding,
-    ov!.healthcare_deduction, ov!.hsa_contribution, ov!.additional_tax_reserve,
+    ov?.federal_withholding, ov?.state_withholding, ov?.ss_withholding, ov?.medicare_withholding,
+    ov?.healthcare_deduction, ov?.hsa_contribution, ov?.additional_tax_reserve,
   ].some((v) => num(v) > 0));
   const pick = (o: unknown, sv: unknown) => num(snapshot ? o : sv);
   const wpick = (o: unknown, sv: unknown) => num(modified ? o : sv);
-  const tax = modified ? splitOverrideTax(ov!) : splitStreamTax(s);
+  const tax = modified && ov ? splitOverrideTax(ov) : splitStreamTax(s);
   return {
-    date: modified && ov!.new_date ? ov!.new_date : date,
-    amount: modified ? num(ov!.paycheck_amount) : num(s.paycheck_amount),
+    date: modified && ov?.new_date ? ov.new_date : date,
+    amount: modified ? num(ov?.paycheck_amount) : num(s.paycheck_amount),
     taxesWithheld: tax.taxesWithheld,
     stateSeparate: tax.stateSeparate,
-    retirement401k: modified ? num(ov!.retirement_401k) : num(s.retirement_401k),
-    employerRetirement: modified ? num(ov!.employer_retirement_contribution) : num(s.employer_retirement_contribution),
-    preTaxDeductions: modified ? num(ov!.pre_tax_deductions) : num(s.pre_tax_deductions),
+    retirement401k: modified ? num(ov?.retirement_401k) : num(s.retirement_401k),
+    employerRetirement: modified ? num(ov?.employer_retirement_contribution) : num(s.employer_retirement_contribution),
+    preTaxDeductions: modified ? num(ov?.pre_tax_deductions) : num(s.pre_tax_deductions),
+    fsaNotes: modified ? ov?.notes : s.notes,
     healthcareDeduction: pick(ov?.healthcare_deduction, s.healthcare_deduction),
     hsaContribution: pick(ov?.hsa_contribution, s.hsa_contribution),
     // Withholding classifications come only from the edited occurrence (never inherited).
@@ -70,8 +71,30 @@ export function ledgerFields(o: Row, employerReduces: boolean) {
     federal_withholding: num(o.federalWithholding), state_withholding: num(o.stateWithholding),
     ss_withholding: num(o.ssWithholding), medicare_withholding: num(o.medicareWithholding),
     taxes_withheld: taxes, pre_tax_deductions: otherPre, retirement_401k: ret,
+    fsa_health: num(o.fsaDeductions?.health),
+    fsa_dependent_care: num(o.fsaDeductions?.dependent_care),
+    fsa_limited_purpose: num(o.fsaDeductions?.limited_purpose),
     employer_retirement_contribution: num(o.employerRetirement),
     healthcare_deduction: healthcare, hsa_contribution: hsa,
     additional_tax_reserve: num(o.additionalTaxReserve),
   };
+}
+
+/** Edge equivalent of projectFsa; parity tested, no inferred FSA from unlabeled money. */
+export function applyFsa(o: Row, metadata: Row, w2: boolean) {
+  if (!w2) return o;
+  const cfg = metadata?.fsa_deductions || {};
+  let included: Row = {};
+  try { included = JSON.parse(/\[paycheckmd-fsa:(\{[^\n]*\})\]/.exec(o.fsaNotes || "")?.[1] || "{}"); } catch { /* malformed legacy notes */ }
+  const amounts: Row = {};
+  let added = 0;
+  for (const k of ["health", "dependent_care", "limited_purpose"]) {
+    const c = cfg[k];
+    const explicit = included[k] != null && Number.isFinite(Number(included[k])) && Number(included[k]) >= 0;
+    const automatic = c?.enabled && (!c.startDate || o.date >= c.startDate) && (!c.endDate || o.date <= c.endDate)
+      ? Math.max(0, num(c.perPaycheck)) : 0;
+    amounts[k] = explicit ? Number(included[k]) : automatic;
+    if (!explicit) added += automatic;
+  }
+  return { ...o, preTaxDeductions: Math.max(0, num(o.preTaxDeductions)) + added, fsaDeductions: amounts };
 }

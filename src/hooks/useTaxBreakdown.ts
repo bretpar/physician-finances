@@ -37,12 +37,14 @@ import {
   useProjectedBonuses,
   useStreamOverrides,
   generateProjectedPaychecks,
+  getProjectedTotals,
 } from "@/hooks/useProjectedIncome";
+import { paycheckSection125 } from "@/lib/w2PayrollTax";
 import { mapToScheduleC, type ScheduleCCategory } from "@/lib/scheduleC";
 import { useMileageYTD, getMileageEntryDeduction } from "@/hooks/useMileage";
 import { useHomeOfficeDeductions } from "@/hooks/useHomeOfficeDeductions";
 import { useInvestmentIncomeEntries, aggregateInvestmentTaxBuckets } from "@/hooks/useInvestmentIncome";
-import { normalizeFilingType, type FilingType } from "@/lib/filingTypes";
+import { normalizeFilingType, resolveHealthcarePretaxPayroll, type FilingType } from "@/lib/filingTypes";
 import { getTotalFederalPaid } from "@/lib/federalWithholding";
 import { isExcludedFromBusiness } from "@/lib/businessExclusion";
 import { aggregatePlannedBusinessExpenses } from "@/lib/plannedBusinessExpenses";
@@ -283,6 +285,7 @@ export function useTaxBreakdown(
       retirement: number;
       healthcare: number;
       payrollHsa: number;
+      section125: number;
       withheld: number;
       stateWithheld: number;
       federalWithheld: number;
@@ -320,7 +323,7 @@ export function useTaxBreakdown(
       const existing = companyAgg.get(key) ?? {
         companyId: resolvedId, name, filingType: ft,
         actualGross: 0, plannedGross: 0,
-        preTax: 0, retirement: 0, healthcare: 0, payrollHsa: 0,
+        preTax: 0, retirement: 0, healthcare: 0, payrollHsa: 0, section125: 0,
         withheld: 0, stateWithheld: 0, federalWithheld: 0,
         plannedPreTax: 0, plannedRetirement: 0,
       };
@@ -373,6 +376,8 @@ export function useTaxBreakdown(
       agg.healthcare += Number(e.healthcare_deduction) || 0;
       // W-2 personal-income HSA is Section 125 payroll HSA (see useTaxEstimate).
       agg.payrollHsa += Math.max(0, Number(e.hsa_contribution) || 0);
+      const company = companies.find((c) => c.id === agg.companyId);
+      agg.section125 += paycheckSection125(e, resolveHealthcarePretaxPayroll(company?.companyType || agg.filingType, company?.advancedFieldVisibility));
       agg.withheld += getTotalFederalPaid(e);
       agg.federalWithheld += getTotalFederalPaid(e);
       agg.stateWithheld += Number(e.state_withholding) || 0;
@@ -412,6 +417,8 @@ export function useTaxBreakdown(
         agg.preTax += p.preTaxDeductions;
         agg.retirement += p.retirement401k;
         agg.healthcare += p.healthcareDeduction || 0;
+        agg.section125 += getProjectedTotals([p], streams, companies).section125Deductions;
+        agg.payrollHsa += p.hsaContribution || 0;
         agg.withheld += p.taxesWithheld;
         plannedPreTaxTotal += p.preTaxDeductions;
         plannedRetirementTotal += p.retirement401k;
@@ -588,7 +595,7 @@ export function useTaxBreakdown(
           retirement401k: agg.retirement,
           taxableWages,
           payrollHsa: agg.payrollHsa,
-          section125Deductions: agg.preTax + agg.payrollHsa,
+          section125Deductions: agg.section125,
         });
       } else if (kind === "business") {
         const companyId = agg.companyId ?? companies.find((c) => c.name === agg.name && c.companyType === agg.filingType)?.id ?? null;

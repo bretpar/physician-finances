@@ -58,6 +58,10 @@ export interface UnifiedTaxInput {
   /** State withholding actually withheld from personal income to date. */
   personalStateWithheld: number;
   personalPreTax: number;
+  /** Classified FICA-exempt payroll amounts; unrestricted pre-tax is not exempt. */
+  businessSection125?: number;
+  personalSection125?: number;
+  projectedSection125?: number;
   /**
    * HSA contributions that are individual / non-W-2 (manual HSA contributions,
    * or HSA contributions on non-W-2 personal income entries). Above-the-line.
@@ -373,8 +377,8 @@ export function computeUnifiedTaxEstimate(input: UnifiedTaxInput): UnifiedTaxRes
   // Actual vs planned FICA-wage split, echoed into the SE tax result so the
   // MathAccordion UI can display each half without independently deriving
   // FICA wages from Section 125-inclusive gross-income aggregates.
-  const actualW2FicaWages = Math.max(0, (businessW2 + personalW2) - (businessPreTax + personalPreTax));
-  const plannedW2FicaWages = Math.max(0, projW2 - projPreTax);
+  const actualW2FicaWages = Math.max(0, (businessW2 + personalW2) - Math.max(0, input.businessSection125 ?? 0) - Math.max(0, input.personalSection125 ?? 0));
+  const plannedW2FicaWages = Math.max(0, projW2 - (includeProjectedIncome ? Math.max(0, input.projectedSection125 ?? 0) : 0));
   // Social Security wage base is per earner: only the SE earner's own W-2
   // wages offset it. Self-employment income is attributed to the primary earner.
   const seEarnerW2FicaWages = Math.max(

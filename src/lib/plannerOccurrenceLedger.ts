@@ -26,6 +26,8 @@ export function deriveOtherPreTax(
 }
 
 export interface OccurrenceLedgerSource {
+  /** FSA breakdown INCLUDED in preTaxDeductions, never an additional subtraction. */
+  fsaDeductions?: Partial<Record<"health" | "dependent_care" | "limited_purpose", number>>;
   grossAmount: number;
   taxesWithheld: number;
   retirement401k: number;
@@ -61,6 +63,9 @@ export interface OccurrenceLedgerFields {
   medicare_withholding: number;
   taxes_withheld: number;
   pre_tax_deductions: number;
+  fsa_health: number;
+  fsa_dependent_care: number;
+  fsa_limited_purpose: number;
   retirement_401k: number;
   employer_retirement_contribution: number;
   healthcare_deduction: number;
@@ -138,6 +143,9 @@ export function buildOccurrenceLedgerFields(src: OccurrenceLedgerSource): Occurr
     medicare_withholding: n(src.medicareWithholding),
     taxes_withheld: taxes,
     pre_tax_deductions: otherPreTax,
+    fsa_health: n(src.fsaDeductions?.health),
+    fsa_dependent_care: n(src.fsaDeductions?.dependent_care),
+    fsa_limited_purpose: n(src.fsaDeductions?.limited_purpose),
     retirement_401k: retirement,
     employer_retirement_contribution: n(src.employerRetirementContribution),
     healthcare_deduction: healthcare,

@@ -8,6 +8,7 @@
  * values into recommendation inputs.
  */
 import { isW2FilingType } from "@/lib/filingTypes";
+import { fsaTotal } from "@/lib/fsaDeductions";
 
 const isW2 = (t: string) => t === "w2_user" || t === "w2_partner" || isW2FilingType(t);
 
@@ -27,6 +28,11 @@ export interface PersonalPaycheckForm {
   deductions_pre_tax: unknown;
   healthcare_deduction: unknown;
   hsa_contribution: unknown;
+  fsa_health?: unknown;
+  fsa_dependent_care?: unknown;
+  fsa_limited_purpose?: unknown;
+  /** Set only for callers supplying an already-inclusive pre-tax total. */
+  preTaxIncludesFsa?: boolean;
 }
 
 export interface PersonalPaycheckContext {
@@ -59,7 +65,8 @@ function shared(form: PersonalPaycheckForm, ctx: PersonalPaycheckContext) {
     ficaWithheldNotCredited: ss + medicare,
     retirement401k: num(form.retirement_pretax),
     preTaxDeductions:
-      num(form.deductions_pre_tax) + num(form.healthcare_deduction) + num(form.hsa_contribution),
+      num(form.deductions_pre_tax) + num(form.healthcare_deduction) + num(form.hsa_contribution) +
+      (form.preTaxIncludesFsa ? 0 : fsaTotal({ health: num(form.fsa_health), dependent_care: num(form.fsa_dependent_care), limited_purpose: num(form.fsa_limited_purpose) })),
     isFutureOpportunity: ctx.isFutureOpportunity,
     catchUpAmount: resolvePersonalPaycheckCatchUp(form.income_type, ctx.isFutureOpportunity),
   };

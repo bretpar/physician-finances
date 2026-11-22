@@ -614,7 +614,9 @@ export function calculateFullEstimate(params: {
   // Additional Medicare threshold use FICA wages (gross W-2 − Section 125),
   // not gross W-2, per IRS Pub 15-B.
   const netSEIncome = seIncome - seBusinessDeductions - seMileageDeduction;
-  const w2FicaWages = Math.max(0, w2Income - w2PreTaxDeductions);
+  const w2FicaWages = actualW2FicaWages != null || plannedW2FicaWages != null
+    ? Math.max(0, (actualW2FicaWages ?? 0) + (plannedW2FicaWages ?? 0))
+    : Math.max(0, w2Income - w2PreTaxDeductions);
   const seTax = calculateSETax(
     netSEIncome,
     filingStatus,

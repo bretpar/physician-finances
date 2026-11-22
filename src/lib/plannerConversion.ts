@@ -27,6 +27,7 @@ import {
   type ProjectedPaycheck,
   upsertBusinessIncomeMirror,
   employerRetirementReducesByStream,
+  fsaConfigsByStream,
 } from "@/hooks/useProjectedIncome";
 import { toCanonicalIncomeType } from "@/lib/filingTypes";
 import { getTodayLocalDateString } from "@/lib/localDate";
@@ -440,6 +441,7 @@ export async function runPlannerConversionForCurrentUser(): Promise<ConversionRu
       origin_planner_conversion_id: t.origin_planner_conversion_id ?? null,
     }));
 
+  const projectionCompanies = (companiesRes.data || []).map((c: any) => ({ id: c.id, companyType: c.company_type, advancedFieldVisibility: c.advanced_field_visibility }));
   const paychecks = generateProjectedPaychecks(
     streams,
     bonuses,
@@ -449,6 +451,8 @@ export async function runPlannerConversionForCurrentUser(): Promise<ConversionRu
     businessTxs,
     undefined,
     closureLookup,
+    undefined,
+    fsaConfigsByStream(streams, projectionCompanies),
   );
   // Use the user's chosen timezone (Tax Profile → Timezone) so a paycheck
   // dated 5/16 doesn't get converted late on 5/15 just because UTC has

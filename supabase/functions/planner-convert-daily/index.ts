@@ -5,7 +5,7 @@
 // using the service role key. Idempotent: the planner_conversions unique
 // constraints prevent double-conversion if cron fires more than once per day.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { resolveOccurrence, ledgerFields } from "./calc.ts";
+import { resolveOccurrence, ledgerFields, applyFsa } from "./calc.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -262,7 +262,7 @@ Deno.serve(async (req) => {
     // Company closure (same rule as src/lib/companyClosure.ts): an occurrence
     // dated in [closed_on, reopened_on) is never auto-converted, including by a
     // delayed run after reopening. Fail closed if closures can't be read.
-    const coRes = await admin.from("companies").select("id, name").eq("user_id", userId);
+    const coRes = await admin.from("companies").select("id, name, advanced_field_visibility").eq("user_id", userId);
     const coIds = Array.from(new Set([
       ...((coRes.data || []) as any[]).map((c) => c.id),
       ...streams.map((st: any) => st.source_id).filter(Boolean),
@@ -380,7 +380,8 @@ Deno.serve(async (req) => {
           && v.employer_retirement_contribution === true
           && v.employer_retirement_reduces_paycheck === true;
       }
-      const fields = ledgerFields(occ, employerReduces);
+      const fsaEmployer = (coRes.data || []).find((c: any) => c.id === stream.source_id);
+      const fields = ledgerFields(applyFsa(occ, (fsaEmployer as any)?.advanced_field_visibility || {}, incomeType === "w2" || incomeType === "scorp_w2"), employerReduces);
 
       if (bucket === "personal") {
         const { data: ie, error: ieErr } = await admin.from("income_entries").insert({

@@ -208,7 +208,7 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
   const updateCompany = useCallback(async (id: string, updates: Partial<Company>) => {
     if (closedCompanyIds.has(id)) {
       toast.error("This company is closed. Reopen it to change its settings.");
-      return;
+      throw new Error("This company is closed. Reopen it to change its settings.");
     }
     const dbUpdates: Record<string, any> = {};
     if (updates.name !== undefined) dbUpdates.name = updates.name;
@@ -232,9 +232,10 @@ export function CompanyProvider({ children }: { children: ReactNode }) {
     if (updates.currentExtraW4Withholding !== undefined) dbUpdates.current_extra_w4_withholding = updates.currentExtraW4Withholding ?? 0;
     if (updates.k1TaxTreatment !== undefined) dbUpdates.k1_tax_treatment = updates.k1TaxTreatment;
 
-    const { error } = await supabase.from("companies").update(dbUpdates as any).eq("id", id);
-    if (error) { toast.error(error.message); return; }
-    loadCompanies();
+    const { data, error } = await supabase.from("companies").update(dbUpdates as any).eq("id", id).select("id").single();
+    if (error) { toast.error(error.message); throw error; }
+    if (!data) throw new Error("Company settings were not saved.");
+    await loadCompanies();
   }, [loadCompanies, closedCompanyIds]);
 
   const closeCompany = useCallback(async (id: string, closedOn: string) => {

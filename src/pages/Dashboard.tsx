@@ -13,7 +13,8 @@ import { useW4Calculation } from "@/hooks/useW4Calculation";
 import { useTaxPayments } from "@/hooks/useTaxPayments";
 import { useTaxSavings } from "@/hooks/useTaxSavings";
 import { useCompanies } from "@/contexts/CompanyContext";
-import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks, getMonthlyPlannerBreakdown, useStreamOverrides, usePlannerConversions } from "@/hooks/useProjectedIncome";
+import { useProjectedStreams, useProjectedBonuses, generateProjectedPaychecks, getMonthlyPlannerBreakdown, useStreamOverrides, usePlannerConversions, fsaConfigsByStream } from "@/hooks/useProjectedIncome";
+import { employerMatchFormulaByStream } from "@/lib/employerMatchPaycheck";
 import QuarterlyTracker from "@/components/dashboard/QuarterlyTracker";
 import { usePlaidItems, useSyncTransactions } from "@/hooks/usePlaid";
 import DashboardQuarterlyPaymentCallout from "@/components/dashboard/QuarterlyPaymentCallout";
@@ -143,8 +144,10 @@ export default function Dashboard() {
       businessTxsForMatching,
       undefined,
       closureLookup,
+      employerMatchFormulaByStream(streams || [], companies),
+      fsaConfigsByStream(streams || [], companies),
     ),
-    [streams, bonuses, incomeEntries, overrides, plannerConversions, businessTxsForMatching, closureLookup],
+    [streams, bonuses, incomeEntries, overrides, plannerConversions, businessTxsForMatching, closureLookup, companies],
   );
 
   const now = useMemo(() => new Date(), []);

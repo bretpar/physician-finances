@@ -1,4 +1,7 @@
 import { readBusinessRelationship } from "@/lib/businessRelationships";
+import { paycheckSection125 } from "@/lib/w2PayrollTax";
+import { fsaConfigsByStream } from "@/hooks/useProjectedIncome";
+import { employerMatchFormulaByStream } from "@/lib/employerMatchPaycheck";
 import { readEmployerContributionFormula } from "@/lib/employerContributionFormula";
 import type { FilingStatus } from "@/lib/taxBrackets";
 import { closureWindowForYear } from "@/lib/companyClosure";
@@ -574,12 +577,14 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
     // pre-tax — it's an above-the-line individual HSA deduction. We accumulate
     // those separately so the engine can adjust AGI without reducing the SE-tax base.
     let businessPreTax = 0;
+    let businessSection125 = 0;
     let businessNonW2HsaAboveLine = 0;
     let businessW2Hsa = 0;
     let businessW2EmployerHsa = 0;
     for (const e of linkedEntries) {
       const filing = normalizeFilingType((e as any).income_type);
       const isW2 = filing === "w2" || filing === "scorp_w2";
+      if (isW2) businessSection125 += paycheckSection125(e as any, isHealthcarePretax(e));
       const hsa = Number((e as any).hsa_contribution || 0);
       const employerHsa = Number((e as any).employer_hsa_contribution || 0);
       businessPreTax += Number(e.pre_tax_deductions || 0) + (isW2 ? hsa : 0);
@@ -632,6 +637,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       businessFederalWithheld,
       businessStateWithheld,
       businessPreTax,
+      businessSection125,
       businessNonW2HsaAboveLine,
       businessW2Hsa,
       businessW2EmployerHsa,
@@ -816,6 +822,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
           }
           bucket.stateWithheld += cStateW;
           bucket.payrollPreTax += cPayrollPreTax;
+          bucket.section125 += Math.max(0, Number(c.healthcare_premiums || 0) + Number(c.dental_vision || 0) - overlapping.reduce((sum: number, e: any) => sum + (isHealthcarePretax(e) ? Number(e.healthcare_deduction || 0) : 0), 0));
           bucket.hsa += cHsa;
           bucket.retirement += cRetire;
           if (targetBucket === "business") {
@@ -854,9 +861,9 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
           return acc;
         },
         {
-          w2: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0, expenses: 0, seEligibleGross: 0, seEligibleExpenses: 0, businessStateEligibleExpenses: 0 },
-          business: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0, expenses: 0, seEligibleGross: 0, seEligibleExpenses: 0, businessStateEligibleExpenses: 0 },
-          other: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, hsa: 0, retirement: 0, expenses: 0, seEligibleGross: 0, seEligibleExpenses: 0, businessStateEligibleExpenses: 0 },
+          w2: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, section125: 0, hsa: 0, retirement: 0, expenses: 0, seEligibleGross: 0, seEligibleExpenses: 0, businessStateEligibleExpenses: 0 },
+          business: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, section125: 0, hsa: 0, retirement: 0, expenses: 0, seEligibleGross: 0, seEligibleExpenses: 0, businessStateEligibleExpenses: 0 },
+          other: { gross: 0, federalWithheld: 0, stateWithheld: 0, payrollPreTax: 0, section125: 0, hsa: 0, retirement: 0, expenses: 0, seEligibleGross: 0, seEligibleExpenses: 0, businessStateEligibleExpenses: 0 },
         },
       );
 
@@ -924,6 +931,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         (s, e) => s + Number(e.pre_tax_deductions || 0),
         0,
       ) + personalHsaW2Pretax + personalHealthcarePretax;
+      const personalSection125 = personal.reduce((sum, e) => sum + (classifyPersonalIncome(e as any) === "w2" ? paycheckSection125(e as any, isHealthcarePretax(e as any)) : 0), 0);
       const personalNonW2HsaAboveLine = personalHsaAboveLine + individualHsaTotal;
       const personalRetirement = personal.reduce((s, e) => s + Number(e.retirement_401k || 0), 0);
 
@@ -1028,6 +1036,8 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         activeBusinessIncomeTransactions,
         undefined,
         closureLookup,
+        employerMatchFormulaByStream(streams || [], companies),
+        fsaConfigsByStream(streams || [], companies),
       );
       const projTotals = getProjectedTotals(projectedPaychecks, streams || [], companies || []);
       selection[incomeScope] = {
@@ -1202,7 +1212,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         if (classifyPersonalIncome(e) !== "w2") continue;
         const earner = resolveIncomeEarnerFor({ sourceId: e.source_id, companyName: e.company }, earnerCompanies);
         if (earner !== "spouse") continue;
-        spouseW2FicaWages += Math.max(0, Number(e.paycheck_amount || 0) - Number(e.pre_tax_deductions || 0) - Number(e.hsa_contribution || 0));
+        spouseW2FicaWages += Math.max(0, Number(e.paycheck_amount || 0) - paycheckSection125(e, isHealthcarePretax(e)));
       }
       for (const c of (ytdCatchups || []) as any[]) {
         if (c.tax_year !== currentYear || c.source_type !== "w2") continue;
@@ -1210,7 +1220,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
           ? "spouse"
           : resolveIncomeEarnerFor({ sourceId: c.company_id, companyName: c.company_name }, earnerCompanies);
         if (earner !== "spouse") continue;
-        const section125 = Number(c.healthcare_premiums || 0) + Number(c.dental_vision || 0) + Number(c.other_pretax || 0) + Number(c.hsa_contribution || 0);
+        const section125 = Number(c.healthcare_premiums || 0) + Number(c.dental_vision || 0) + Number(c.hsa_contribution || 0);
         spouseW2FicaWages += Math.max(0, Number(c.gross_income || 0) - section125);
       }
       let projectedSpouseW2FicaWages = 0;
@@ -1221,7 +1231,7 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         if (filing !== "w2") continue;
         const earner = resolveIncomeEarnerFor({ sourceId: stream?.source_id, companyName: stream?.company }, earnerCompanies);
         if (earner !== "spouse") continue;
-        projectedSpouseW2FicaWages += Math.max(0, p.grossAmount - (p.preTaxDeductions || 0) - (p.hsaContribution || 0));
+        projectedSpouseW2FicaWages += Math.max(0, p.grossAmount - getProjectedTotals([p], streams || [], companies).section125Deductions);
       }
       const netInvestmentIncome = Math.max(0, netStockGain + longTermCapitalGains + personalCapGains + personalRental);
 
@@ -1240,6 +1250,9 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
         businessFederalWithheld: businessFederalWithheld + cu.business.federalWithheld,
         businessStateWithheld: businessStateWithheld + cu.business.stateWithheld,
         businessPreTax: businessPreTax + cu.business.payrollPreTax,
+        businessSection125: canonicalBusiness.businessSection125,
+        personalSection125: personalSection125 + cu.w2.section125 + cu.w2.hsa,
+        projectedSection125: projTotals.section125Deductions,
         businessNonW2HsaAboveLine: cappedBusinessNonW2Hsa,
         // Standalone SELF-EMPLOYED employer plan money (employer Solo 401(k),
         // SEP) is routed through the business/employer retirement path. W-2
@@ -1383,6 +1396,8 @@ export function useTaxEstimate(options: TaxEstimateOptions = {}): {
       seEligibleMileageDeduction: (actual.seEligibleMileageDeduction ?? actual.mileageDeduction) * annualizationFactor,
       businessW2: actual.businessW2 * annualizationFactor,
       businessPreTax: actual.businessPreTax * annualizationFactor,
+      businessSection125: (actual.businessSection125 ?? 0) * annualizationFactor,
+      personalSection125: (actual.personalSection125 ?? 0) * annualizationFactor,
       businessNonW2HsaAboveLine: (actual.businessNonW2HsaAboveLine ?? 0) * annualizationFactor,
       businessRetirement: actual.businessRetirement * annualizationFactor,
       ownerHealthcare: actual.ownerHealthcare * annualizationFactor,

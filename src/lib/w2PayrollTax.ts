@@ -79,6 +79,8 @@ export interface W2PayrollTaxInput {
   payrollHsa?: number;
   /** Qualified pre-tax health / dental / vision premiums (Section 125). */
   qualifiedSection125Premiums?: number;
+  /** Qualified FSA salary reductions, already included in payroll pre-tax totals. */
+  payrollFsa?: number;
   /** Optional overrides (mostly for tests and future year rollovers). */
   ssWageCap?: number;
   additionalMedicareThreshold?: number;
@@ -122,7 +124,7 @@ export function calcW2PayrollTax(
     0,
     Number(input.qualifiedSection125Premiums) || 0,
   );
-  const section125Deductions = payrollHsa + qualifiedSection125Premiums;
+  const section125Deductions = payrollHsa + qualifiedSection125Premiums + Math.max(0, Number(input.payrollFsa) || 0);
   // Never let adjusted wages go negative — mistyped deductions can't create a refund.
   const ficaWages = Math.max(0, grossW2Wages - section125Deductions);
 
@@ -160,4 +162,15 @@ export function calcW2PayrollTax(
     additionalMedicareTax,
     totalPayrollTax: ssTax + medicareTax + additionalMedicareTax,
   };
+}
+
+/** Classify a saved paycheck without treating unrestricted Other Pre-Tax as Section 125. */
+export function paycheckSection125(row: {
+  pre_tax_deductions?: number | null; fsa_health?: number | null;
+  fsa_dependent_care?: number | null; fsa_limited_purpose?: number | null;
+  hsa_contribution?: number | null; healthcare_deduction?: number | null;
+}, healthcarePretax = false): number {
+  const positive = (v: unknown) => Math.max(0, Number(v) || 0);
+  const fsa = positive(row.fsa_health) + positive(row.fsa_dependent_care) + positive(row.fsa_limited_purpose);
+  return Math.min(positive(row.pre_tax_deductions), fsa) + positive(row.hsa_contribution) + (healthcarePretax ? positive(row.healthcare_deduction) : 0);
 }

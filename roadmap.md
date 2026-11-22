@@ -1,4 +1,8 @@
 # Focused monitoring fixes
+- [x] Fix FSA recommendations, employer/date defaults, classified FICA wages, shared limits, and save failures.
+- [x] Protect Planner pre-tax amounts that already include FSA; carry FSA consistently into forecasts without changing historical actuals.
+- [x] Preserve the three FSA breakdowns through idempotent paycheck conversion and Dashboard/Tax Overview projections; browser and release QA deferred to Codex as requested.
+- [x] Run focused regression coverage (76 passed); automatic preview type/build checks passed; target database has all three FSA columns. No deployment or publishing.
 - [x] Simplify Retirement presentation: one shared employee bar, company-level employer cards and optional explanations; unchanged calculations/history, 23 focused tests passed, signed-in desktop/mobile checked, no publishing.
 - [x] Trace automatic retirement inputs: mixed WWEP 401(k)/Solo labels and same-limit unresolved payroll unnecessarily blocked company capacity; Vituity lacks partnership plan terms, not financial data.
 - [x] Correct company-level options, precise statuses, partnership estimate and year-scoped planned expenses; 53 focused tests passed and signed-in desktop/mobile calculator verified without record changes or publishing.

@@ -1,5 +1,5 @@
-import { FSA_KINDS, FSA_LABELS, fsaTotal } from "@/lib/fsaDeductions";
-import { employerMatchFormulaByStream } from "@/lib/employerMatchPaycheck";
+import { FSA_KINDS, FSA_LABELS, fsaTotal, readPlannerFsa, plannerFsaNotes, projectFsa, readFsaConfigs, type FsaKind } from "@/lib/fsaDeductions";
+import { employerMatchFormulaByStream, isW2CompanyType } from "@/lib/employerMatchPaycheck";
 import { fsaConfigsByStream } from "@/hooks/useProjectedIncome";
 import { buildTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
 import { Info } from "lucide-react";
@@ -144,6 +144,7 @@ interface StreamForm {
   healthcare_deduction: string;
   hsa_contribution: string;
   pre_tax_deductions: string;
+  fsa_included?: Partial<Record<FsaKind, string>>;
   additional_tax_reserve: string;
   forecast_expense_per_period: string;
   forecast_expense_notes: string;
@@ -153,6 +154,7 @@ interface StreamForm {
 }
 
 interface OverrideForm {
+  fsa_included?: Partial<Record<FsaKind, string>>;
   paycheck_amount: string;
   taxes_withheld: string;
   retirement_401k: string;
@@ -201,11 +203,12 @@ function hasClassifiedWithholding(f: {
 export function overrideTakeHome(
   f: Parameters<typeof buildOverrideFinancials>[0] & { paycheck_amount: string },
   employerReduces: boolean,
+  addedFsa = 0,
 ): number {
   const fin = buildOverrideFinancials(f);
   return Math.max(0, parseAmt(f.paycheck_amount) - fin.taxes_withheld - fin.state_withholding
     - fin.retirement_401k - fin.pre_tax_deductions
-    - (employerReduces ? fin.employer_retirement_contribution : 0));
+    - (employerReduces ? fin.employer_retirement_contribution : 0) - addedFsa);
 }
 
 /**
@@ -861,7 +864,8 @@ export default function ProjectedIncome() {
       additional_tax_reserve: String(s.additional_tax_reserve || 0),
       forecast_expense_per_period: String(s.forecast_expense_per_period || 0),
       forecast_expense_notes: s.forecast_expense_notes || "",
-      notes: s.notes || "",
+      notes: plannerFsaNotes(s.notes || "", {}),
+      fsa_included: Object.fromEntries(Object.entries(readPlannerFsa(s.notes)).map(([k, v]) => [k, String(v)])),
       is_active: s.is_active,
       include_in_tax: s.include_in_tax,
     });
@@ -940,6 +944,11 @@ export default function ProjectedIncome() {
       ? normalizeFilingType(linkedCompany.companyType)
       : (meta?.filingType ?? normalizeFilingType(form.ui_income_subtype));
     const canonical = toCanonicalIncomeType(filingType);
+    const includedFsa = Object.fromEntries(Object.entries(form.fsa_included ?? {}).filter(([, v]) => v !== "").map(([k, v]) => [k, num(v ?? "")]));
+    if (fsaTotal(includedFsa) > num(form.pre_tax_deductions)) {
+      toast.error("Included FSA amounts cannot exceed the pre-tax deduction total.");
+      return;
+    }
 
     // Persistence uses the raw company toggles (NOT the presentation-only
     // relevance filter) so saved values and calculations stay unchanged.
@@ -993,7 +1002,7 @@ export default function ProjectedIncome() {
       additional_tax_reserve: persistField("additional_tax_reserve")
         ? num(form.additional_tax_reserve)
         : 0,
-      notes: visibleFields.notes ? form.notes : "",
+      notes: plannerFsaNotes(visibleFields.notes ? form.notes : "", Object.fromEntries(Object.entries(form.fsa_included ?? {}).filter(([, v]) => v !== "").map(([k, v]) => [k, num(v ?? "")]))),
       forecast_expense_per_period: (() => {
         const f = filingType;
         const isBiz = f === "1099_schedule_c" || f === "k1_partnership" || f === "scorp_distribution";
@@ -1069,7 +1078,7 @@ export default function ProjectedIncome() {
     // into "Other pre-tax" double-counts them, so derive the standalone remainder.
     // Employer FSA amounts are added at projection time from Settings, so they
     // must not be saved back into this occurrence's own pre-tax amount.
-    const preTaxWithoutFsa = Math.max(0, entry.preTaxDeductions - fsaTotal(entry.fsaDeductions ?? {}));
+    const preTaxWithoutFsa = Math.max(0, entry.preTaxDeductions - (entry.fsaAddedAmount ?? 0));
     const otherPreTax = hasDetailed
       ? deriveOtherPreTax(preTaxWithoutFsa, detail?.healthcareDeduction, detail?.hsaContribution)
       : preTaxWithoutFsa;
@@ -1079,7 +1088,8 @@ export default function ProjectedIncome() {
       retirement_401k: String(entry.retirement401k),
       employer_retirement_contribution: entry.employerRetirementContribution && !entry.employerMatchEstimated ? String(entry.employerRetirementContribution) : "",
       pre_tax_deductions: String(otherPreTax),
-      notes: existing?.notes || "",
+      notes: plannerFsaNotes(existing?.notes || "", {}),
+      fsa_included: Object.fromEntries(Object.entries(readPlannerFsa(existing ? existing.notes : stream?.notes)).map(([k, v]) => [k, String(v)])),
       // Date field shows where this occurrence currently sits.
       new_date: entry.date,
       detailed: !!(existing as any)?.has_detailed_breakdown,
@@ -1103,6 +1113,11 @@ export default function ProjectedIncome() {
   const handleOverrideSubmit = async () => {
     if (!overrideTarget) return;
     const existing = overrideLookup.get(`${overrideTarget.streamId}:${overrideTarget.date}`);
+    const includedFsa = Object.fromEntries(Object.entries(overrideForm.fsa_included ?? {}).filter(([, v]) => v !== "").map(([k, v]) => [k, num(v ?? "")]));
+    if (fsaTotal(includedFsa) > num(overrideForm.pre_tax_deductions)) {
+      toast.error("Included FSA amounts cannot exceed the pre-tax deduction total.");
+      return;
+    }
     // Persist new_date only when the user picked a date different from the
     // original scheduled occurrence — this moves THIS occurrence only.
     const movedDate =
@@ -1117,7 +1132,7 @@ export default function ProjectedIncome() {
       // When a detailed breakdown exists it is the source of truth: the basic
       // totals are derived from the components, never added to them.
       ...buildOverrideFinancials(overrideForm),
-      notes: overrideForm.notes,
+      notes: plannerFsaNotes(overrideForm.notes, Object.fromEntries(Object.entries(overrideForm.fsa_included ?? {}).filter(([, v]) => v !== "").map(([k, v]) => [k, num(v ?? "")]))),
       new_date: movedDate,
     };
     setOverrideSaving(true);
@@ -1181,6 +1196,7 @@ export default function ProjectedIncome() {
         grossAmount: entry.grossAmount,
         taxesWithheld: entry.taxesWithheld,
         preTaxDeductions: entry.preTaxDeductions,
+        fsaDeductions: entry.fsaDeductions,
         hasDetailedBreakdown: Boolean(detail?.hasDetailedBreakdown),
         stateSeparate: Boolean(entry.stateSeparate ?? detail?.stateSeparate),
         existingTransactionId: pickExistingBankTransactionId(
@@ -2117,6 +2133,8 @@ export default function ProjectedIncome() {
                 : num(form.federal_withholding) + num(form.ss_withholding) + num(form.medicare_withholding);
               const retirement = num(form.retirement_401k);
               const hsa = num(form.hsa_contribution);
+              const fsaProjection = projectFsa(num(form.pre_tax_deductions), isW2Subtype ? readFsaConfigs(companies.find((c) => c.id === form.source_id)?.advancedFieldVisibility) : {}, form.start_date,
+                Object.fromEntries(Object.entries(form.fsa_included ?? {}).filter(([, v]) => v !== "").map(([k, v]) => [k, num(v ?? "")])));
               const takeHome = Math.max(0,
                 gross
                 - totalFederal
@@ -2124,7 +2142,7 @@ export default function ProjectedIncome() {
                 - retirement
                 - num(form.healthcare_deduction)
                 - hsa
-                - num(form.pre_tax_deductions)
+                - fsaProjection.preTaxDeductions
                 - (formEmployerReduces.retirement ? num(form.employer_retirement_contribution) : 0)
               );
               const taxesToSave = num(form.additional_tax_reserve) > 0
@@ -2136,6 +2154,7 @@ export default function ProjectedIncome() {
                 ["Estimated taxes to save", fmtFull(taxesToSave)],
                 ["Retirement contribution", fmtFull(retirement)],
                 ["HSA contribution", fmtFull(hsa)],
+                ...FSA_KINDS.filter((k) => fsaProjection.fsaDeductions[k] > 0).map((k): [string, string] => [FSA_LABELS[k], fmtFull(fsaProjection.fsaDeductions[k])]),
                 ["Estimated effective tax rate", `${effectiveRatePct.toFixed(1)}%`],
               ];
               return (
@@ -2311,6 +2330,13 @@ export default function ProjectedIncome() {
                           <Input type="number" min="0" step="0.01" placeholder="0.00"
                             value={form.pre_tax_deductions}
                             onChange={(e) => setField("pre_tax_deductions", e.target.value)} />
+                          {isW2Subtype && FSA_KINDS.map((k) => (
+                            <div key={k} className="space-y-1">
+                              <Label className="text-xs text-muted-foreground">Included {FSA_LABELS[k]}</Label>
+                              <Input type="number" min="0" step="0.01" placeholder="From employer settings" value={form.fsa_included?.[k] ?? ""}
+                                onChange={(e) => setForm((p) => ({ ...p, fsa_included: { ...p.fsa_included, [k]: e.target.value } }))} />
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>
@@ -2497,7 +2523,7 @@ export default function ProjectedIncome() {
             {(() => {
               const empVisible = !!overrideTarget && employerSettingsForStream(overrideTarget.streamId).visible;
               const employerAmt = num(overrideForm.employer_retirement_contribution);
-              type OvKey = Exclude<keyof OverrideForm, "detailed" | "tax_classified">;
+              type OvKey = Exclude<keyof OverrideForm, "detailed" | "tax_classified" | "fsa_included">;
               // Editing a classified component marks the occurrence as owning its breakdown.
               const DETAIL_KEYS: OvKey[] = ["federal_withholding", "state_withholding", "ss_withholding",
                 "medicare_withholding", "healthcare_deduction", "hsa_contribution", "pre_tax_deductions", "additional_tax_reserve"];
@@ -2606,6 +2632,13 @@ export default function ProjectedIncome() {
             })()}
 
             <div className="space-y-1.5">
+              {isW2CompanyType(streams.find((s) => s.id === overrideTarget?.streamId)?.company_type ?? "") && FSA_KINDS.map((k) => (
+                <div key={k} className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">{FSA_LABELS[k]} included in pre-tax</Label>
+                  <Input type="number" min="0" step="0.01" placeholder="From employer settings" value={overrideForm.fsa_included?.[k] ?? ""}
+                    onChange={(e) => setOverrideForm((p) => ({ ...p, fsa_included: { ...p.fsa_included, [k]: e.target.value } }))} />
+                </div>
+              ))}
               <Label className="text-xs">Notes (optional)</Label>
               <Input
                 value={overrideForm.notes}
@@ -2618,7 +2651,9 @@ export default function ProjectedIncome() {
                 <span className="text-muted-foreground">Est. take-home: </span>
                 <span className="font-semibold text-foreground">
                   {fmtFull(overrideTakeHome(overrideForm,
-                    !!overrideTarget && employerSettingsForStream(overrideTarget.streamId).reduces))}
+                    !!overrideTarget && employerSettingsForStream(overrideTarget.streamId).reduces,
+                    projectFsa(num(overrideForm.pre_tax_deductions), overrideTarget ? fsaConfigsByStream(streams, companies)[overrideTarget.streamId] ?? {} : {}, overrideForm.new_date || overrideTarget?.date || "",
+                      Object.fromEntries(Object.entries(overrideForm.fsa_included ?? {}).filter(([, v]) => v !== "").map(([k, v]) => [k, num(v ?? "")]))).fsaAddedAmount))}
                 </span>
               </div>
             )}
@@ -2966,7 +3001,7 @@ export default function ProjectedIncome() {
               { label: "Gross", value: fmtFull(e.grossAmount), mono: true },
               ...(e.taxesWithheld > 0 ? [{ label: "− Taxes withheld", value: fmtFull(e.taxesWithheld), mono: true }] : []),
               ...(e.retirement401k > 0 ? [{ label: "− 401(k)", value: fmtFull(e.retirement401k), mono: true }] : []),
-              ...FSA_KINDS.filter((k) => (e.fsaDeductions?.[k] || 0) > 0).map((k) => ({ label: `− ${FSA_LABELS[k]} (from employer settings)`, value: fmtFull(e.fsaDeductions![k]), mono: true })),
+              ...FSA_KINDS.filter((k) => (e.fsaDeductions?.[k] || 0) > 0).map((k) => ({ label: `− ${FSA_LABELS[k]}`, value: fmtFull(e.fsaDeductions?.[k] ?? 0), mono: true })),
               ...(Math.max(0, e.preTaxDeductions - fsaTotal(e.fsaDeductions ?? {})) > 0 ? [{ label: "− Other pre-tax", value: fmtFull(Math.max(0, e.preTaxDeductions - fsaTotal(e.fsaDeductions ?? {}))), mono: true }] : []),
               ...(e.healthcareDeduction > 0 ? [{ label: "− Healthcare", value: fmtFull(e.healthcareDeduction), mono: true }] : []),
               { label: "Projected net pay", value: fmtFull(Math.max(0, e.netAmount ?? 0)), mono: true },

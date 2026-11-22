@@ -82,6 +82,7 @@ export function FsaDeductionsSection() {
                 <span className="tabular-nums">{fmt(k.contributed)} of {fmt(k.election != null ? Math.min(k.election, k.limit) : k.limit)}{k.election != null ? " election" : " limit"} · {fmt(k.remaining)} left</span>
               </div>
             ))}
+            <p className="text-muted-foreground">Healthcare and Limited Purpose share the remaining health FSA capacity at each employer.</p>
             {summary.limitsInferred && <p className="text-muted-foreground">IRS limits for {year} aren't published in the app yet; showing the latest known year.</p>}
             {summary.warnings.map((w) => <p key={w} className="text-warning">{w}</p>)}
           </div>

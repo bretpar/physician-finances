@@ -1,4 +1,4 @@
-import { fsaDefaultsForDate, fsaTotal, readFsaConfigs, type FsaConfigs, type FsaKind } from "@/lib/fsaDeductions";
+import { fsaTotal, projectFsa, readPlannerFsa, readFsaConfigs, type FsaConfigs, type FsaKind } from "@/lib/fsaDeductions";
 import { isW2CompanyType } from "@/lib/employerMatchPaycheck";
 import { estimatePaycheckEmployerMatch } from "@/lib/employerMatchPaycheck";
 import type { EmployerContributionFormula } from "@/lib/employerContributionFormula";
@@ -167,6 +167,8 @@ export interface ProjectedPaycheck {
   employerRetirementContribution?: number;
   /** Employer FSA amounts included in preTaxDeductions (from company FSA settings). */
   fsaDeductions?: Record<FsaKind, number>;
+  /** Only this amount was added from Settings; the rest was explicitly included. */
+  fsaAddedAmount?: number;
   /** True when the employer amount is a formula estimate, not an entered amount. */
   employerMatchEstimated?: boolean;
   preTaxDeductions: number;
@@ -783,13 +785,21 @@ export function useConfirmSuggestedMatch() {
           const ov: any = overrideRow || {};
           const gross = Number(ov.paycheck_amount ?? s.paycheck_amount ?? 0) || 0;
           const detail = resolveOccurrenceDetail(s as ProjectedIncomeStream, overrideRow as any);
+          const { data: employer, error: employerError } = s.source_id
+            ? await supabase.from("companies").select("advanced_field_visibility").eq("id", s.source_id).maybeSingle()
+            : { data: null, error: null };
+          if (employerError) throw employerError;
+          const fsa = projectFsa(Number(ov.pre_tax_deductions ?? s.pre_tax_deductions ?? 0),
+            isW2CompanyType(s.company_type) ? readFsaConfigs(employer?.advanced_field_visibility) : {},
+            ov.new_date || input.occurrenceDate, readPlannerFsa(overrideRow ? ov.notes : s.notes));
           // Canonical mapping — splits the planner aggregate pre-tax amount so
           // health/HSA are never double-counted inside "Other pre-tax".
           const mapped = buildOccurrenceLedgerFields({
             grossAmount: gross,
             taxesWithheld: detail.taxesWithheld,
             retirement401k: Number(ov.retirement_401k ?? s.retirement_401k ?? 0) || 0,
-            preTaxDeductions: Number(ov.pre_tax_deductions ?? s.pre_tax_deductions ?? 0) || 0,
+            preTaxDeductions: fsa.preTaxDeductions,
+            fsaDeductions: fsa.fsaDeductions,
             healthcareDeduction: detail.healthcareDeduction,
             hsaContribution: detail.hsaContribution,
             federalWithholding: detail.federalWithholding,
@@ -812,6 +822,9 @@ export function useConfirmSuggestedMatch() {
             healthcare_deduction: mapped.healthcare_deduction,
             hsa_contribution: mapped.hsa_contribution,
             pre_tax_deductions: mapped.pre_tax_deductions,
+            fsa_health: mapped.fsa_health,
+            fsa_dependent_care: mapped.fsa_dependent_care,
+            fsa_limited_purpose: mapped.fsa_limited_purpose,
             additional_tax_reserve: mapped.additional_tax_reserve,
           };
           if (gross > 0) {
@@ -823,6 +836,13 @@ export function useConfirmSuggestedMatch() {
             !existing.company || String(existing.origin_type || "").toLowerCase() === "plaid_import" ||
             (Boolean(existing.linked_transaction_id) &&
               String(existing.notes || "").toLowerCase().includes("imported from"));
+          // Linking a manually entered paycheck never replaces its saved FSA values.
+          if (!existingIsImportedOnly || Number(existing.fsa_health || 0) + Number(existing.fsa_dependent_care || 0) + Number(existing.fsa_limited_purpose || 0) > 0) {
+            patch.fsa_health = Number(existing.fsa_health || 0);
+            patch.fsa_dependent_care = Number(existing.fsa_dependent_care || 0);
+            patch.fsa_limited_purpose = Number(existing.fsa_limited_purpose || 0);
+            patch.pre_tax_deductions = Number(existing.pre_tax_deductions || 0);
+          }
           if (s.company && (existingIsImportedOnly || !existing.company)) {
             patch.company = s.company;
             if (!existing.name) patch.name = s.company;
@@ -1007,6 +1027,7 @@ export function useManualPlannerConvert() {
       grossAmount: number;
       taxesWithheld: number;
       preTaxDeductions: number;
+      fsaDeductions?: Partial<Record<FsaKind, number>>;
       retirement401k: number;
       /** Employer retirement contribution — stored separately from retirement401k. */
       employerRetirementContribution?: number;
@@ -1113,6 +1134,7 @@ export function useManualPlannerConvert() {
         employerRetirementContribution: input.employerRetirementContribution ?? 0,
         employerRetirementReducesPaycheck: input.employerRetirementReducesPaycheck,
         preTaxDeductions: input.preTaxDeductions,
+        fsaDeductions: input.fsaDeductions,
         healthcareDeduction: input.healthcareDeduction,
         hsaContribution: input.hsaContribution,
         federalWithholding: input.federalWithholding,
@@ -2002,14 +2024,12 @@ export function generateProjectedPaychecks(
   // employer's FSA settings, only inside their effective dates. They are
   // added to the occurrence's pre-tax total (lowers net pay and taxable
   // wages) and kept as a labeled breakdown. Never saved to records.
-  if (fsaConfigs) {
+  {
     for (const r of rawPaychecks as Array<(typeof rawPaychecks)[number] & { fsaDeductions?: Record<FsaKind, number> }>) {
-      if (r.type !== "paycheck" || r.isSkipped || !fsaConfigs[r.streamId]) continue;
-      const fsa = fsaDefaultsForDate(fsaConfigs[r.streamId], r.date);
-      const total = fsaTotal(fsa);
-      if (total <= 0) continue;
-      r.preTaxDeductions = (Number(r.preTaxDeductions) || 0) + total;
-      r.fsaDeductions = fsa;
+      if (r.type !== "paycheck" || r.isSkipped || !isW2CompanyType(r.streamCompanyType)) continue;
+      const stream = streams.find((s) => s.id === r.streamId);
+      const override = overrides?.find((o) => o.stream_id === r.streamId && (o.new_date || o.override_date) === r.date && o.action === "modify");
+      Object.assign(r, projectFsa(Number(r.preTaxDeductions) || 0, fsaConfigs?.[r.streamId] ?? {}, r.date, readPlannerFsa(override ? override.notes : stream?.notes)));
     }
   }
 
@@ -2175,6 +2195,7 @@ export function getProjectedTotals(
     retirement401kSe: 0,
     employerRetirementContribution: 0,
     preTaxDeductions: 0,
+    section125Deductions: 0,
     healthInsuranceDeduction: 0,
     hsaContribution: 0,
     netIncome: 0,
@@ -2227,6 +2248,15 @@ export function getProjectedTotals(
     acc.retirement401k += p.retirement401k;
     acc.employerRetirementContribution += p.employerRetirementContribution || 0;
     acc.preTaxDeductions += p.preTaxDeductions;
+    if (bucket === "w2") {
+      const healthcarePretax = stream?.source_id != null && healthcarePretaxCompanyIds.has(stream.source_id);
+      const health = healthcarePretax ? Number(p.healthcareDeduction || 0) : 0;
+      const hsa = Number(p.hsaContribution || 0);
+      const fsa = fsaTotal(p.fsaDeductions ?? {});
+      acc.section125Deductions += p.hasDetailedBreakdown === false
+        ? Math.min(p.preTaxDeductions, fsa + hsa + health)
+        : Math.min(p.preTaxDeductions, fsa) + hsa + health;
+    }
     // Designated pre-tax payroll health premiums (e.g. VA) reduce W-2 taxable
     // wages once. Skip when preTaxDeductions is the planner aggregate
     // (hasDetailedBreakdown false) — the premium is already inside it.
