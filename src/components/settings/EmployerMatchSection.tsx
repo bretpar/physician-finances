@@ -13,6 +13,8 @@ import {
   type EmployerContributionFormula,
 } from "@/lib/employerContributionFormula";
 import { entityKindForCompanyType } from "@/lib/retirementCanonicalInput";
+import { useRetirementSectionLink } from "@/hooks/useRetirementSectionLink";
+import { cn } from "@/lib/utils";
 
 type FormulaKind = "none" | "match" | "tiered" | "flat";
 
@@ -93,6 +95,7 @@ export function EmployerMatchSection() {
   const { companies, updateCompany, closedCompanyIds } = useCompanies();
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const [busy, setBusy] = useState(false);
+  const link = useRetirementSectionLink("employer-match");
 
   const employers = useMemo(
     () =>
@@ -141,7 +144,10 @@ export function EmployerMatchSection() {
     })();
 
   return (
+    <div id={link.anchorId}>
     <SectionCard
+      open={link.open}
+      onOpenChange={link.onOpenChange}
       title="Employer match formulas"
       icon={<HandCoins className="h-5 w-5" />}
       description="Record each W-2 employer's match or profit-sharing formula so the retirement planner can estimate employer contributions."
@@ -160,7 +166,7 @@ export function EmployerMatchSection() {
             const d = draftFor(c.id);
             const saved = readEmployerContributionFormula(c.advancedFieldVisibility);
             return (
-              <div key={c.id} className="rounded-lg border border-border p-3 space-y-3">
+              <div key={c.id} id={`${link.anchorId}-${c.id}`} className={cn("rounded-lg border border-border p-3 space-y-3", link.focusCompanyId === c.id && "border-primary")}>
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold">{c.nickname || c.name}</span>
                   <span className="text-xs text-muted-foreground">{saved ? "Formula saved" : "No formula"}</span>
@@ -279,5 +285,6 @@ export function EmployerMatchSection() {
         </div>
       )}
     </SectionCard>
+    </div>
   );
 }

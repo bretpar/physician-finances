@@ -1,4 +1,5 @@
 import { type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { ChevronDown, Pencil, PiggyBank, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,8 @@ import { InfoTooltip } from "@/components/ui/tooltip";
 import { type RetirementRoomView } from "@/lib/retirementRoomView";
 import type { PlanOpportunity } from "@/lib/retirementOpportunityEngine";
 import { retirementReasonMessage } from "@/lib/retirementReasonMessages";
+import { settingsLink } from "@/lib/settingsDeepLink";
+import { partnershipTermsComplete, partnershipTermsSummary, type PartnershipPlanTerms } from "@/lib/partnershipPlanTerms";
 import { businessPlannerOpportunity, groupRowsByCompany, sumRows, type PlannerCategory, type PlannerHistoryRow } from "@/lib/retirementPlannerView";
 
 const fmt = (n: number) => n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -26,6 +29,12 @@ export interface RetirementPlannerProps {
   hasCapacityAccess?: boolean;
   onEditContribution?: (id: string) => void;
   onDeleteContribution?: (id: string) => void;
+  /** Saved settings per company, used only to decide which Settings action to offer. */
+  companySettings?: (companyId: string) => { formulaSaved: boolean; partnershipTerms: PartnershipPlanTerms | null };
+}
+
+function SettingsAction({ to, children }: { to: string; children: ReactNode }) {
+  return <Button asChild variant="link" size="sm" className="h-auto min-h-11 px-0 text-xs"><Link to={to}>{children}</Link></Button>;
 }
 
 function Details({ children, label = "Details & history" }: { children: ReactNode; label?: string }) {
@@ -35,19 +44,19 @@ function Details({ children, label = "Details & history" }: { children: ReactNod
   </Collapsible>;
 }
 
-function Meter({ actual, scheduled = 0, available, label, limit, unknownLabel = "Plan-dependent", estimated = false }: {
-  actual: number; scheduled?: number; available: number | null; label: string; limit?: number | null; unknownLabel?: string; estimated?: boolean;
+function Meter({ actual, scheduled = 0, available, label, limit, unknownLabel = "Plan-dependent", estimated = false, hideRemaining = false }: {
+  actual: number; scheduled?: number; available: number | null; label: string; limit?: number | null; unknownLabel?: string; estimated?: boolean; hideRemaining?: boolean;
 }) {
   const values = [Math.max(0, actual), Math.max(0, scheduled), Math.max(0, available ?? 0)];
   const total = values.reduce((sum, n) => sum + n, 0);
-  const labels = ["Contributed", "Scheduled", estimated ? "Estimated remaining" : "Remaining"];
+  const labels = hideRemaining ? ["Contributed", "Scheduled"] : ["Contributed", "Scheduled", estimated ? "Estimated remaining" : "Remaining"];
   const colors = ["bg-primary", "bg-warning", "bg-success"];
   return <div className="space-y-2">
     {limit != null && <p className="text-xs text-muted-foreground">Annual limit <span className="font-medium text-foreground">{fmt(limit)}</span></p>}
-    {available != null && <div className="flex h-2.5 w-full overflow-hidden rounded-sm bg-muted" role="img" aria-label={`${label}: contributed ${fmt(actual)}, scheduled ${fmt(scheduled)}, ${estimated ? "estimated " : ""}remaining ${fmt(available)}`}>
+    {available != null && !hideRemaining && <div className="flex h-2.5 w-full overflow-hidden rounded-sm bg-muted" role="img" aria-label={`${label}: contributed ${fmt(actual)}, scheduled ${fmt(scheduled)}, ${estimated ? "estimated " : ""}remaining ${fmt(available)}`}>
       {total > 0 && values.map((n, i) => n > 0 && <span key={labels[i]} className={colors[i]} style={{ width: `${n / Math.max(total, limit ?? 0) * 100}%` }} />)}
     </div>}
-    <div className="grid grid-cols-3 gap-2">
+    <div className={`grid gap-2 ${hideRemaining ? "grid-cols-2" : "grid-cols-3"}`}>
       {labels.map((text, i) => <div key={text} className="min-w-0"><p className="flex items-start gap-1 text-[11px] leading-tight text-muted-foreground"><span className={`mt-0.5 h-2 w-2 shrink-0 rounded-sm ${colors[i]}`} />{text}</p><p className="mt-0.5 break-words text-sm font-semibold tabular-nums">{i === 2 && available == null ? unknownLabel : fmt(values[i])}</p></div>)}
     </div>
   </div>;
@@ -107,7 +116,7 @@ function JobHistory({ groups, nameOf, showScheduled, onEdit, onDelete }: {
 
 export function RetirementPlanner({
   room, history, companyName, hasPlannerAccess, hasEmployerOpportunityAccess = true, hasCapacityAccess = true,
-  onEditContribution, onDeleteContribution,
+  onEditContribution, onDeleteContribution, companySettings,
 }: RetirementPlannerProps) {
   const { engine, engineProjected } = room;
   const projected = hasPlannerAccess ? engineProjected : null;
@@ -128,8 +137,9 @@ export function RetirementPlanner({
   const actualTotal = engine.plans.reduce((sum, p) => sum + p.totalAdditions, 0) + engine.ira.combinedContributed;
   const scheduledTotal = hasPlannerAccess ? room.scheduledEmployeeTotal + room.scheduledEmployerTotal + room.scheduledIraTotal : 0;
   const reviewNotes: string[] = [];
-  if (engine.plans.some((p) => view(p).capacityUnverified)) reviewNotes.push("Business ownership relationships are missing; check the affected company's details.");
-  if (room.k1ClassificationUnknownCompanyIds.length) reviewNotes.push("Set the K-1 tax treatment for affected partnerships in Settings.");
+  const reviewActions: { label: string; to: string }[] = [];
+  if (engine.plans.some((p) => view(p).capacityUnverified)) reviewActions.push({ label: "Review business relationships", to: settingsLink("related-businesses") });
+  for (const cid of room.k1ClassificationUnknownCompanyIds) reviewActions.push({ label: `Set K-1 treatment${companyName(cid) ? ` for ${companyName(cid)}` : ""}`, to: settingsLink(null, cid) });
   if (room.ambiguousDuplicates.length) reviewNotes.push(`${room.ambiguousDuplicates.length} possible duplicate entries between paychecks and added contributions.`);
   if (visibleHistory.some((r) => r.category !== "ira" && !r.companyId)) reviewNotes.push("Some contributions aren't linked to a company.");
   const ira = engine.ira;
@@ -169,29 +179,41 @@ export function RetirementPlanner({
         const allowed = hasCapacityAccess && hasEmployerOpportunityAccess;
         const capacity = allowed ? selfEmployed ? opportunity?.employer ?? null : w2Known ? views.reduce((sum, p) => sum + (p.employerCapacityRemaining ?? 0), 0) : null : null;
         const conditional = allowed ? opportunity?.employerEstimate ?? null : null;
-        const status = capacity == null ? "Plan details needed" : projected || !selfEmployed ? "Estimated" : "Calculated";
+        const settings = cid ? companySettings?.(cid) : undefined;
+        const terms = settings?.partnershipTerms ?? null;
+        const termsComplete = partnershipTermsComplete(terms);
+        // Ordinary W-2 cards stay numbers-first: an unknown match formula is optional, not a blocker.
+        const w2Simple = !selfEmployed && capacity == null;
+        const missing = (opportunity?.missingDetails ?? []).filter((d) => !(partnership && termsComplete && d.startsWith("We need to know whether the retirement plan is sponsored")));
+        const status = w2Simple ? null : capacity == null ? (missing.length ? "Needs plan details" : "Estimated") : projected || !selfEmployed ? "Estimated" : "Calculated";
+        const needsRelationship = views.some((p) => p.capacityUnverified);
         const planLabel = Array.from(new Set(plans.map((p) => PLAN_LABELS[p.planKind] ?? p.planKind))).join(" / ") || "Plan unassigned";
         const reasons = Array.from(new Set(views.flatMap((p) => p.reasons))).map(retirementReasonMessage).filter(Boolean);
         return <article key={cid ?? "none"} className="rounded-md border bg-card px-3 pb-0 pt-2" data-testid="retirement-company-card">
           <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
             <h5 className="min-w-0 break-words text-sm font-semibold">{nameOf(cid)} <span className="font-normal text-muted-foreground">· {planLabel}</span></h5>
-            <Badge variant="outline" className="text-[10px]">{status}</Badge>
+            {status && <Badge variant="outline" className="text-[10px]">{status}</Badge>}
           </div>
-          <div className="mb-2 mt-1 flex items-center gap-1">
+          {!w2Simple && <div className="mb-2 mt-1 flex items-center gap-1">
             <p className="text-xs">{partnership && conditional != null ? "Conditional employer estimate" : selfEmployed ? "Additional employer contribution room" : "Employer-funded room"}: <strong className="tabular-nums">{capacity != null ? fmt(capacity) : conditional != null ? fmt(conditional) : "Plan-dependent"}</strong></p>
             <InfoTooltip className="h-8 w-8 shrink-0" label={`${nameOf(cid)} employer contribution details`}>{partnership ? "This earnings-based estimate is not personally available contribution room. Partnership sponsorship and permission for additional contributions must be confirmed; a reduced partnership payout does not change the employer funding classification." : selfEmployed ? "Room uses canonical eligible earnings and employer limits after scheduled contributions. Shared employee room is reserved first; do not add independent employee and employer maxima." : "Employer match and profit-sharing are employer-funded, not extra money you can personally deposit. Saved formulas are estimates, not recorded contributions."}</InfoTooltip>
-          </div>
-          <Meter actual={actual} scheduled={scheduled} available={capacity} estimated={status === "Estimated"} unknownLabel={conditional != null ? "Plan-dependent" : allowed ? "Plan-dependent" : "—"} label={`${nameOf(cid)} employer contributions`} />
+          </div>}
+          <Meter actual={actual} scheduled={scheduled} available={capacity} estimated={status === "Estimated"} hideRemaining={w2Simple} unknownLabel={conditional != null ? "Plan-dependent" : allowed ? "Plan-dependent" : "—"} label={`${nameOf(cid)} employer contributions`} />
           <Details>
             {opportunity && <>
               <Line label="Projected net profit" value={opportunity.projectedProfit == null ? "Unknown" : fmt(opportunity.projectedProfit)} />
               <Line label="Adjusted eligible earnings so far" value={opportunity.actual.find((p) => p.eligibleCompensation != null)?.eligibleCompensation == null ? "Unknown" : fmt(opportunity.actual.find((p) => p.eligibleCompensation != null)?.eligibleCompensation ?? 0)} />
               {projected && <Line label="Adjusted projected eligible earnings" value={opportunity.plans.find((p) => p.eligibleCompensation != null)?.eligibleCompensation == null ? "Unknown" : fmt(opportunity.plans.find((p) => p.eligibleCompensation != null)?.eligibleCompensation ?? 0)} />}
               <p className="text-xs text-muted-foreground">Eligible earnings include active Planner income net of planned business expenses and canonical compensation adjustments. Related plans share their employer allowance.</p>
-              {opportunity.missingDetails.map((detail) => <p key={detail} className="text-xs text-warning">{detail}</p>)}
+              {missing.map((detail) => <p key={detail} className="text-xs text-warning">{detail}</p>)}
+              {terms && partnership && <Line label="Saved plan details" value={partnershipTermsSummary(terms)} />}
+              {terms?.planCeiling != null && partnership && <Line label="Plan-document ceiling (still subject to IRS limits)" value={fmt(terms.planCeiling)} />}
+              {partnership && !termsComplete && cid && <SettingsAction to={settingsLink("partnership-plan", cid)}>Review plan details</SettingsAction>}
+              {needsRelationship && <SettingsAction to={settingsLink("related-businesses", cid)}>Review business relationships</SettingsAction>}
               {opportunity.allocationNote && <p className="text-xs text-muted-foreground">{opportunity.allocationNote}</p>}
               {conditional != null && <p className="text-xs text-muted-foreground">Earnings-based estimate uses the standard 25% nominal / 20% adjusted self-employed formula. Not available room until partnership plan terms allow it.</p>}
             </>}
+            {!selfEmployed && cid && !settings?.formulaSaved && <SettingsAction to={settingsLink("employer-match", cid)}>Set employer match formula (optional)</SettingsAction>}
             {!selfEmployed && allowed && estimate > 0 && <Line label="Expected employer contribution from saved formula (not recorded)" value={fmt(estimate)} />}
             {!selfEmployed && <p className="text-xs text-muted-foreground">Employer-funded contributions do not use your employee deferral limit and are not an extra personal tax deduction.</p>}
             {plans.map((p) => <Line key={p.planId ?? p.planKind} label={PLAN_LABELS[p.planKind] ?? p.planKind} value={`${fmt(p.employerContribution)} employer recorded`} />)}
@@ -225,6 +247,6 @@ export function RetirementPlanner({
         <HistoryTable rows={rowsOf("ira")} {...historyProps} />
       </Details>
     </section>
-    {reviewNotes.length > 0 && <div className="border-t pt-1" data-testid="retirement-reconcile-warning"><Details label="Needs review"><div className="space-y-2 text-xs text-warning">{reviewNotes.map((note) => <p key={note}>{note}</p>)}</div></Details></div>}
+    {(reviewNotes.length > 0 || reviewActions.length > 0) && <div className="border-t pt-1" data-testid="retirement-reconcile-warning"><Details label="Needs review"><div className="space-y-1 text-xs text-warning">{reviewNotes.map((note) => <p key={note}>{note}</p>)}{reviewActions.map((a) => <div key={a.to}><SettingsAction to={a.to}>{a.label}</SettingsAction></div>)}</div></Details></div>}
   </div>;
 }

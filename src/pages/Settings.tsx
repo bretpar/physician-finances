@@ -1,5 +1,6 @@
 import { RelatedBusinessesSection } from "@/components/settings/RelatedBusinessesSection";
 import { EmployerMatchSection } from "@/components/settings/EmployerMatchSection";
+import { PartnershipPlanSection } from "@/components/settings/PartnershipPlanSection";
 import { useAccountRole } from "@/hooks/useAccountRole";
 import { isDeveloper } from "@/lib/roles";
 import { getTodayLocalDateString } from "@/lib/localDate";
@@ -3029,6 +3030,7 @@ export default function Settings() {
       <CompaniesSection />
       <RelatedBusinessesSection />
       <EmployerMatchSection />
+      <PartnershipPlanSection />
       <ConnectedAccountsSection />
       <TeamSection />
       <BuildInfoSection />

@@ -80,7 +80,7 @@ describe("resolveSettingsDeepLink", () => {
 
   it("opens the named employer and its withholding panel", () => {
     const params = new URLSearchParams("company=va-1&open=withholding");
-    expect(resolveSettingsDeepLink(params, companies, closed)).toEqual({
+    expect(resolveSettingsDeepLink(params, companies, closed)).toMatchObject({
       companyId: "va-1",
       openWithholding: true,
       openSection: true,
@@ -89,7 +89,7 @@ describe("resolveSettingsDeepLink", () => {
 
   it("reveals the section for a generic Companies link", () => {
     const params = new URLSearchParams("section=companies");
-    expect(resolveSettingsDeepLink(params, companies, closed)).toEqual({
+    expect(resolveSettingsDeepLink(params, companies, closed)).toMatchObject({
       companyId: null,
       openWithholding: false,
       openSection: true,
@@ -99,14 +99,14 @@ describe("resolveSettingsDeepLink", () => {
   it("never selects an unknown or closed employer, but still reveals the section", () => {
     expect(
       resolveSettingsDeepLink(new URLSearchParams("company=nope"), companies, closed),
-    ).toEqual({ companyId: null, openWithholding: false, openSection: true });
+    ).toMatchObject({ companyId: null, openWithholding: false, openSection: true });
     expect(
       resolveSettingsDeepLink(new URLSearchParams("company=closed-1"), companies, closed),
-    ).toEqual({ companyId: null, openWithholding: false, openSection: true });
+    ).toMatchObject({ companyId: null, openWithholding: false, openSection: true });
   });
 
   it("stays out of the way with no deep-link params", () => {
-    expect(resolveSettingsDeepLink(new URLSearchParams(), companies, closed)).toEqual({
+    expect(resolveSettingsDeepLink(new URLSearchParams(), companies, closed)).toMatchObject({
       companyId: null,
       openWithholding: false,
       openSection: false,

@@ -66,6 +66,7 @@ import {
 } from "@/hooks/useProjectedIncome";
 import { computeRetirementRoomView } from "@/lib/retirementRoomView";
 import { aggregatePlannedBusinessExpenses } from "@/lib/plannedBusinessExpenses";
+import { readPartnershipPlanTerms } from "@/lib/partnershipPlanTerms";
 import { RetirementPlanner } from "@/components/retirement/RetirementPlanner";
 import { buildPlannerHistory } from "@/lib/retirementPlannerView";
 import { cn } from "@/lib/utils";
@@ -1068,6 +1069,7 @@ export default function Mileage() {
         hasCapacityAccess={canFeature("projectedContributionCapacity")}
         onEditContribution={(id) => { const c = contributions?.find((x) => x.id === id); if (c) startEditContrib(c); }}
         onDeleteContribution={setContribDeleteId}
+        companySettings={(companyId) => { const c = companies.find((x) => x.id === companyId); return { formulaSaved: !!readEmployerContributionFormula(c?.advancedFieldVisibility), partnershipTerms: readPartnershipPlanTerms(c?.advancedFieldVisibility) }; }}
       />
 
 

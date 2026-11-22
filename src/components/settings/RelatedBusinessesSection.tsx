@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Network } from "lucide-react";
 import { SectionCard } from "@/components/settings/SectionCard";
+import { useRetirementSectionLink } from "@/hooks/useRetirementSectionLink";
 import { useCompanies } from "@/contexts/CompanyContext";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,7 @@ import { entityKindForCompanyType } from "@/lib/retirementCanonicalInput";
  * related keep their own room. Metadata only — no income or tax record changes.
  */
 export function RelatedBusinessesSection() {
+  const link = useRetirementSectionLink("related-businesses");
   const { companies, updateCompany, closedCompanyIds } = useCompanies();
   const [newGroupName, setNewGroupName] = useState("");
   const [extraGroups, setExtraGroups] = useState<{ groupId: string; groupName: string }[]>([]);
@@ -103,7 +105,10 @@ export function RelatedBusinessesSection() {
   };
 
   return (
+    <div id={link.anchorId}>
     <SectionCard
+      open={link.open}
+      onOpenChange={link.onOpenChange}
       title="Related businesses"
       icon={<Network className="h-5 w-5" />}
       description="Tell the retirement planner which of your businesses share one combined contribution limit."
@@ -200,5 +205,6 @@ export function RelatedBusinessesSection() {
         </div>
       )}
     </SectionCard>
+    </div>
   );
 }
