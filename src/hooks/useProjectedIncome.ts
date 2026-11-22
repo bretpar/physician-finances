@@ -1,6 +1,6 @@
 import { fsaTotal, projectFsa, readPlannerFsa, readFsaConfigs, type FsaConfigs, type FsaKind } from "@/lib/fsaDeductions";
 import { isW2CompanyType } from "@/lib/employerMatchPaycheck";
-import { estimatePaycheckEmployerMatch } from "@/lib/employerMatchPaycheck";
+import { estimatePaycheckEmployerMatch, plannerEmployerMode } from "@/lib/employerMatchPaycheck";
 import type { EmployerContributionFormula } from "@/lib/employerContributionFormula";
 import { employerPaycheckReductions } from "@/lib/estimatedNet";
 import { isOccurrenceClosed, type ClosureLookup } from "@/lib/companyClosure";
@@ -1031,6 +1031,7 @@ export function useManualPlannerConvert() {
       retirement401k: number;
       /** Employer retirement contribution — stored separately from retirement401k. */
       employerRetirementContribution?: number;
+      employerMatchEstimated?: boolean;
       employerRetirementReducesPaycheck?: boolean;
       healthcareDeduction: number;
       hsaContribution: number;
@@ -1132,6 +1133,7 @@ export function useManualPlannerConvert() {
         taxesWithheld: input.taxesWithheld,
         retirement401k: input.retirement401k,
         employerRetirementContribution: input.employerRetirementContribution ?? 0,
+        employerMatchEstimated: input.employerMatchEstimated,
         employerRetirementReducesPaycheck: input.employerRetirementReducesPaycheck,
         preTaxDeductions: input.preTaxDeductions,
         fsaDeductions: input.fsaDeductions,
@@ -2036,6 +2038,9 @@ export function generateProjectedPaychecks(
   if (employerMatchFormulas) {
     for (const r of rawPaychecks as Array<(typeof rawPaychecks)[number] & { employerMatchEstimated?: boolean }>) {
       if (r.type !== "paycheck" || r.isSkipped || (Number(r.employerRetirementContribution) || 0) > 0) continue;
+      const stream = streams.find((s) => s.id === r.streamId);
+      const override = overrides?.find((o) => o.stream_id === r.streamId && (o.new_date || o.override_date) === r.date && o.action === "modify");
+      if (plannerEmployerMode(override ?? stream) === "manual") continue;
       const est = estimatePaycheckEmployerMatch(employerMatchFormulas[r.streamId], Number(r.grossAmount) || 0, Number(r.retirement401k) || 0);
       if (est != null && est > 0) {
         r.employerRetirementContribution = est;

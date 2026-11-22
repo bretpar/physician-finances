@@ -1,5 +1,5 @@
 import { FSA_KINDS, FSA_LABELS, fsaTotal, readPlannerFsa, plannerFsaNotes, projectFsa, readFsaConfigs, type FsaKind } from "@/lib/fsaDeductions";
-import { employerMatchFormulaByStream, isW2CompanyType } from "@/lib/employerMatchPaycheck";
+import { employerMatchFormulaByStream, isW2CompanyType, plannerEmployerInput, plannerEmployerNotes } from "@/lib/employerMatchPaycheck";
 import { fsaConfigsByStream } from "@/hooks/useProjectedIncome";
 import { buildTotalFederalPayrollTaxes } from "@/lib/federalWithholding";
 import { Info } from "lucide-react";
@@ -453,6 +453,7 @@ export default function ProjectedIncome() {
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [detailEntry, setDetailEntry] = useState<ProjectedPaycheck | null>(null);
   const [convertTarget, setConvertTarget] = useState<ProjectedPaycheck | null>(null);
+  const [convertEmployerAmount, setConvertEmployerAmount] = useState("");
   const [convertDestination, setConvertDestination] = useState<"business" | "personal">("business");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [usingCompanyDefaults, setUsingCompanyDefaults] = useState(false);
@@ -857,14 +858,14 @@ export default function ProjectedIncome() {
       // Canonical Total Federal Payroll Taxes (shared wrapper).
       total_federal_payroll_taxes: String(getCanonicalTotalFederalPayrollTaxes(s as any)),
       retirement_401k: String(s.retirement_401k),
-      employer_retirement_contribution: String(s.employer_retirement_contribution || 0),
+      employer_retirement_contribution: plannerEmployerInput(s),
       healthcare_deduction: String(s.healthcare_deduction || 0),
       hsa_contribution: String(s.hsa_contribution || 0),
       pre_tax_deductions: String(s.pre_tax_deductions),
       additional_tax_reserve: String(s.additional_tax_reserve || 0),
       forecast_expense_per_period: String(s.forecast_expense_per_period || 0),
       forecast_expense_notes: s.forecast_expense_notes || "",
-      notes: plannerFsaNotes(s.notes || "", {}),
+      notes: plannerEmployerNotes(plannerFsaNotes(s.notes || "", {})),
       fsa_included: Object.fromEntries(Object.entries(readPlannerFsa(s.notes)).map(([k, v]) => [k, String(v)])),
       is_active: s.is_active,
       include_in_tax: s.include_in_tax,
@@ -1002,7 +1003,7 @@ export default function ProjectedIncome() {
       additional_tax_reserve: persistField("additional_tax_reserve")
         ? num(form.additional_tax_reserve)
         : 0,
-      notes: plannerFsaNotes(visibleFields.notes ? form.notes : "", Object.fromEntries(Object.entries(form.fsa_included ?? {}).filter(([, v]) => v !== "").map(([k, v]) => [k, num(v ?? "")]))),
+      notes: plannerEmployerNotes(plannerFsaNotes(visibleFields.notes ? form.notes : "", Object.fromEntries(Object.entries(form.fsa_included ?? {}).filter(([, v]) => v !== "").map(([k, v]) => [k, num(v ?? "")]))), form.employer_retirement_contribution.trim() === "" ? "auto" : "manual"),
       forecast_expense_per_period: (() => {
         const f = filingType;
         const isBiz = f === "1099_schedule_c" || f === "k1_partnership" || f === "scorp_distribution";
@@ -1086,9 +1087,9 @@ export default function ProjectedIncome() {
       paycheck_amount: String(entry.grossAmount),
       taxes_withheld: String(entry.taxesWithheld),
       retirement_401k: String(entry.retirement401k),
-      employer_retirement_contribution: entry.employerRetirementContribution && !entry.employerMatchEstimated ? String(entry.employerRetirementContribution) : "",
+      employer_retirement_contribution: plannerEmployerInput(existing?.action === "modify" ? existing : stream),
       pre_tax_deductions: String(otherPreTax),
-      notes: plannerFsaNotes(existing?.notes || "", {}),
+      notes: plannerEmployerNotes(plannerFsaNotes(existing?.notes || "", {})),
       fsa_included: Object.fromEntries(Object.entries(readPlannerFsa(existing ? existing.notes : stream?.notes)).map(([k, v]) => [k, String(v)])),
       // Date field shows where this occurrence currently sits.
       new_date: entry.date,
@@ -1132,7 +1133,7 @@ export default function ProjectedIncome() {
       // When a detailed breakdown exists it is the source of truth: the basic
       // totals are derived from the components, never added to them.
       ...buildOverrideFinancials(overrideForm),
-      notes: plannerFsaNotes(overrideForm.notes, Object.fromEntries(Object.entries(overrideForm.fsa_included ?? {}).filter(([, v]) => v !== "").map(([k, v]) => [k, num(v ?? "")]))),
+      notes: plannerEmployerNotes(plannerFsaNotes(overrideForm.notes, Object.fromEntries(Object.entries(overrideForm.fsa_included ?? {}).filter(([, v]) => v !== "").map(([k, v]) => [k, num(v ?? "")]))), overrideForm.employer_retirement_contribution.trim() === "" ? "auto" : "manual"),
       new_date: movedDate,
     };
     setOverrideSaving(true);
@@ -1160,6 +1161,7 @@ export default function ProjectedIncome() {
     const t = (entry.streamCompanyType || "").toLowerCase();
     const isBusiness = t === "1099" || t === "k1" || t === "1099_schedule_c" || t === "k1_partnership" || t === "scorp_distribution";
     setConvertDestination(isBusiness ? "business" : "personal");
+    setConvertEmployerAmount(entry.employerMatchEstimated ? "" : String(entry.employerRetirementContribution ?? 0));
     setConvertTarget(entry);
   };
 
@@ -1204,7 +1206,8 @@ export default function ProjectedIncome() {
           isBusiness ? "business" : "personal",
         ),
         retirement401k: entry.retirement401k,
-        employerRetirementContribution: entry.employerRetirementContribution ?? 0,
+        employerRetirementContribution: num(convertEmployerAmount),
+        employerMatchEstimated: !!entry.employerMatchEstimated && convertEmployerAmount.trim() === "",
         employerRetirementReducesPaycheck: employerSettingsForStream(entry.streamId).reduces,
         healthcareDeduction: entry.healthcareDeduction,
         hsaContribution: entry.hsaContribution,
@@ -2935,6 +2938,13 @@ export default function ProjectedIncome() {
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Employer retirement{convertTarget.employerMatchEstimated ? " (estimated from formula)" : ""}</span>
                     <span>{fmtFull(convertTarget.employerRetirementContribution || 0)}</span>
+                  </div>
+                )}
+                {convertTarget.employerMatchEstimated && (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="conversion-employer-amount">Confirmed employer contribution</Label>
+                    <Input id="conversion-employer-amount" type="number" min="0" step="0.01" placeholder="Leave blank if unconfirmed" value={convertEmployerAmount} onChange={(e) => setConvertEmployerAmount(e.target.value)} />
+                    <Button type="button" variant="outline" size="sm" onClick={() => setConvertEmployerAmount(String(convertTarget.employerRetirementContribution ?? 0))}>Accept estimated amount</Button>
                   </div>
                 )}
                 {convertTarget.preTaxDeductions > 0 && (

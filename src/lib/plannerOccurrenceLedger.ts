@@ -33,6 +33,8 @@ export interface OccurrenceLedgerSource {
   retirement401k: number;
   /** Employer retirement — stored separately; never reduces Net Received here. */
   employerRetirementContribution?: number;
+  /** Unconfirmed formula suggestions belong to projections, not actual records. */
+  employerMatchEstimated?: boolean;
   /** Company setting: employer retirement reduces cash received (estimate only). */
   employerRetirementReducesPaycheck?: boolean;
   preTaxDeductions: number;
@@ -130,7 +132,8 @@ export function buildOccurrenceLedgerFields(src: OccurrenceLedgerSource): Occurr
   const gross = n(src.grossAmount);
   const taxes = n(src.taxesWithheld);
   const retirement = n(src.retirement401k);
-  const employerCash = src.employerRetirementReducesPaycheck ? n(src.employerRetirementContribution) : 0;
+  const employerActual = src.employerMatchEstimated ? 0 : n(src.employerRetirementContribution);
+  const employerCash = src.employerRetirementReducesPaycheck ? employerActual : 0;
   const stateCash = src.stateSeparate ? n(src.stateWithholding) : 0;
   const deposited = Math.max(0, gross - taxes - stateCash - otherPreTax - retirement - healthcare - hsa - employerCash);
   return {
@@ -147,7 +150,7 @@ export function buildOccurrenceLedgerFields(src: OccurrenceLedgerSource): Occurr
     fsa_dependent_care: n(src.fsaDeductions?.dependent_care),
     fsa_limited_purpose: n(src.fsaDeductions?.limited_purpose),
     retirement_401k: retirement,
-    employer_retirement_contribution: n(src.employerRetirementContribution),
+    employer_retirement_contribution: employerActual,
     healthcare_deduction: healthcare,
     hsa_contribution: hsa,
     additional_tax_reserve: n(src.additionalTaxReserve),

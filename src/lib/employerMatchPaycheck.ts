@@ -56,6 +56,20 @@ export function employerMatchFormulaByStream(
 
 export type EmployerAmountMode = "auto" | "manual";
 
+// Reuse Planner notes metadata: legacy default-zero columns do not establish intent.
+const PLANNER_EMPLOYER_MODE = /\n?\[paycheckmd-employer:(auto|manual)\]/g;
+export function plannerEmployerMode(row?: { notes?: string | null; employer_retirement_contribution?: number | null } | null): EmployerAmountMode {
+  const mode = /\[paycheckmd-employer:(auto|manual)\]/.exec(row?.notes ?? "")?.[1];
+  return mode === "manual" || (!mode && Number(row?.employer_retirement_contribution) > 0) ? "manual" : "auto";
+}
+export function plannerEmployerNotes(notes: string, mode?: EmployerAmountMode): string {
+  const text = notes.replace(PLANNER_EMPLOYER_MODE, "");
+  return mode ? `${text}\n[paycheckmd-employer:${mode}]` : text;
+}
+export function plannerEmployerInput(row?: { notes?: string | null; employer_retirement_contribution?: number | null } | null): string {
+  return plannerEmployerMode(row) === "manual" ? String(row?.employer_retirement_contribution ?? 0) : "";
+}
+
 /**
  * Paycheck-form precedence: an explicit / saved amount (manual mode) always
  * wins; otherwise the formula estimate; otherwise leave the field as is.

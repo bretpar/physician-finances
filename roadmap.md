@@ -1,4 +1,6 @@
 # Focused monitoring fixes
+- [ ] Keep unconfirmed employer match estimates out of actual Planner conversions; preserve manual contributions and conversion deduplication.
+- [ ] Preserve intentional $0 employer contributions in occurrence, recurring-stream and actual-paycheck overrides; run only focused tests and do not publish.
 - [x] Fix FSA recommendations, employer/date defaults, classified FICA wages, shared limits, and save failures.
 - [x] Protect Planner pre-tax amounts that already include FSA; carry FSA consistently into forecasts without changing historical actuals.
 - [x] Preserve the three FSA breakdowns through idempotent paycheck conversion and Dashboard/Tax Overview projections; browser and release QA deferred to Codex as requested.
