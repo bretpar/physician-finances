@@ -57,7 +57,7 @@ describe("employer match conversion integrity", () => {
   });
   it("converted actual and remaining active projections each contribute only once", () => {
     const next = format(addDays(new Date(), 14), "yyyy-MM-dd");
-    const s = { id: "s1", company: "Employer", company_type: "w2", source_id: "co", start_date: date, end_date: next, pay_frequency: "custom", custom_interval_days: 14, paycheck_amount: 10000, retirement_401k: 500, taxes_withheld: 0, pre_tax_deductions: 0, healthcare_deduction: 0, hsa_contribution: 0, is_active: true, notes: "" } as ProjectedIncomeStream;
+    const s = { id: "s1", company: "Employer", company_type: "w2", source_id: "co", start_date: date, end_date: next, pay_frequency: "custom", custom_interval_days: 14, paycheck_amount: 10000, retirement_401k: 500, taxes_withheld: 0, pre_tax_deductions: 0, healthcare_deduction: 0, hsa_contribution: 0, is_active: true, include_in_tax: true, notes: "" } as ProjectedIncomeStream;
     const actual = { id: "income", income_date: date, company: "Employer", source_id: "co", paycheck_amount: 10000, income_type: "w2", status: "received", origin_planner_conversion_id: "conversion" };
     const paychecks = generateProjectedPaychecks([s], [], [actual], [], [{ stream_id: "s1", bonus_event_id: null, occurrence_date: date, status: "converted", income_entry_id: "income" }], [], undefined, null, { s1: { kind: "match", matchRate: 0.5, matchCapPct: 0.06 } });
     expect(paychecks.find((p) => p.date === date)?.matchStatus).not.toBe("active");
