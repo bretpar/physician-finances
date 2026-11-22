@@ -82,7 +82,8 @@ export function ledgerFields(o: Row, employerReduces: boolean) {
 
 /** Edge equivalent of projectFsa; parity tested, no inferred FSA from unlabeled money. */
 export function applyFsa(o: Row, metadata: Row, w2: boolean) {
-  if (!w2) return o;
+  // Bonuses keep their own explicit deductions; never inherit paycheck defaults.
+  if (!w2 || o.type === "bonus") return o;
   const cfg = metadata?.fsa_deductions || {};
   let included: Row = {};
   try { included = JSON.parse(/\[paycheckmd-fsa:(\{[^\n]*\})\]/.exec(o.fsaNotes || "")?.[1] || "{}"); } catch { /* malformed legacy notes */ }

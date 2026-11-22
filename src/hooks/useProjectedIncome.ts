@@ -15,7 +15,7 @@ import { isBusinessIncomeType } from "@/lib/ledgerRouting";
 import { PLANNER_CLEANUP_INVALIDATION_KEYS } from "@/lib/plannerCleanup";
 import { getTodayLocalDateString } from "@/lib/localDate";
 import { excludeLinkedTransactionForIncomeEntry } from "@/lib/plaidTransactionExclusion";
-import { buildOccurrenceLedgerFields, splitStreamTax, splitOverrideTax } from "@/lib/plannerOccurrenceLedger";
+import { buildOccurrenceLedgerFields, deriveOtherPreTax, splitStreamTax, splitOverrideTax } from "@/lib/plannerOccurrenceLedger";
 
 /** Minimal interface for income entries used in matching — works with both IncomeEntry and PersonalIncomeEntry */
 export interface MatchableIncomeEntry {
@@ -2068,7 +2068,12 @@ export function generateProjectedPaychecks(
   const businessTxs = businessTransactions || [];
 
   for (const raw of rawPaychecks) {
-    const net = raw.grossAmount - raw.taxesWithheld - (raw.stateSeparate ? Number(raw.stateWithholding || 0) : 0) - raw.retirement401k - raw.preTaxDeductions - raw.healthcareDeduction
+    // Only detailed overrides store health + HSA inside the aggregate.
+    // Ordinary streams store those separately; FSA stays inside Other Pre-Tax.
+    const otherPreTax = raw.hasDetailedBreakdown
+      ? deriveOtherPreTax(raw.preTaxDeductions, raw.healthcareDeduction, raw.hsaContribution)
+      : raw.preTaxDeductions;
+    const net = raw.grossAmount - raw.taxesWithheld - (raw.stateSeparate ? Number(raw.stateWithholding || 0) : 0) - raw.retirement401k - otherPreTax - raw.healthcareDeduction - raw.hsaContribution
       - employerPaycheckReductions({
           employerRetirement: raw.employerRetirementContribution,
           employerRetirementReducesPaycheck: !!employerRetirementReducesByStream?.[raw.streamId],
@@ -2252,26 +2257,18 @@ export function getProjectedTotals(
     acc.taxesWithheld += fed + st;
     acc.retirement401k += p.retirement401k;
     acc.employerRetirementContribution += p.employerRetirementContribution || 0;
-    acc.preTaxDeductions += p.preTaxDeductions;
+    const otherPreTax = bucket === "w2" && p.hasDetailedBreakdown
+      ? deriveOtherPreTax(p.preTaxDeductions, p.healthcareDeduction, p.hsaContribution)
+      : p.preTaxDeductions;
+    acc.preTaxDeductions += otherPreTax;
     if (bucket === "w2") {
       const healthcarePretax = stream?.source_id != null && healthcarePretaxCompanyIds.has(stream.source_id);
       const health = healthcarePretax ? Number(p.healthcareDeduction || 0) : 0;
       const hsa = Number(p.hsaContribution || 0);
       const fsa = fsaTotal(p.fsaDeductions ?? {});
-      acc.section125Deductions += p.hasDetailedBreakdown === false
-        ? Math.min(p.preTaxDeductions, fsa + hsa + health)
-        : Math.min(p.preTaxDeductions, fsa) + hsa + health;
-    }
-    // Designated pre-tax payroll health premiums (e.g. VA) reduce W-2 taxable
-    // wages once. Skip when preTaxDeductions is the planner aggregate
-    // (hasDetailedBreakdown false) — the premium is already inside it.
-    if (
-      bucket === "w2" &&
-      p.hasDetailedBreakdown !== false &&
-      stream?.source_id != null &&
-      healthcarePretaxCompanyIds.has(stream.source_id)
-    ) {
-      acc.preTaxDeductions += p.healthcareDeduction || 0;
+      acc.section125Deductions += Math.min(otherPreTax, fsa) + hsa + health;
+      // Payroll HSA and designated health premiums are federal pre-tax too.
+      acc.preTaxDeductions += hsa + health;
     }
     // Self-employed health-insurance deduction is SE/business-only. W-2 payroll
     // premiums are never this deduction.

@@ -3,7 +3,7 @@ import { format, addDays } from "date-fns";
 import { fsaTotal, getFsaLimits, plannerFsaNotes, projectFsa, readPlannerFsa, refreshFsaDefaults, summarizeFsa } from "@/lib/fsaDeductions";
 import { buildPersonalPreviewInput, buildPersonalSaveInput } from "@/lib/personalIncomeRecommendationAdapters";
 import { calcW2PayrollTax, paycheckSection125 } from "@/lib/w2PayrollTax";
-import { generateProjectedPaychecks, getProjectedTotals, type ProjectedIncomeStream } from "@/hooks/useProjectedIncome";
+import { generateProjectedPaychecks, getProjectedTotals, type ProjectedIncomeStream, type ProjectedBonusEvent } from "@/hooks/useProjectedIncome";
 import { buildOccurrenceLedgerFields } from "@/lib/plannerOccurrenceLedger";
 import { buildIncomeEntryRow } from "@/hooks/usePersonalIncome";
 import { computeUnifiedTaxEstimate } from "@/lib/taxCalculationService";
@@ -23,6 +23,45 @@ const permanentCfg = { ...cfg, health: { ...cfg.health, startDate: null, endDate
 const run = (s = stream, overrides: any[] = [], conversions: any[] = []) => generateProjectedPaychecks([s], [], [], overrides, conversions, [], undefined, null, undefined, { [s.id]: permanentCfg })[0];
 
 describe("FSA release regression", () => {
+  it("ordinary $5,000 paycheck deducts $100 FSA, $100 payroll HSA and $200 pre-tax healthcare once", () => {
+    const s = { ...stream, taxes_withheld: 0, federal_withholding: 0, pre_tax_deductions: 0, hsa_contribution: 100, healthcare_deduction: 200 };
+    const healthOnly = { health: permanentCfg.health };
+    const companies = [{ id: "co", companyType: "w2", advancedFieldVisibility: { healthcare_pretax_payroll: true } }];
+    for (const other of [0, 25]) {
+      for (const detailed of [false, true]) {
+        const overrides = detailed ? [{ stream_id: s.id, override_date: date, new_date: null, action: "modify", paycheck_amount: 5000, taxes_withheld: 0, retirement_401k: 0,
+          pre_tax_deductions: 300 + other, healthcare_deduction: 200, hsa_contribution: 100, has_detailed_breakdown: true, notes: "" }] : [];
+        const p = generateProjectedPaychecks([{ ...s, pre_tax_deductions: other }], [], [], overrides as any, [], [], undefined, null, undefined, { [s.id]: healthOnly })[0];
+        const totals = getProjectedTotals([p], [s], companies);
+        expect(p.netAmount).toBe(4600 - other);
+        expect(totals.netIncome).toBe(4600 - other);
+        expect(totals.w2Income - totals.preTaxDeductions).toBe(4600 - other);
+        expect(totals.section125Deductions).toBe(400);
+        expect(totals.w2Income - totals.section125Deductions).toBe(4600);
+        const client = buildOccurrenceLedgerFields(p);
+        expect(client.deposited_amount).toBe(4600 - other);
+        expect(paycheckSection125(client, true)).toBe(400);
+        const daily = ledgerFields(applyFsa(resolveOccurrence({ ...s, pre_tax_deductions: other }, overrides[0], date), { fsa_deductions: healthOnly }, true), false);
+        expect(daily).toMatchObject(client);
+      }
+    }
+  });
+  it("a $5,000 bonus never inherits the $100 recurring FSA in scheduled or manual conversion", () => {
+    const bonus = { id: "bonus", stream_id: stream.id, name: "Bonus", amount: 5000, taxes_withheld: 0, scheduled_date: date, frequency: "one-time" } as ProjectedBonusEvent;
+    const p = generateProjectedPaychecks([stream], [bonus], [], [], [], [], undefined, null, undefined, { [stream.id]: { health: permanentCfg.health } }).find((p) => p.type === "bonus");
+    expect(p).toBeDefined();
+    if (!p) throw new Error("Missing projected bonus");
+    const client = buildOccurrenceLedgerFields(p);
+    const occurrence = { ...p, amount: p.grossAmount, employerRetirement: 0 };
+    const daily = ledgerFields(applyFsa(occurrence, { fsa_deductions: { health: permanentCfg.health } }, true), false);
+    expect(p.netAmount).toBe(5000);
+    expect(daily).toMatchObject(client);
+    expect(daily.deposited_amount).toBe(5000);
+    expect(daily.fsa_health).toBe(0);
+    const explicit = { ...occurrence, preTaxDeductions: 40, fsaDeductions: { health: 40 } };
+    expect(applyFsa(explicit, { fsa_deductions: permanentCfg }, true)).toBe(explicit);
+    expect(ledgerFields(explicit, false).deposited_amount).toBe(4960);
+  });
   it("preview and saved reminder include all three amounts once", () => {
     const form = { gross_amount: "5000", income_type: "w2_user", federal_withholding: "1000", ss_withholding: "", medicare_withholding: "", state_withholding: "", retirement_pretax: "", deductions_pre_tax: "25", healthcare_deduction: "", hsa_contribution: "", fsa_health: "100", fsa_dependent_care: "200", fsa_limited_purpose: "50" };
     const ctx = { totalFederalPayrollTaxes: 1000, stateIncomeTaxEnabled: false, isFutureOpportunity: true };

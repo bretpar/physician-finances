@@ -1,4 +1,5 @@
 # Focused monitoring fixes
+- [x] Correct ordinary Planner deduction semantics and exclude recurring FSA defaults from scheduled bonuses; 39 focused tests passed, existing FSA columns verified, no deployment/publishing. Final Codex verification remains external.
 - [x] Keep unconfirmed employer match estimates out of actual Planner conversions; confirmed/manual contributions transfer once. Signed-in conversion and Personal Income read-back verified; temporary records removed.
 - [x] Preserve intentional $0 employer contributions in occurrence, recurring-stream and actual-paycheck overrides; 40 focused tests passed, preview build OK. No database changes or publishing requested/performed by this task.
 - [x] Fix FSA recommendations, employer/date defaults, classified FICA wages, shared limits, and save failures.
