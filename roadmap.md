@@ -1,4 +1,5 @@
 # Focused monitoring fixes
+- [x] Simplify Retirement presentation: one shared employee bar, company-level employer cards and optional explanations; unchanged calculations/history, 23 focused tests passed, signed-in desktop/mobile checked, no publishing.
 - [x] Trace automatic retirement inputs: mixed WWEP 401(k)/Solo labels and same-limit unresolved payroll unnecessarily blocked company capacity; Vituity lacks partnership plan terms, not financial data.
 - [x] Correct company-level options, precise statuses, partnership estimate and year-scoped planned expenses; 53 focused tests passed and signed-in desktop/mobile calculator verified without record changes or publishing.
 - [x] Replace retirement presentation with labeled contribution bars and compact year-end room summary.

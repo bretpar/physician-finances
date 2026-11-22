@@ -1054,7 +1054,7 @@ export default function Mileage() {
   const retirementIsEmpty = (contributions?.length || 0) === 0 && paycheckLinked.entries.length === 0;
 
   const retirementContent = (
-    <div className={retirementIsEmpty ? "space-y-3" : "space-y-6"}>
+    <div className="space-y-3">
       <Button onClick={() => { resetContribForm(); setShowContribForm(true); }} className="gap-2 w-full sm:w-auto min-h-[44px]">
         <Plus className="h-4 w-4" /> Add Contribution
       </Button>
@@ -1516,8 +1516,8 @@ export default function Mileage() {
               taxSavings={strategyTaxSavings}
               deductionAmount={deductionAmount}
               marginalRatePct={marginalRatePct}
-              description={item.description}
-              summary={item.summary}
+              description={item.value === "retirement" ? undefined : item.description}
+              summary={item.value === "retirement" ? undefined : item.summary}
               isOpen={activeTab === item.value}
               itemRef={(el) => { itemRefs.current[item.value] = el; }}
               supportingContent={DEDUCTION_INSIGHTS[item.value] ? (
