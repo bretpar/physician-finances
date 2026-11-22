@@ -1,4 +1,4 @@
-import { paycheckFormulaForCompany, resolvePaycheckEmployerAmount, type EmployerAmountMode } from "@/lib/employerMatchPaycheck";
+import { paycheckFormulaForCompany, plannerEmployerNotes, resolvePaycheckEmployerAmount, type EmployerAmountMode } from "@/lib/employerMatchPaycheck";
 import { FSA_COLUMN, FSA_KINDS, FSA_LABELS, refreshFsaDefaults, fsaTotal, readFsaConfigs, type FsaKind } from "@/lib/fsaDeductions";
 import { useState, useMemo, useEffect } from "react";
 import type { CoverageStatus } from "@/lib/catchUpRecommendation";
@@ -417,7 +417,8 @@ export default function PersonalIncome() {
   // if an existing entry already carries an employer amount, keep the field
   // visible so historical data is never hidden or orphaned.
   const showEmployerRetirement =
-    showField("employer_retirement_contribution");
+    showField("employer_retirement_contribution") || !!employerFormula || num(form.employer_retirement_contribution) > 0;
+  const acceptingEmployerEstimate = isW2Type(form.income_type) && employerMode === "auto" && !!employerFormula && num(form.employer_retirement_contribution) > 0;
   const showEmployerHsa =
     showField("employer_hsa_contribution");
 
@@ -733,7 +734,7 @@ export default function PersonalIncome() {
       source_id: (entry as any).source_id ?? null,
       source_save_as_new: false,
       source_new_kind: null,
-      notes: entry.notes || "",
+      notes: plannerEmployerNotes(entry.notes || ""),
       additional_tax_reserve: String((entry as any).additional_tax_reserve || 0),
     });
     setEditingId(entry.id);
@@ -806,7 +807,9 @@ export default function PersonalIncome() {
         is_actual: true,
         include_in_tax_estimate: true,
         include_in_cash_flow: false,
-        notes: form.notes,
+        // Saving an actual paycheck explicitly accepts the displayed amount;
+        // use existing manual provenance, including intentional zero.
+        notes: isW2Type(form.income_type) ? plannerEmployerNotes(form.notes, "manual") : form.notes,
         status: "received",
         base_tax_estimate: rec?.baseTaxEstimate || 0,
         dynamic_tax_recommendation: rec?.dynamicTaxRecommendation || 0,
@@ -1615,9 +1618,9 @@ export default function PersonalIncome() {
                           />
                           {employerFormula && (
                             <p className="text-[10px] text-muted-foreground mt-1 flex flex-wrap items-center gap-x-2" data-testid="paycheck-employer-mode">
-                              <span>{employerMode === "auto" ? "Estimated from employer formula" : "Manual"}</span>
+                              <span>{employerMode === "auto" ? "Estimated — calculated from employer formula" : "Manual — entered or changed by you"}</span>
                               {employerMode === "manual" && (
-                                <button type="button" className="text-primary underline" onClick={() => setEmployerMode("auto")}>Use formula estimate</button>
+                                <Button type="button" variant="link" className="h-auto p-0 text-[10px]" onClick={() => setEmployerMode("auto")}>Use estimate</Button>
                               )}
                             </p>
                           )}
@@ -1966,6 +1969,11 @@ export default function PersonalIncome() {
             />
 
           </div>
+          {acceptingEmployerEstimate && (
+            <p className="shrink-0 px-4 sm:px-6 py-2 text-xs text-muted-foreground" data-testid="paycheck-employer-acceptance">
+              Employer contribution {fmt(num(form.employer_retirement_contribution))} is estimated. Check your pay statement; saving accepts this amount as actual.
+            </p>
+          )}
           <div
             className="shrink-0 border-t bg-background px-4 sm:px-6 py-3 flex justify-between items-center gap-2"
             style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}
@@ -1982,7 +1990,7 @@ export default function PersonalIncome() {
                 onClick={saveForm}
                 disabled={!form.title.trim() || !form.date || num(form.gross_amount) <= 0 || (isW2Type(form.income_type) && !form.source_id && !form.source_name.trim())}
               >
-                {isEditing ? "Save" : "Save Income"}
+                {acceptingEmployerEstimate ? "Save & accept estimate" : isEditing ? "Save" : "Save Income"}
               </Button>
             </div>
           </div>
@@ -2186,7 +2194,7 @@ export default function PersonalIncome() {
           {
             title: "More details",
             fields: [
-              ...(e.notes ? [{ label: "Notes", value: e.notes }] : []),
+              ...(plannerEmployerNotes(e.notes || "") ? [{ label: "Notes", value: plannerEmployerNotes(e.notes || "") }] : []),
               ...(plannerConv?.occurrence_date
                 ? [{ label: "Planned date", value: formatDate(plannerConv.occurrence_date) }]
                 : []),

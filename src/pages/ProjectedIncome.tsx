@@ -3016,7 +3016,8 @@ export default function ProjectedIncome() {
               ...(e.healthcareDeduction > 0 ? [{ label: "− Healthcare", value: fmtFull(e.healthcareDeduction), mono: true }] : []),
               { label: "Projected net pay", value: fmtFull(Math.max(0, e.netAmount ?? 0)), mono: true },
               ...(fsaTotal(e.fsaDeductions ?? {}) > 0 ? [{ label: "FSA lowers net pay by", value: fmtFull(fsaTotal(e.fsaDeductions ?? {})), mono: true }] : []),
-              ...((e.employerRetirementContribution || 0) > 0 ? [{ label: e.employerMatchEstimated ? "Employer match (estimated from formula)" : "Employer retirement", value: fmtFull(e.employerRetirementContribution || 0), mono: true }] : []),
+              ...((e.employerRetirementContribution || 0) > 0 || (e.type === "paycheck" && isW2CompanyType(e.streamCompanyType) && plannerEmployerInput(override?.action === "modify" ? override : streams.find((s) => s.id === e.streamId)) !== "")
+                ? [{ label: isW2CompanyType(e.streamCompanyType) ? e.employerMatchEstimated ? "Employer match · Estimated" : "Employer match · Manual" : "Employer retirement", value: fmtFull(e.employerRetirementContribution || 0), mono: true }] : []),
             ],
           },
         ];

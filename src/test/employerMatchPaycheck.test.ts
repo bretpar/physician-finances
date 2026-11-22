@@ -61,6 +61,16 @@ describe("automatic employer match", () => {
     expect(resolvePaycheckEmployerAmount({ mode: "manual", current: "0", formula: match, gross: 10000, employeeDeferral: 500 })).toBe("0");
     expect(resolvePaycheckEmployerAmount({ mode: "manual", current: "0", formula: match, gross: 20000, employeeDeferral: 1000 })).toBe("0");
   });
+  it("a 5% match suggestion can be replaced and restored without changing saved actuals", () => {
+    const fivePercent: EmployerContributionFormula = { kind: "match", matchRate: 1, matchCapPct: 0.05 };
+    const args = { formula: fivePercent, gross: 5000, employeeDeferral: 500 };
+    expect(resolvePaycheckEmployerAmount({ ...args, mode: "auto", current: "" })).toBe("250");
+    expect(resolvePaycheckEmployerAmount({ ...args, mode: "manual", current: "238.46" })).toBe("238.46");
+    expect(resolvePaycheckEmployerAmount({ ...args, mode: "auto", current: "238.46" })).toBe("250");
+    const saved = { employer_retirement_contribution: 238.46, notes: plannerEmployerNotes("Pay statement", "manual") };
+    expect(resolvePaycheckEmployerAmount({ formula: match, gross: 10000, employeeDeferral: 1000, mode: "manual", current: plannerEmployerInput(saved) })).toBe("238.46");
+    expect(plannerEmployerNotes(saved.notes)).toBe("Pay statement");
+  });
   it("unconfirmed match is never converted to actual contributions or cash deductions", () => {
     const p = gen(stream(), { reduces: { s1: true } })[0];
     const fields = buildOccurrenceLedgerFields({ ...p, employerRetirementReducesPaycheck: true });
