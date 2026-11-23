@@ -69,7 +69,6 @@ const navGroups: NavGroup[] = [
   {
     heading: "Utilities",
     items: [
-      { to: "/link-review", icon: ArrowLeftRight, label: "Link Review", subtitle: "Resolve missing or uncertain income links" },
       { to: "/student-loans", icon: GraduationCap, label: "Student Loans", subtitle: "Estimate payments and compare filing status", module: "student_loans" },
       { to: "/settings", icon: Settings, label: "Settings", subtitle: "", pageFeatureKey: "pageSettings" },
     ],

@@ -235,7 +235,7 @@ export function SectionCard({
       <header
         data-testid={headerTestId}
         className={cn(
-          "flex items-start gap-3 p-4 sm:p-6",
+          "flex items-center gap-3 px-3 py-3 sm:px-4",
           collapsible && "cursor-pointer select-none",
         )}
         onClick={collapsible ? toggle : undefined}
@@ -254,7 +254,7 @@ export function SectionCard({
         }
       >
         {icon && (
-          <div className="mt-0.5 text-primary flex-shrink-0" aria-hidden>
+          <div className="text-primary flex-shrink-0 [&_svg]:h-4 [&_svg]:w-4" aria-hidden>
             {icon}
           </div>
         )}
@@ -277,8 +277,8 @@ export function SectionCard({
               </span>
             )}
           </div>
-          {description && (
-            <p className="text-xs text-muted-foreground mt-1">{description}</p>
+          {description && contentOpen && (
+            <p className="text-xs text-muted-foreground mt-0.5">{description}</p>
           )}
         </div>
         <div
@@ -305,11 +305,11 @@ export function SectionCard({
       </header>
 
       {contentOpen && (
-        <div className="px-4 sm:px-6 pb-5 sm:pb-6 space-y-5">{children}</div>
+        <div className="px-3 sm:px-4 pb-4 space-y-5">{children}</div>
       )}
 
       {contentOpen && showActionBar && (
-        <div className="sticky bottom-0 z-10 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 px-4 sm:px-6 py-3 flex items-center justify-end gap-2">
+        <div className="sticky bottom-0 z-10 border-t border-border bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/80 px-3 sm:px-4 py-3 flex items-center justify-end gap-2">
           {onCancel && (
             <Button
               variant="ghost"

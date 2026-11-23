@@ -1,3 +1,6 @@
+import { settingsGroupForParams, type SettingsGroup } from "@/lib/settingsDeepLink";
+import { Link as RouterLink } from "react-router-dom";
+import { ArrowLeftRight, ShieldCheck, FileText, LayoutDashboard, LifeBuoy } from "lucide-react";
 import { RelatedBusinessesSection } from "@/components/settings/RelatedBusinessesSection";
 import { EmployerMatchSection } from "@/components/settings/EmployerMatchSection";
 import { PartnershipPlanSection } from "@/components/settings/PartnershipPlanSection";
@@ -2994,58 +2997,141 @@ export default function Settings() {
   useUnsavedChangesGuard(Object.values(dirtyMap));
 
   const justSavedFlag = (_key: string) => false; // reserved for future use
+  const [params, setParams] = useSearchParams();
+  const group = settingsGroupForParams(params);
+  const openGroup = (g: SettingsGroup | null) => {
+    setParams(g ? { group: g } : {});
+    window.scrollTo({ top: 0 });
+  };
+  const meta = SETTINGS_GROUP_META.find((m) => m.id === group);
+
+  if (!meta) {
+    return (
+      <div data-testid="settings-root" className="max-w-3xl mx-auto pb-12 space-y-4">
+        <nav aria-label="Settings" className="glass-card rounded-xl divide-y divide-border overflow-hidden">
+          {SETTINGS_GROUP_META.map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => openGroup(m.id)}
+              className="w-full flex items-center gap-3 px-4 py-3 min-h-[56px] text-left hover:bg-muted/50 transition-colors"
+            >
+              <m.icon className="h-4 w-4 text-primary flex-shrink-0" aria-hidden />
+              <span className="flex-1 min-w-0">
+                <span className="block text-sm font-semibold text-card-foreground">{m.title}</span>
+                <span className="block text-xs text-muted-foreground truncate">{m.subtitle}</span>
+              </span>
+              <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden />
+            </button>
+          ))}
+        </nav>
+      </div>
+    );
+  }
 
   return (
-    <div data-testid="settings-root" className="space-y-4 max-w-3xl mx-auto pb-12">
-      <SectionCard
-        title="Profile & Tax Profile"
-        icon={<UserCircle className="h-5 w-5" />}
-        description="Your personal info and tax filing details."
-        hideActionBar
-      >
-        <ProfileSection justSavedFlag={justSavedFlag} />
-        <Separator className="my-2" />
-        <TaxProfileSection />
-        <Separator className="my-2" />
-        <HsaSettingsSection bare />
-        <Separator className="my-2" />
-        <ForecastingAutomationGate />
-        <StudentLoanSettingsGate />
-      </SectionCard>
+    <div data-testid="settings-root" className="space-y-3 max-w-3xl mx-auto pb-12">
+      <div className="flex items-center gap-2">
+        <Button variant="ghost" size="sm" className="-ml-2 h-9" onClick={() => openGroup(null)}>
+          <ChevronLeft className="h-4 w-4 mr-1" /> Settings
+        </Button>
+        <h2 className="text-base font-semibold text-foreground truncate">{meta.title}</h2>
+      </div>
 
-      <SectionCard
-        title="Tax Withholding & Quarterly Tracker"
-        icon={<Calculator className="h-5 w-5" />}
-        description="Choose how withholding recommendations and quarterly targets are calculated."
-        hideActionBar
-      >
-        <TaxWithholdingSection />
-        <Separator className="my-2" />
-        <W2PaycheckRecMethodSection />
-        <Separator className="my-2" />
-        <QuarterlyTrackerMethodSection />
-      </SectionCard>
+      {group === "companies" && (
+        <>
+          <CompaniesSection />
+          <EmployerMatchSection />
+          <FsaDeductionsSection />
+          <PartnershipPlanSection />
+          <RelatedBusinessesSection />
+        </>
+      )}
 
-      <OnboardingPreferencesSection />
-      <HouseholdIncomeStreamsSection />
-      <CompaniesSection />
-      <RelatedBusinessesSection />
-      <EmployerMatchSection />
-      <PartnershipPlanSection />
-      <FsaDeductionsSection />
-      <ConnectedAccountsSection />
-      <TeamSection />
-      <BuildInfoSection />
-      <SectionCard
-        title="Data Maintenance"
-        icon={<Calculator className="h-5 w-5" />}
-        description="Clean up orphaned rows left behind by deleted Income Planner streams or bank transactions."
-        hideActionBar
-      >
-        <OrphanIncomeCleanupCard />
-        <PlannerWithholdingRepairCard />
-      </SectionCard>
-      <DangerZoneSection />
+      {group === "preferences" && (
+        <>
+          <HouseholdIncomeStreamsSection />
+          <ConnectedAccountsSection />
+        </>
+      )}
+
+      {group === "tax" && (
+        <>
+          <SectionCard
+            title="Tax Profile & Household"
+            icon={<UserCircle className="h-5 w-5" />}
+            description="Filing details, HSA and household-level assumptions."
+            hideActionBar
+          >
+            <TaxProfileSection />
+            <Separator className="my-2" />
+            <HsaSettingsSection bare />
+            <Separator className="my-2" />
+            <ForecastingAutomationGate />
+            <StudentLoanSettingsGate />
+          </SectionCard>
+          <SectionCard
+            title="Tax Withholding & Quarterly Tracker"
+            icon={<Calculator className="h-5 w-5" />}
+            description="How withholding recommendations and quarterly targets are calculated."
+            hideActionBar
+          >
+            <TaxWithholdingSection />
+            <Separator className="my-2" />
+            <W2PaycheckRecMethodSection />
+            <Separator className="my-2" />
+            <QuarterlyTrackerMethodSection />
+          </SectionCard>
+          <SectionCard
+            title="Data Maintenance"
+            icon={<Calculator className="h-5 w-5" />}
+            description="Clean up orphaned rows left behind by deleted Income Planner streams or bank transactions."
+            hideActionBar
+          >
+            <OrphanIncomeCleanupCard />
+            <PlannerWithholdingRepairCard />
+          </SectionCard>
+        </>
+      )}
+
+      {group === "account" && (
+        <>
+          <ProfileSection justSavedFlag={justSavedFlag} />
+          <OnboardingPreferencesSection />
+          <TeamSection />
+          <DangerZoneSection />
+        </>
+      )}
+
+      {group === "help" && (
+        <>
+          <nav className="glass-card rounded-xl divide-y divide-border overflow-hidden">
+            {[
+              { to: "/link-review", label: "Link Review", sub: "Resolve missing or uncertain income links", icon: ArrowLeftRight },
+              { to: "/privacy", label: "Privacy Policy", sub: "How your data is handled", icon: ShieldCheck },
+              { to: "/terms", label: "Terms of Service", sub: "Terms of use", icon: FileText },
+            ].map((l) => (
+              <RouterLink key={l.to} to={l.to} className="flex items-center gap-3 px-4 py-3 min-h-[56px] hover:bg-muted/50 transition-colors">
+                <l.icon className="h-4 w-4 text-primary flex-shrink-0" aria-hidden />
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-semibold text-card-foreground">{l.label}</span>
+                  <span className="block text-xs text-muted-foreground truncate">{l.sub}</span>
+                </span>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden />
+              </RouterLink>
+            ))}
+          </nav>
+          <BuildInfoSection />
+        </>
+      )}
     </div>
   );
 }
+
+const SETTINGS_GROUP_META: { id: SettingsGroup; title: string; subtitle: string; icon: typeof Building2 }[] = [
+  { id: "companies", title: "Companies & Employment", subtitle: "Employers, match formulas, FSA, retirement plans", icon: Building2 },
+  { id: "preferences", title: "Dashboard & Preferences", subtitle: "Income types, dashboard and connected accounts", icon: LayoutDashboard },
+  { id: "tax", title: "Tax & Financial Settings", subtitle: "Tax profile, withholding, quarterly tracker", icon: Calculator },
+  { id: "account", title: "Account & Subscription", subtitle: "Profile, plan, team and account deletion", icon: UserCircle },
+  { id: "help", title: "Help, Reviews & Legal", subtitle: "Link Review, privacy, terms, build info", icon: LifeBuoy },
+];

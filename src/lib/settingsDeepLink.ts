@@ -52,3 +52,17 @@ export function resolveSettingsDeepLink(
   }
   return { companyId: null, openWithholding: false, openSection, retirementSection: null, focusCompanyId: null };
 }
+
+export type SettingsGroup = "companies" | "preferences" | "tax" | "account" | "help";
+export const SETTINGS_GROUPS: readonly SettingsGroup[] = ["companies", "preferences", "tax", "account", "help"];
+
+/**
+ * Which Settings group a URL opens. Company/section deep links always land in
+ * Companies & Employment so the linked editor is on screen; `?group=` picks a
+ * group explicitly; otherwise the landing list shows (null).
+ */
+export function settingsGroupForParams(params: URLSearchParams): SettingsGroup | null {
+  if (params.get("company") || params.get("section")) return "companies";
+  const g = params.get("group");
+  return (SETTINGS_GROUPS as readonly string[]).includes(g ?? "") ? (g as SettingsGroup) : null;
+}
