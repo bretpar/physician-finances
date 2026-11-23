@@ -8,16 +8,19 @@ vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => auth }));
 vi.mock("@/hooks/useAccountRole", () => ({ useAccountRole: () => role }));
 vi.mock("@/pages/admin/TaxValidation", () => ({ default: () => <div>TAX_DIAG</div> }));
 vi.mock("@/pages/admin/StudentLoanValidation", () => ({ default: () => <div>SL_DIAG</div> }));
+vi.mock("@/pages/DebugTransactions", () => ({ default: () => <div>TX_DIAG</div> }));
 
 import { DeveloperRoute } from "@/components/auth/DeveloperRoute";
 import TaxValidation from "@/pages/admin/TaxValidation";
 import StudentLoanValidation from "@/pages/admin/StudentLoanValidation";
+import DebugTransactions from "@/pages/DebugTransactions";
 import Privacy from "@/pages/Privacy";
 import Terms from "@/pages/Terms";
 
 const ROUTES = [
   ["/admin/tax-validation", <TaxValidation />, "TAX_DIAG"],
   ["/admin/student-loan-validation", <StudentLoanValidation />, "SL_DIAG"],
+  ["/debug/transactions", <DebugTransactions />, "TX_DIAG"],
 ] as const;
 
 function renderAt(path: string, el: React.ReactNode) {

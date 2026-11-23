@@ -139,7 +139,7 @@ function ProtectedRoutes() {
           <Route path="/link-review" element={<LinkReview />} />
           <Route path="/student-loans" element={<StudentLoans />} />
           <Route path="/settings" element={<Settings />} />
-          <Route path="/debug/transactions" element={<DebugTransactions />} />
+          <Route path="/debug/transactions" element={<DeveloperRoute><DebugTransactions /></DeveloperRoute>} />
           <Route path="/admin" element={<Admin />} />
           <Route path="/admin/data-isolation" element={<DataIsolationReport />} />
 

@@ -1,3 +1,4 @@
+import { buildConfirmMatchPatch } from "@/lib/confirmMatchPatch";
 import { fsaTotal, projectFsa, readPlannerFsa, readFsaConfigs, type FsaConfigs, type FsaKind } from "@/lib/fsaDeductions";
 import { isW2CompanyType } from "@/lib/employerMatchPaycheck";
 import { estimatePaycheckEmployerMatch, plannerEmployerMode } from "@/lib/employerMatchPaycheck";
@@ -810,9 +811,7 @@ export function useConfirmSuggestedMatch() {
             hasDetailedBreakdown: detail.hasDetailedBreakdown,
             stateSeparate: detail.stateSeparate,
           });
-          const patch: Record<string, any> = {
-            origin_type: "planner_converted",
-            origin_planner_conversion_id: conversionId,
+          const plannerFields: Record<string, any> = {
             federal_withholding: mapped.federal_withholding,
             state_withholding: mapped.state_withholding,
             ss_withholding: mapped.ss_withholding,
@@ -828,29 +827,13 @@ export function useConfirmSuggestedMatch() {
             additional_tax_reserve: mapped.additional_tax_reserve,
           };
           if (gross > 0) {
-            patch.gross_amount = gross;
-            patch.paycheck_amount = gross;
+            plannerFields.gross_amount = gross;
+            plannerFields.paycheck_amount = gross;
           }
           const existing: any = existingRow || {};
-          const existingIsImportedOnly =
-            !existing.company || String(existing.origin_type || "").toLowerCase() === "plaid_import" ||
-            (Boolean(existing.linked_transaction_id) &&
-              String(existing.notes || "").toLowerCase().includes("imported from"));
-          // Linking a manually entered paycheck never replaces its saved FSA values.
-          if (!existingIsImportedOnly || Number(existing.fsa_health || 0) + Number(existing.fsa_dependent_care || 0) + Number(existing.fsa_limited_purpose || 0) > 0) {
-            patch.fsa_health = Number(existing.fsa_health || 0);
-            patch.fsa_dependent_care = Number(existing.fsa_dependent_care || 0);
-            patch.fsa_limited_purpose = Number(existing.fsa_limited_purpose || 0);
-            patch.pre_tax_deductions = Number(existing.pre_tax_deductions || 0);
-          }
-          if (s.company && (existingIsImportedOnly || !existing.company)) {
-            patch.company = s.company;
-            if (!existing.name) patch.name = s.company;
-          }
-          if (s.source_id && !existing.source_id) patch.source_id = s.source_id;
-          if (s.ui_income_subtype && !existing.ui_income_subtype) {
-            patch.ui_income_subtype = s.ui_income_subtype;
-          }
+          // Manually saved actual paychecks keep every saved financial field;
+          // only raw bank-import rows receive Planner payroll enrichment.
+          const patch = buildConfirmMatchPatch({ existing, conversionId, plannerFields, stream: s });
           // Never overwrite an existing non-zero deposited_amount with the
           // planner gross. Only backfill when the imported row has no bank
           // deposit recorded yet.
